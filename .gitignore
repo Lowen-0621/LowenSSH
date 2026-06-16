@@ -1,0 +1,14 @@
+target/
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 本地密钥/环境变量文件，绝不提交
+.env
+*.local
+
+# Mac
+.DS_Store
