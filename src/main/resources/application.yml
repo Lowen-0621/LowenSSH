@@ -38,6 +38,20 @@ logging:
   level:
     org.springframework.ai: INFO
 
+# 上下文管理（M3）：防止多轮 loop 把模型上下文撑爆
+# 联调验证压缩逻辑时把阈值调小即可快速触发：
+#   tool-result-max-chars 调到 2000、max-context-tokens 调到 2000
+xwssh:
+  context:
+    # Layer 0：单条工具结果回灌给模型的最大字符数，超出截掉中段（完整内容仍存 t_message）
+    tool-result-max-chars: 8000
+    # Layer 4：整段上下文估算 token 超此值触发 LLM 压缩历史
+    max-context-tokens: 32000
+    # Layer 4：压缩时保留最近多少条消息原文（不进摘要）
+    keep-recent-messages: 6
+    # Layer 4：摘要 LLM 连续失败达此次数后熔断，停止压缩裸跑兜底
+    circuit-limit: 3
+
 # MyBatis-Plus：开发期打印 SQL 方便调试
 mybatis-plus:
   configuration:

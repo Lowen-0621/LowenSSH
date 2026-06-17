@@ -10,5 +10,15 @@ target/
 .env
 *.local
 
+# 本地开发产物：会话交接笔记、本地 AI 工具配置，不进公开仓库
+.claude/
+.gstack/
+
 # Mac
 .DS_Store
+
+# 前端
+frontend/node_modules/
+frontend/dist/
+# 构建产物：前端 build 会输出到此，不提交（由 CI/本地构建生成）
+src/main/resources/static/

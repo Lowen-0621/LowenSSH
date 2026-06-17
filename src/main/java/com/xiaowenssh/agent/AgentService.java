@@ -68,16 +68,19 @@ public class AgentService {
     private final CommandGuard guard;
     private final AuditService auditService;
     private final MessageService messageService;
+    private final ContextManager contextManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // OpenAiChatModel 和 ToolCallingManager 都由 starter 自动配置好，直接注入
     public AgentService(OpenAiChatModel chatModel, ToolCallingManager toolCallingManager,
-                        CommandGuard guard, AuditService auditService, MessageService messageService) {
+                        CommandGuard guard, AuditService auditService, MessageService messageService,
+                        ContextManager contextManager) {
         this.chatModel = chatModel;
         this.toolCallingManager = toolCallingManager;
         this.guard = guard;
         this.auditService = auditService;
         this.messageService = messageService;
+        this.contextManager = contextManager;
     }
 
     /**
@@ -104,6 +107,10 @@ public class AgentService {
         messageService.saveUser(sessionId, task);   // 落用户任务
 
         for (int round = 1; round <= MAX_ROUNDS; round++) {
+            // 进模型前整理上下文：Layer 0 截断大工具结果 + Layer 4 历史超阈值则压缩
+            messages = contextManager.truncateToolResponses(messages);
+            messages = contextManager.compressIfNeeded(messages);
+
             Prompt prompt = new Prompt(messages, options);
             ChatResponse response = chatModel.call(prompt);
 
@@ -174,6 +181,10 @@ public class AgentService {
                 messageService.saveUser(sessionId, task);   // 落用户任务
 
                 for (int round = 1; round <= MAX_ROUNDS; round++) {
+                    // 进模型前整理上下文：Layer 0 截断大工具结果 + Layer 4 历史超阈值则压缩
+                    messages = contextManager.truncateToolResponses(messages);
+                    messages = contextManager.compressIfNeeded(messages);
+
                     Prompt prompt = new Prompt(messages, options);
 
                     // 边推 token、边聚合：aggregate 透传原始 chunk 流，流结束时回调给出完整 ChatResponse
