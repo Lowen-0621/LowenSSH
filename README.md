@@ -21,7 +21,21 @@ AI 驱动的 SSH 智能运维 Agent。给它一个运维目标和一台服务器
 
 ## 快速开始
 
-### 1. 准备环境变量
+### 方式一：Docker 一键启动（推荐）
+
+需要 Docker。两个密钥走环境变量，不写进任何文件：
+
+```bash
+export MYSQL_PASSWORD='给MySQL容器设的root密码'
+export GLM_API_KEY='你的智谱AI key'      # https://open.bigmodel.cn 申请
+docker compose up --build
+```
+
+compose 会自动起 MySQL（建库 + 执行 schema.sql 建表）、构建前后端、等 DB 就绪后启动应用。访问 http://localhost:8081 即可。
+
+### 方式二：本地手动启动
+
+#### 1. 准备环境变量
 
 应用读取两个环境变量，源码里不含任何明文密钥：
 
@@ -32,7 +46,7 @@ export GLM_API_KEY='你的智谱AI key'      # https://open.bigmodel.cn 申请
 
 > 不设这两个变量，启动会因连不上 MySQL（500）或鉴权失败（401）而报错。
 
-### 2. 初始化数据库
+#### 2. 初始化数据库
 
 先建库,再执行建表脚本:
 
@@ -41,7 +55,7 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS xiaowenssh DEFAULT CHARSET ut
 mysql -u root -p xiaowenssh < src/main/resources/schema.sql
 ```
 
-### 3. 构建前端
+#### 3. 构建前端
 
 ```bash
 cd frontend
@@ -49,7 +63,7 @@ npm install
 npm run build      # 产物输出到 ../src/main/resources/static/，由后端直接托管
 ```
 
-### 4. 启动后端
+#### 4. 启动后端
 
 ```bash
 mvn spring-boot:run

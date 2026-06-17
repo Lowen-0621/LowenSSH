@@ -1,0 +1,22 @@
+# 构建产物 / 依赖（容器内重新生成）
+target/
+frontend/node_modules/
+frontend/dist/
+src/main/resources/static/
+
+# 版本控制 / IDE
+.git/
+.gitignore
+.idea/
+*.iml
+
+# 本地笔记 / 密钥
+.claude/
+.gstack/
+.env
+*.local
+
+# 文档（不进镜像）
+*.md
+DESIGN.md
+.DS_Store
