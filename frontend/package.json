@@ -1,5 +1,5 @@
 {
-  "name": "xiaowenssh-frontend",
+  "name": "lowenssh-frontend",
   "version": "1.0.0",
   "description": "XiaowenSSH AI SSH 智能运维 Agent 前端：图形版 + 终端版双界面",
   "private": true,
@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dompurify": "^3.4.11",
+    "marked": "^18.0.5",
     "vue": "^3.5.13",
     "vue-router": "^4.5.0"
   },

@@ -11,10 +11,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.xiaowenssh</groupId>
-    <artifactId>xiaowenssh</artifactId>
+    <groupId>com.lowenssh</groupId>
+    <artifactId>lowenssh</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>xiaowenssh</name>
+    <name>lowenssh</name>
     <description>AI SSH 智能运维 Agent</description>
 
     <properties>

@@ -1,4 +1,4 @@
-# XiaowenSSH 本地一键启动
+# LowenSSH 本地一键启动
 # 用法：先 export MYSQL_PASSWORD 和 GLM_API_KEY，再 docker compose up
 services:
   mysql:

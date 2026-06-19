@@ -4,7 +4,7 @@ server:
 
 spring:
   application:
-    name: xiaowenssh
+    name: lowenssh
 
   # 本机 MySQL，库 xiaowenssh 已建，密码走环境变量 MYSQL_PASSWORD
   datasource:
@@ -43,6 +43,12 @@ logging:
 # 联调验证压缩逻辑时把阈值调小即可快速触发：
 #   tool-result-max-chars 调到 2000、max-context-tokens 调到 2000
 xwssh:
+  agent:
+    # agentic loop 最大循环轮数，防模型反复调工具停不下来。复杂运维任务步骤多，给足空间
+    max-rounds: 40
+    # 会话空闲超时（分钟）：超过这么久没活动的常驻 SSH 连接会被定时回收，防连接泄漏。
+    # 设 120（2h）让演示/续聊期间基本不会中途断；断了也能点"新会话"用同样信息秒重连。
+    session-idle-timeout-minutes: 120
   context:
     # Layer 0：单条工具结果回灌给模型的最大字符数，超出截掉中段（完整内容仍存 t_message）
     tool-result-max-chars: 8000
