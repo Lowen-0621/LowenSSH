@@ -48,7 +48,7 @@ onMounted(loadSessions)
         <div class="brand">
           <span class="brand-mark">▢</span>
           <span class="brand-name">LowenSSH</span>
-          <span class="brand-sub">{{ conn.host ? `${conn.user}@${conn.host}` : 'AI 运维 Agent' }}</span>
+          <span class="brand-sub">{{ conn.host ? `${conn.user}@${conn.host}` : 'SSH 智能体' }}</span>
         </div>
       </div>
       <button class="icon-btn" :title="rightCollapsed ? '展开连接' : '收起连接'" @click="toggleRight">

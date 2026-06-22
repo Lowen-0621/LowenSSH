@@ -1,13 +1,39 @@
 <script setup>
 // 图形版消息流：气泡 + 卡片混排（定位「这是个产品」）。
 // 只负责渲染 messages（连接表单挪到右栏 ConnectionPanel，输入框挪到底部 ChatComposer）。
-// 按 6 类事件分别渲染，blocked 视觉权重最重（红边框 + 染底 + 图标）。
-import { ref, nextTick, watch } from 'vue'
+// 命令与输出默认收进「执行了 N 条命令」折叠条，对话主线只见模型说话 + 最终结论。
+import { ref, nextTick, watch, computed } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { useAgentStream } from '@/composables/useAgentStream'
 
 const { messages } = useAgentStream()
+
+// 把扁平 messages 预处理成渲染单元：连续的 tool_call/tool_result 合并成一个 tool_group，
+// 其它类型（模型说话、结论、blocked 等）原样保留。这样对话默认只见模型与结论，
+// 命令和输出收进可展开的折叠条，被模型说话打断则自然分成多组。
+const renderUnits = computed(() => {
+  const units = []
+  let group = null
+  for (const m of messages.value) {
+    if (m.type === 'tool_call' || m.type === 'tool_result') {
+      if (!group) {
+        group = { type: 'tool_group', id: `g-${m.id}`, items: [] }
+        units.push(group)
+      }
+      group.items.push(m)
+    } else {
+      group = null
+      units.push(m)
+    }
+  }
+  return units
+})
+
+// 一组里跑了几条命令（按 tool_call 计）
+function cmdCount(group) {
+  return group.items.filter((m) => m.type === 'tool_call').length
+}
 
 // marked：换行即换行（GFM 风格），更贴合模型输出习惯
 marked.setOptions({ breaks: true, gfm: true })
@@ -101,10 +127,10 @@ function splitLines(body) {
 <template>
   <div ref="streamEl" class="stream">
     <div v-if="messages.length === 0" class="empty">
-      右侧填入目标服务器，底部输入运维任务，看 AI Agent 如何一步步排查。危险命令会被安全门禁拦下。
+      右侧填入目标服务器，底部告诉我你想做什么。我会自己连上去一步步排查、操作，过程中的命令默认折叠，你只看结论。危险命令会被安全门禁拦下。
     </div>
 
-    <template v-for="m in messages" :key="m.id">
+    <template v-for="m in renderUnits" :key="m.id">
       <!-- 用户任务 -->
       <div v-if="m.type === 'user'" class="msg user">
         <div class="bubble">{{ m.task }}</div>
@@ -119,34 +145,46 @@ function splitLines(body) {
         </div>
       </div>
 
-      <!-- 要跑命令：单行紧凑，前缀 $ 像终端 -->
-      <div v-else-if="m.type === 'tool_call'" class="cmd-line">
-        <span class="cmd-prompt">$</span>
-        <code class="cmd-text">{{ prettyArgs(m.args) }}</code>
-      </div>
+      <!-- 一组命令：默认折成一条，点开看每条命令 + 输出 -->
+      <div v-else-if="m.type === 'tool_group'" class="tool-group">
+        <button class="group-toggle" @click="toggleExpand(m.id)">
+          <span class="group-caret">{{ expanded[m.id] ? '▾' : '▸' }}</span>
+          <span class="group-label">执行了 {{ cmdCount(m) }} 条命令</span>
+          <span class="group-hint">{{ expanded[m.id] ? '收起' : '点开查看' }}</span>
+        </button>
+        <div v-if="expanded[m.id]" class="group-body">
+          <template v-for="item in m.items" :key="item.id">
+            <!-- 要跑命令：单行紧凑，前缀 $ 像终端 -->
+            <div v-if="item.type === 'tool_call'" class="cmd-line">
+              <span class="cmd-prompt">$</span>
+              <code class="cmd-text">{{ prettyArgs(item.args) }}</code>
+            </div>
 
-      <!-- 命令结果：退出码徽章 + 输出（长则折叠） -->
-      <div v-else-if="m.type === 'tool_result'" class="result-block">
-        <template v-for="(parsed, _) in [parseResult(m.summary)]" :key="0">
-          <div class="result-meta">
-            <span
-              class="exit-badge"
-              :class="parsed.exitCode === 0 ? 'ok' : (parsed.exitCode == null ? 'muted' : 'bad')"
-            >
-              {{ parsed.exitCode == null ? (m.executed ? '已执行' : '未执行') : `exit ${parsed.exitCode}` }}
-            </span>
-            <span class="result-name">{{ m.name }}</span>
-          </div>
-          <template v-if="parsed.body" v-for="(seg, __) in [splitLines(parsed.body)]" :key="1">
-            <pre v-if="!seg.rest" class="output">{{ seg.head }}</pre>
-            <template v-else>
-              <pre class="output">{{ expanded[m.id] ? parsed.body : seg.head }}</pre>
-              <button class="expand-btn" @click="toggleExpand(m.id)">
-                {{ expanded[m.id] ? '收起' : `展开剩余 ${seg.total - 8} 行` }}
-              </button>
-            </template>
+            <!-- 命令结果：退出码徽章 + 输出（长则折叠） -->
+            <div v-else class="result-block">
+              <template v-for="(parsed, _) in [parseResult(item.summary)]" :key="0">
+                <div class="result-meta">
+                  <span
+                    class="exit-badge"
+                    :class="parsed.exitCode === 0 ? 'ok' : (parsed.exitCode == null ? 'muted' : 'bad')"
+                  >
+                    {{ parsed.exitCode == null ? (item.executed ? '已执行' : '未执行') : `exit ${parsed.exitCode}` }}
+                  </span>
+                  <span class="result-name">{{ item.name }}</span>
+                </div>
+                <template v-if="parsed.body" v-for="(seg, __) in [splitLines(parsed.body)]" :key="1">
+                  <pre v-if="!seg.rest" class="output">{{ seg.head }}</pre>
+                  <template v-else>
+                    <pre class="output">{{ expanded[item.id] ? parsed.body : seg.head }}</pre>
+                    <button class="expand-btn" @click="toggleExpand(item.id)">
+                      {{ expanded[item.id] ? '收起' : `展开剩余 ${seg.total - 8} 行` }}
+                    </button>
+                  </template>
+                </template>
+              </template>
+            </div>
           </template>
-        </template>
+        </div>
       </div>
 
       <!-- 被安全门禁拦截：全场最重 -->
@@ -255,6 +293,36 @@ function splitLines(body) {
   overflow: auto;
 }
 
+/* —— 命令分组折叠条：默认收起，对话主线只见模型与结论 —— */
+.tool-group {
+  align-self: flex-start;
+  width: 100%;
+}
+.group-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+.group-toggle:hover { border-color: var(--tool); color: var(--text); }
+.group-caret { color: var(--tool); font-size: 11px; flex-shrink: 0; }
+.group-label { color: var(--text); font-weight: 500; }
+.group-hint { margin-left: auto; font-size: 12px; color: var(--muted); }
+.group-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-2) 0 0 var(--sp-2);
+}
+
 /* —— 命令调用：单行终端风，视觉权重轻 —— */
 .cmd-line {
   display: flex;
@@ -273,7 +341,6 @@ function splitLines(body) {
 
 /* —— 命令结果：紧贴上一条命令，退出码徽章 + 干净输出 —— */
 .result-block {
-  margin-top: calc(var(--sp-3) * -1 + 2px);  /* 上移贴近对应命令，视觉成组 */
   padding-left: var(--sp-3);
 }
 .result-meta {

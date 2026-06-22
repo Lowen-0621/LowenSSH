@@ -42,7 +42,7 @@ const router = useRouter()
           :disabled="isRunning"
         />
       </label>
-      <p class="hint">填好后在底部输入运维任务即可连接执行。</p>
+      <p class="hint">填好后在底部告诉我你想做什么，我会自己连上去执行。</p>
     </div>
 
     <!-- 续聊 + 连接存活 -->

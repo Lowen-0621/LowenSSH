@@ -52,7 +52,7 @@ function onEnter(e) {
         rows="1"
         :placeholder="broken
           ? '连接已断开，请在右侧开新会话重连'
-          : (hasSession ? '继续追问，例如：那内存呢' : '输入运维任务，例如：看下根分区还剩多少空间')"
+          : (hasSession ? '继续追问，例如：那内存呢' : '告诉我你想做什么，例如：看下根分区还剩多少空间')"
         :disabled="isRunning || broken"
         @keydown.enter="onEnter"
       />
