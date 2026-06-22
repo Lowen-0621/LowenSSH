@@ -24,7 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * 做的精细活，DeepSeek/GLM 场景 ROI 低，不做）：
  *
  *  Layer 0 —— 大工具结果截断：单条工具结果（cat 大文件、tail 海量日志）超阈值就截掉中段，
- *             只留头尾 + 一行截断提示。注意：完整内容我们本来就落了 t_message，
+ *             只留头尾 + 一行截断提示。分级：最近 K 条用大阈值保细节，更早的用小阈值大力收紧，
+ *             让 token 不随轮数线性膨胀。注意：完整内容我们本来就落了 t_message，
  *             截断只作用于"回灌给模型的副本"，落库的仍是完整内容，可还原。
  *
  *  Layer 4 —— 历史压缩：整段 messages 估算 token 超阈值时，把较早的对话丢给 LLM 摘要成一条，
@@ -45,8 +46,10 @@ public class ContextManager {
 
     private final OpenAiChatModel chatModel;
 
-    /** Layer 0：单条工具结果保留的最大字符数，超出截断中段 */
+    /** Layer 0：最近 K 条内的工具结果保留的最大字符数，超出截断中段 */
     private final int toolResultMaxChars;
+    /** Layer 0：更早（保留区之外）的工具结果用更小的阈值，旧命令输出大力收紧——token 不随轮数膨胀 */
+    private final int oldToolResultMaxChars;
     /** Layer 4：整段上下文估算 token 超过此值触发压缩 */
     private final int maxContextTokens;
     /** Layer 4：压缩时保留最近多少条消息原文（不进摘要） */
@@ -60,11 +63,13 @@ public class ContextManager {
     public ContextManager(
             OpenAiChatModel chatModel,
             @Value("${xwssh.context.tool-result-max-chars:8000}") int toolResultMaxChars,
+            @Value("${xwssh.context.old-tool-result-max-chars:800}") int oldToolResultMaxChars,
             @Value("${xwssh.context.max-context-tokens:32000}") int maxContextTokens,
             @Value("${xwssh.context.keep-recent-messages:6}") int keepRecentMessages,
             @Value("${xwssh.context.circuit-limit:3}") int circuitLimit) {
         this.chatModel = chatModel;
         this.toolResultMaxChars = toolResultMaxChars;
+        this.oldToolResultMaxChars = oldToolResultMaxChars;
         this.maxContextTokens = maxContextTokens;
         this.keepRecentMessages = keepRecentMessages;
         this.circuitLimit = circuitLimit;
@@ -76,11 +81,27 @@ public class ContextManager {
      * 对历史里所有工具结果做截断（幂等：已截短的再跑也不变）。
      * 返回新列表，不改原列表。只重建超长的 ToolResponseMessage，其余消息原样保留。
      */
+    /**
+     * 对历史里所有工具结果做截断（幂等：已截短的再跑也不变）。
+     * 返回新列表，不改原列表。只重建超长的 ToolResponseMessage，其余消息原样保留。
+     *
+     * 分级截断（省 token 核心 + 缓存友好）：
+     *  - 最近 keepRecentMessages 条内的工具结果：用大阈值 toolResultMaxChars，保住当前推理需要的细节；
+     *  - 更早的工具结果：用小阈值 oldToolResultMaxChars 大力收紧——旧命令输出模型已读过、结论已在历史里，
+     *    没必要每轮全量重发。这样 token 不随轮数线性膨胀。
+     *  判定按"距末尾的距离"而非绝对下标：一旦某条进入"旧区"，后续轮次它只会更旧，
+     *  截断结果跨轮稳定 → 不破坏 GLM 上下文缓存前缀。
+     */
     public List<Message> truncateToolResponses(List<Message> messages) {
         List<Message> result = new ArrayList<>(messages.size());
-        for (Message msg : messages) {
+        int size = messages.size();
+        for (int i = 0; i < size; i++) {
+            Message msg = messages.get(i);
             if (msg instanceof ToolResponseMessage trm) {
-                result.add(truncateOne(trm));
+                // 距末尾 keepRecentMessages 条以内算"近"，用大阈值；否则算"旧"，用小阈值
+                boolean recent = (size - i) <= keepRecentMessages;
+                int limit = recent ? toolResultMaxChars : oldToolResultMaxChars;
+                result.add(truncateOne(trm, limit));
             } else {
                 result.add(msg);
             }
@@ -89,12 +110,12 @@ public class ContextManager {
     }
 
     /** 重建一条 ToolResponseMessage：把每个超长的 responseData 截掉中段 */
-    private ToolResponseMessage truncateOne(ToolResponseMessage trm) {
+    private ToolResponseMessage truncateOne(ToolResponseMessage trm, int limit) {
         List<ToolResponseMessage.ToolResponse> truncated = new ArrayList<>();
         for (ToolResponseMessage.ToolResponse resp : trm.getResponses()) {
             String data = resp.responseData();
             truncated.add(new ToolResponseMessage.ToolResponse(
-                    resp.id(), resp.name(), truncateText(data)));
+                    resp.id(), resp.name(), truncateText(data, limit)));
         }
         return ToolResponseMessage.builder().responses(truncated).build();
     }
@@ -103,16 +124,18 @@ public class ContextManager {
     private static final String TRUNCATE_MARKER = "完整结果见 t_message";
 
     /** 截掉中段，保留头 60% / 尾 40%，中间塞一行提示（指向 t_message 取完整内容） */
-    private String truncateText(String text) {
-        if (text == null || text.length() <= toolResultMaxChars) {
+    private String truncateText(String text, int limit) {
+        if (text == null || text.length() <= limit) {
             return text;
         }
-        // 幂等：已经截过的（含哨兵）不再处理，否则头尾+提示可能仍超阈值被反复截
+        // 幂等：已经截过的（含哨兵）不再处理，否则头尾+提示可能仍超阈值被反复截。
+        // 注意：旧区阈值比近区小，一条"近区截断版"挪到旧区后因含哨兵会保持原样，
+        // 不会再按小阈值二次收紧——可接受：避免反复改写历史、保住缓存比再省几百字符更划算。
         if (text.contains(TRUNCATE_MARKER)) {
             return text;
         }
-        int headLen = (int) (toolResultMaxChars * 0.6);
-        int tailLen = toolResultMaxChars - headLen;
+        int headLen = (int) (limit * 0.6);
+        int tailLen = limit - headLen;
         int cut = text.length() - headLen - tailLen;
         String head = text.substring(0, headLen);
         String tail = text.substring(text.length() - tailLen);

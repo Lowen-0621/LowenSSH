@@ -57,8 +57,8 @@ public class AgentService {
     private static final String EXEC_TOOL = "execCommand";
 
     private static final String SYSTEM_PROMPT = """
-            你是 LowenSSH，一个 AI 运维助手，可以通过工具在目标 Linux 服务器上执行命令、读文件、看日志。
-            请根据用户的运维任务，自主决定调用哪些工具、分几步完成，每步拿到结果后判断下一步。
+            你是 LowenSSH，一个 SSH 智能体，可以通过工具在目标 Linux 服务器上执行命令、读文件、看日志。
+            请根据用户的任务，自主决定调用哪些工具、分几步完成，每步拿到结果后判断下一步。
             如果某条命令被安全门禁拒绝执行，请换一个更安全的方式达成目标，不要重复同一条被拒命令。
             完成任务后用中文给出清晰的结论，不要只罗列命令输出。
             """;
@@ -97,7 +97,9 @@ public class AgentService {
     public String run(Long sessionId, String task, SshTools tools, ConfirmationHandler confirmer) {
         ToolCallback[] callbacks = ToolCallbacks.from(tools);
 
-        // 关键：internalToolExecutionEnabled(false) 关掉框架自动执行工具
+        // 关键：internalToolExecutionEnabled(false) 关掉框架自动执行工具。
+        // options 在循环外只构建一次：工具 schema 是 GLM 上下文缓存前缀的一部分，
+        // 若每轮重建导致 schema 序列化抖动，会让缓存前缀失配、整段历史按全价重算。
         OpenAiChatOptions options = OpenAiChatOptions.builder()
                 .toolCallbacks(callbacks)
                 .internalToolExecutionEnabled(false)
@@ -116,6 +118,7 @@ public class AgentService {
 
             Prompt prompt = new Prompt(messages, options);
             ChatResponse response = chatModel.call(prompt);
+            logUsage(response);   // 测缓存命中
 
             // 没有 tool_call 了，模型给出最终结论，结束
             if (!response.hasToolCalls()) {
@@ -173,6 +176,7 @@ public class AgentService {
         Thread worker = new Thread(() -> {
             try {
                 ToolCallback[] callbacks = ToolCallbacks.from(tools);
+                // 同步版同款：循环外构建一次，保住缓存前缀稳定
                 OpenAiChatOptions options = OpenAiChatOptions.builder()
                         .toolCallbacks(callbacks)
                         .internalToolExecutionEnabled(false)
@@ -294,7 +298,62 @@ public class AgentService {
                     }
                 })
                 .blockLast();
-        return aggregatedRef.get();
+        ChatResponse resp = aggregatedRef.get();
+        logUsage(resp);
+        return resp;
+    }
+
+    /**
+     * 打印本轮 token 用量和缓存命中率（省 token 的测量基础）。
+     *
+     * GLM 隐式上下文缓存：命中的 token 按更低价计费，命中数在
+     * usage.prompt_tokens_details.cached_tokens（OpenAI 兼容字段，Spring AI 收进 nativeUsage）。
+     * Spring AI 的标准 Usage 只有 prompt/completion/total，cached 要从 nativeUsage 里挖，
+     * 字段不一定有，全程防御式读取，取不到只打基础值，绝不影响主流程。
+     */
+    private void logUsage(ChatResponse resp) {
+        try {
+            if (resp == null || resp.getMetadata() == null || resp.getMetadata().getUsage() == null) {
+                return;
+            }
+            var usage = resp.getMetadata().getUsage();
+            Integer prompt = usage.getPromptTokens();
+            Integer completion = usage.getCompletionTokens();
+            Integer total = usage.getTotalTokens();
+            long cached = extractCachedTokens(usage.getNativeUsage());
+            String hitRate = (prompt != null && prompt > 0)
+                    ? String.format("%.0f%%", cached * 100.0 / prompt) : "n/a";
+            log.info("token 用量 prompt={} completion={} total={} cached={} 命中率={}",
+                    prompt, completion, total, cached, hitRate);
+        } catch (Exception e) {
+            // 测量失败绝不能拖累主流程
+            log.debug("读取 token 用量失败: {}", e.getMessage());
+        }
+    }
+
+    /** 从 nativeUsage（GLM 返回的原始 usage 对象）里挖 prompt_tokens_details.cached_tokens；挖不到返回 0 */
+    private long extractCachedTokens(Object nativeUsage) {
+        if (nativeUsage == null) {
+            return 0;
+        }
+        try {
+            // nativeUsage 一般是 OpenAI SDK 的 Usage 对象，序列化成树后按字段名取，避免硬依赖具体类型
+            var node = objectMapper.valueToTree(nativeUsage);
+            var details = node.get("promptTokensDetails");
+            if (details == null) {
+                details = node.get("prompt_tokens_details");
+            }
+            if (details == null) {
+                return 0;
+            }
+            var cached = details.get("cachedTokens");
+            if (cached == null) {
+                cached = details.get("cached_tokens");
+            }
+            return cached == null ? 0 : cached.asLong();
+        } catch (Exception e) {
+            return 0;
+        }
     }
 
     /** 从框架执行后的会话历史里抽取本轮工具结果，逐个推 ToolResult 事件 */

@@ -51,7 +51,7 @@ class AgentServiceTest {
     private final AuditService auditService = mock(AuditService.class);
     private final MessageService messageService = mock(MessageService.class);
     // ContextManager 用真实对象但阈值设到永不压缩，截断也不影响这里的短消息
-    private final ContextManager contextManager = new ContextManager(null, 8000, 999999, 6, 3);
+    private final ContextManager contextManager = new ContextManager(null, 8000, 800, 999999, 6, 3);
 
     private final AgentService service = new AgentService(
             chatModel, toolCallingManager, guard, auditService, messageService, contextManager, 15);

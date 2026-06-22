@@ -32,7 +32,8 @@ class ContextManagerTest {
 
     /** 截断不调模型，chatModel 给 null 也能跑 */
     private ContextManager truncator(int maxChars) {
-        return new ContextManager(null, maxChars, 999999, 6, 3);
+        // old 阈值给同值：旧用例只放单条工具结果、位置都在保留区内，走 recent 分支，old 不生效
+        return new ContextManager(null, maxChars, maxChars, 999999, 6, 3);
     }
 
     /** 造一条工具结果消息 */
@@ -89,6 +90,26 @@ class ContextManagerTest {
         assertEquals(toolData(once.get(0)), toolData(twice.get(0)));
     }
 
+    @Test
+    void 旧工具结果用更小阈值收紧() {
+        // 近区大阈值 1000、旧区小阈值 100，keep-recent=2
+        ContextManager cm = new ContextManager(null, 1000, 100, 999999, 2, 3);
+        String big = "X".repeat(900);
+        // 列表：旧工具结果(距末尾4) + 两条占位 + 近工具结果(距末尾1)
+        List<Message> in = List.of(
+                toolMsg("old", "tailLog", big),
+                new UserMessage("中间一"),
+                new UserMessage("中间二"),
+                toolMsg("new", "tailLog", big));
+        List<Message> out = cm.truncateToolResponses(in);
+        String oldData = toolData(out.get(0));
+        String newData = toolData(out.get(3));
+        // 旧的被小阈值截断（含提示且远小于 900）；新的在阈值内不截
+        assertTrue(oldData.contains("已截断"), "旧工具结果应被截断");
+        assertTrue(oldData.length() < 200, "旧工具结果应收紧到小阈值附近");
+        assertEquals(big, newData, "近区工具结果在大阈值内不应被截");
+    }
+
     // ============================ Layer 4：压缩 ============================
 
     /** 造一个会返回固定摘要文本的 mock 模型 */
@@ -114,7 +135,7 @@ class ContextManagerTest {
     @Test
     void 未超阈值不压缩() {
         // 阈值设很大，短历史不该触发压缩
-        ContextManager cm = new ContextManager(mockModel("摘要"), 8000, 999999, 6, 3);
+        ContextManager cm = new ContextManager(mockModel("摘要"), 8000, 800, 999999, 6, 3);
         List<Message> in = longHistory(2);
         List<Message> out = cm.compressIfNeeded(in);
         assertEquals(in.size(), out.size(), "未超阈值应原样返回");
@@ -123,7 +144,7 @@ class ContextManagerTest {
     @Test
     void 超阈值触发压缩且保留system和最近K条() {
         // 阈值调到 100 token，长历史必然超
-        ContextManager cm = new ContextManager(mockModel("【这是早先对话的摘要】"), 8000, 100, 6, 3);
+        ContextManager cm = new ContextManager(mockModel("【这是早先对话的摘要】"), 8000, 800, 100, 6, 3);
         List<Message> in = longHistory(10);   // 1 system + 20 条
         List<Message> out = cm.compressIfNeeded(in);
         assertTrue(out.size() < in.size(), "应被压缩变短");
@@ -151,7 +172,7 @@ class ContextManagerTest {
         msgs.add(toolMsg("c1", "execCommand", "结果"));
 
         // keep-recent=1 会让切割点正好落在 tool_result 上 -> 须前移把 assistant 一起留下
-        ContextManager cm = new ContextManager(mockModel("摘要"), 8000, 50, 1, 3);
+        ContextManager cm = new ContextManager(mockModel("摘要"), 8000, 800, 50, 1, 3);
         List<Message> out = cm.compressIfNeeded(msgs);
 
         // 保留区不能以孤儿 ToolResponseMessage 开头：找到摘要后的第一条原文
@@ -168,7 +189,7 @@ class ContextManagerTest {
         when(failModel.call(any(org.springframework.ai.chat.prompt.Prompt.class)))
                 .thenThrow(new RuntimeException("模型挂了"));
         // circuit-limit=3
-        ContextManager cm = new ContextManager(failModel, 8000, 100, 6, 3);
+        ContextManager cm = new ContextManager(failModel, 8000, 800, 100, 6, 3);
 
         // 前 3 次都会尝试调用并失败
         for (int i = 0; i < 3; i++) {
@@ -187,7 +208,7 @@ class ContextManagerTest {
         OpenAiChatModel failModel = mock(OpenAiChatModel.class);
         when(failModel.call(any(org.springframework.ai.chat.prompt.Prompt.class)))
                 .thenThrow(new RuntimeException("挂了"));
-        ContextManager cm = new ContextManager(failModel, 8000, 100, 6, 3);
+        ContextManager cm = new ContextManager(failModel, 8000, 800, 100, 6, 3);
         List<Message> in = longHistory(10);
         List<Message> out = cm.compressIfNeeded(in);
         // 摘要失败不能丢历史，必须原样返回
