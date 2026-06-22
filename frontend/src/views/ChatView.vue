@@ -2,38 +2,18 @@
 // 图形版消息流：气泡 + 卡片混排（定位「这是个产品」）。
 // 只负责渲染 messages（连接表单挪到右栏 ConnectionPanel，输入框挪到底部 ChatComposer）。
 // 命令与输出默认收进「执行了 N 条命令」折叠条，对话主线只见模型说话 + 最终结论。
-import { ref, nextTick, watch, computed } from 'vue'
+import { ref, nextTick, watch, computed, onMounted } from 'vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { useAgentStream } from '@/composables/useAgentStream'
 
-const { messages } = useAgentStream()
+const { messages, sessionLoadTick } = useAgentStream()
 
-// 把扁平 messages 预处理成渲染单元：连续的 tool_call/tool_result 合并成一个 tool_group，
-// 其它类型（模型说话、结论、blocked 等）原样保留。这样对话默认只见模型与结论，
-// 命令和输出收进可展开的折叠条，被模型说话打断则自然分成多组。
-const renderUnits = computed(() => {
-  const units = []
-  let group = null
-  for (const m of messages.value) {
-    if (m.type === 'tool_call' || m.type === 'tool_result') {
-      if (!group) {
-        group = { type: 'tool_group', id: `g-${m.id}`, items: [] }
-        units.push(group)
-      }
-      group.items.push(m)
-    } else {
-      group = null
-      units.push(m)
-    }
-  }
-  return units
-})
-
-// 一组里跑了几条命令（按 tool_call 计）
-function cmdCount(group) {
-  return group.items.filter((m) => m.type === 'tool_call').length
-}
+// web 对话形式定位「这是个产品」：对话主线只见模型说话 + 最终结论，
+// 命令与输出（tool_call/tool_result）一律不渲染。要看命令执行过程切到终端视图。
+const renderUnits = computed(() =>
+  messages.value.filter((m) => m.type !== 'tool_call' && m.type !== 'tool_result')
+)
 
 // marked：换行即换行（GFM 风格），更贴合模型输出习惯
 marked.setOptions({ breaks: true, gfm: true })
@@ -47,81 +27,73 @@ function renderMd(text) {
 
 const streamEl = ref(null)
 
-// 记录哪些工具结果被用户手动展开了（key 用 message id）
-const expanded = ref({})
-function toggleExpand(id) {
-  expanded.value[id] = !expanded.value[id]
+// 自动滚动：仅当用户当前贴着底部时才跟随，向上翻看不打断。
+// 距底 80px 内算"贴底"——容忍流式追加时的轻微抖动。
+function scrollToBottomIfNear() {
+  const el = streamEl.value
+  if (!el) return
+  const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+  if (nearBottom) el.scrollTop = el.scrollHeight
 }
 
-// 长输出默认只显示前这么多行，其余折叠
-const COLLAPSE_LINES = 8
+// 强制滚到底：切换会话时内容（表格/markdown/代码块）撑开高度会滞后多帧，
+// 长会话甚至几百毫秒后才布局完。固定帧数会停在"还没撑开"的旧高度。
+// 改用「钉底时间窗」：开窗后只要容器高度还在变（ResizeObserver）就重滚，直到稳定。
+const PIN_WINDOW_MS = 800
+let pinUntil = 0
 
-// 新消息进来自动滚到底
+function scrollNow() {
+  const el = streamEl.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+
+// 开启钉底时间窗：立即滚一次，并在窗口期内持续盯高度变化重滚。
+function forceScrollBottom() {
+  scrollNow()
+  pinUntil = Date.now() + PIN_WINDOW_MS
+  // rAF 兜底：即使没有 resize 事件，也连续重滚覆盖渐进布局。
+  const tick = () => {
+    if (!streamEl.value) return
+    scrollNow()
+    if (Date.now() < pinUntil) requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
+}
+
+// 切换会话/重载历史：switchSession 成功回灌后递增 sessionLoadTick，
+// watch 这个数字（而非 messages 引用）100% 可靠触发，不受单例引用相等/mount 时序影响。
+watch(
+  () => sessionLoadTick.value,
+  async () => {
+    await nextTick()
+    forceScrollBottom()
+  }
+)
+
+// 新消息进来：贴底才跟随
 watch(
   () => messages.value.length,
   async () => {
     await nextTick()
-    if (streamEl.value) streamEl.value.scrollTop = streamEl.value.scrollHeight
+    scrollToBottomIfNear()
   }
 )
-// 流式 token 追加时也跟随滚动
+// 流式 token 追加：贴底才跟随
 watch(
   () => messages.value[messages.value.length - 1]?.text,
   async () => {
     await nextTick()
-    if (streamEl.value) streamEl.value.scrollTop = streamEl.value.scrollHeight
+    scrollToBottomIfNear()
   }
 )
 
-// 美化命令参数：tool_call 的 args 是 JSON 字符串，尽量取出 command 字段展示
-function prettyArgs(args) {
-  try {
-    const obj = JSON.parse(args)
-    if (obj.command) return obj.command
-    return JSON.stringify(obj, null, 2)
-  } catch {
-    return args
-  }
-}
-
-// 解析工具结果 summary：后端格式形如 "exitCode=0\nstdout:\n<内容>\nstderr:\n<内容>"
-// 可能被 JSON 序列化带了外层引号和转义。统一拆成 { exitCode, body }，body 是干净的命令输出。
-function parseResult(summary) {
-  if (summary == null) return { exitCode: null, body: '' }
-  let s = String(summary)
-  // 去掉外层字面引号并还原转义。注意：被截断的长结果结尾可能没有配对引号（… 替换掉了），
-  // 所以不依赖 endsWith('"')，只要以 " 开头就尽力反转义；JSON.parse 失败再手工剥引号兜底。
-  if (s.startsWith('"')) {
-    try {
-      s = JSON.parse(s)
-    } catch {
-      // 结尾引号被截断时 JSON.parse 会失败：手工去头引号 + 反转义常见转义符
-      s = s.slice(1).replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"').replace(/\\\\/g, '\\')
-    }
-  }
-  let exitCode = null
-  const m = s.match(/^exitCode=(-?\d+)\s*/)
-  if (m) {
-    exitCode = Number(m[1])
-    s = s.slice(m[0].length)
-  }
-  // 去掉 stdout:/stderr: 这类标签前缀，只留正文；两段都有时用分隔
-  s = s.replace(/^stdout:\s*\n?/i, '').replace(/\nstderr:\s*\n?/i, '\n').trimEnd()
-  return { exitCode, body: s }
-}
-
-// 把正文按折叠规则切分：返回 { head, rest, total }，rest 为空表示无需折叠
-function splitLines(body) {
-  const lines = body.split('\n')
-  if (lines.length <= COLLAPSE_LINES) {
-    return { head: body, rest: '', total: lines.length }
-  }
-  return {
-    head: lines.slice(0, COLLAPSE_LINES).join('\n'),
-    rest: lines.slice(COLLAPSE_LINES).join('\n'),
-    total: lines.length
-  }
-}
+// 首次进入页面：从主机簿点服务器进来时，switchSession 在组件 mount 前
+// 就把 messages 填好了，上面的 watch（无 immediate）不会触发 → 停在顶部。
+// 这里在 mount 后主动钉底一次，覆盖"进入即满"的场景。
+onMounted(async () => {
+  await nextTick()
+  if (messages.value.length > 0) forceScrollBottom()
+})
 </script>
 
 <template>
@@ -136,6 +108,14 @@ function splitLines(body) {
         <div class="bubble">{{ m.task }}</div>
       </div>
 
+      <!-- 模型思考过程：灰色气泡，可折叠，流式实时显示"在想什么" -->
+      <div v-else-if="m.type === 'reasoning'" class="msg assistant">
+        <div class="role">思考</div>
+        <div class="bubble think-bubble">
+          <span class="think-text">{{ m.text }}</span><span v-if="m.streaming" class="caret">▋</span>
+        </div>
+      </div>
+
       <!-- 模型说话 -->
       <div v-else-if="m.type === 'assistant'" class="msg assistant">
         <div class="role">模型</div>
@@ -145,47 +125,7 @@ function splitLines(body) {
         </div>
       </div>
 
-      <!-- 一组命令：默认折成一条，点开看每条命令 + 输出 -->
-      <div v-else-if="m.type === 'tool_group'" class="tool-group">
-        <button class="group-toggle" @click="toggleExpand(m.id)">
-          <span class="group-caret">{{ expanded[m.id] ? '▾' : '▸' }}</span>
-          <span class="group-label">执行了 {{ cmdCount(m) }} 条命令</span>
-          <span class="group-hint">{{ expanded[m.id] ? '收起' : '点开查看' }}</span>
-        </button>
-        <div v-if="expanded[m.id]" class="group-body">
-          <template v-for="item in m.items" :key="item.id">
-            <!-- 要跑命令：单行紧凑，前缀 $ 像终端 -->
-            <div v-if="item.type === 'tool_call'" class="cmd-line">
-              <span class="cmd-prompt">$</span>
-              <code class="cmd-text">{{ prettyArgs(item.args) }}</code>
-            </div>
-
-            <!-- 命令结果：退出码徽章 + 输出（长则折叠） -->
-            <div v-else class="result-block">
-              <template v-for="(parsed, _) in [parseResult(item.summary)]" :key="0">
-                <div class="result-meta">
-                  <span
-                    class="exit-badge"
-                    :class="parsed.exitCode === 0 ? 'ok' : (parsed.exitCode == null ? 'muted' : 'bad')"
-                  >
-                    {{ parsed.exitCode == null ? (item.executed ? '已执行' : '未执行') : `exit ${parsed.exitCode}` }}
-                  </span>
-                  <span class="result-name">{{ item.name }}</span>
-                </div>
-                <template v-if="parsed.body" v-for="(seg, __) in [splitLines(parsed.body)]" :key="1">
-                  <pre v-if="!seg.rest" class="output">{{ seg.head }}</pre>
-                  <template v-else>
-                    <pre class="output">{{ expanded[item.id] ? parsed.body : seg.head }}</pre>
-                    <button class="expand-btn" @click="toggleExpand(item.id)">
-                      {{ expanded[item.id] ? '收起' : `展开剩余 ${seg.total - 8} 行` }}
-                    </button>
-                  </template>
-                </template>
-              </template>
-            </div>
-          </template>
-        </div>
-      </div>
+      <!-- 命令与输出不在对话视图渲染（要看执行过程切终端视图） -->
 
       <!-- 被安全门禁拦截：全场最重 -->
       <div v-else-if="m.type === 'blocked'" class="card blocked-card">
@@ -196,10 +136,10 @@ function splitLines(body) {
         <div class="reason">拦截原因：{{ m.reason }}</div>
       </div>
 
-      <!-- 最终结论 -->
+      <!-- 最终结论：内容已在上方流式气泡显示过时，这里只标记完成、不重复渲染 -->
       <div v-else-if="m.type === 'done'" class="done-block">
         <div class="done-tag"><span class="dot ok" />任务完成</div>
-        <div class="done-text md-body" v-html="renderMd(m.finalText)" />
+        <div v-if="!m.redundant" class="done-text md-body" v-html="renderMd(m.finalText)" />
       </div>
 
       <!-- 错误 -->
@@ -253,6 +193,16 @@ function splitLines(body) {
 }
 .msg.user .bubble { background: var(--model); color: #0d1117; font-weight: 500; }
 .model-bubble { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+/* 思考气泡：弱化为灰色、小字、半透明，与正式回答区分 */
+.think-bubble {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.85;
+}
+.think-text { white-space: pre-wrap; }
 .caret { color: var(--model); animation: blink 1s step-end infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
@@ -292,99 +242,6 @@ function splitLines(body) {
   max-height: 360px;
   overflow: auto;
 }
-
-/* —— 命令分组折叠条：默认收起，对话主线只见模型与结论 —— */
-.tool-group {
-  align-self: flex-start;
-  width: 100%;
-}
-.group-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  width: 100%;
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  color: var(--muted);
-  text-align: left;
-}
-.group-toggle:hover { border-color: var(--tool); color: var(--text); }
-.group-caret { color: var(--tool); font-size: 11px; flex-shrink: 0; }
-.group-label { color: var(--text); font-weight: 500; }
-.group-hint { margin-left: auto; font-size: 12px; color: var(--muted); }
-.group-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
-  padding: var(--sp-2) 0 0 var(--sp-2);
-}
-
-/* —— 命令调用：单行终端风，视觉权重轻 —— */
-.cmd-line {
-  display: flex;
-  align-items: baseline;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--surface-2);
-  border-radius: 6px;
-  border-left: 2px solid var(--tool);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  overflow-x: auto;
-}
-.cmd-prompt { color: var(--tool); font-weight: 700; flex-shrink: 0; }
-.cmd-text { color: var(--text); white-space: pre; }
-
-/* —— 命令结果：紧贴上一条命令，退出码徽章 + 干净输出 —— */
-.result-block {
-  padding-left: var(--sp-3);
-}
-.result-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-1);
-}
-.exit-badge {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 1px 7px;
-  border-radius: 4px;
-  line-height: 1.6;
-}
-.exit-badge.ok { color: var(--ok); background: rgba(63, 185, 80, 0.12); }
-.exit-badge.bad { color: var(--error); background: rgba(248, 81, 73, 0.12); }
-.exit-badge.muted { color: var(--muted); background: var(--surface-2); }
-.result-name { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
-.output {
-  margin: 0;
-  padding: var(--sp-2) var(--sp-3);
-  background: var(--surface-2);
-  border-radius: 6px;
-  font-family: var(--font-mono);
-  font-size: 12.5px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--text-dim, var(--text));
-  max-height: 320px;
-  overflow: auto;
-}
-.expand-btn {
-  margin-top: var(--sp-1);
-  border: none;
-  background: transparent;
-  color: var(--tool);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 0;
-}
-.expand-btn:hover { text-decoration: underline; }
 
 /* —— blocked：全场最重 —— */
 .blocked-card {

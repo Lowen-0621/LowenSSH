@@ -306,7 +306,15 @@ public class AgentService {
                     if (chunk.getResult() == null) {
                         return;
                     }
-                    String t = chunk.getResult().getOutput().getText();
+                    var output = chunk.getResult().getOutput();
+                    // GLM 思考阶段 text 为 null，思考增量在 output.metadata.reasoningContent，
+                    // 单独推 Reasoning 事件，前端实时展示"在想什么"。
+                    Object reasoning = output.getMetadata() == null ? null
+                            : output.getMetadata().get("reasoningContent");
+                    if (reasoning instanceof String rc && !rc.isEmpty()) {
+                        sink.tryEmitNext(new AgentEvent.Reasoning(rc));
+                    }
+                    String t = output.getText();
                     if (t != null && !t.isEmpty()) {
                         sink.tryEmitNext(new AgentEvent.Token(t));
                     }

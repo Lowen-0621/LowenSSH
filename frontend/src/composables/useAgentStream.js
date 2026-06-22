@@ -35,6 +35,10 @@ const leftCollapsed = ref(false)
 const rightCollapsed = ref(false)
 // 当前会话的常驻连接是否存活：切换旧会话时由后端告知，false 则续聊会断线提示
 const connLive = ref(true)
+// 会话加载信号：每次 switchSession 成功回灌历史就 +1。
+// 视图 watch 这个数字（而非 messages 引用）来触发滚到底——
+// 数字递增的 watch 不受单例引用相等性/mount 时序影响，100% 可靠。
+const sessionLoadTick = ref(0)
 // 连接 + 任务参数（两视图共享；密码只在内存，不持久化）
 const conn = reactive({
   host: '',
@@ -58,9 +62,29 @@ export function useAgentStream() {
     return ++seq
   }
 
-  // 把一条事件并入 messages；token 合并进上一条 assistant 流式消息
+  // 把一条事件并入 messages；token / reasoning 各自合并进上一条同类流式消息
   function pushEvent(type, payload) {
+    if (type === 'reasoning') {
+      const last = messages.value[messages.value.length - 1]
+      if (last && last.type === 'reasoning' && last.streaming) {
+        last.text += payload.text
+        return
+      }
+      messages.value.push({
+        id: nextId(),
+        type: 'reasoning',
+        text: payload.text,
+        streaming: true
+      })
+      return
+    }
+
     if (type === 'token') {
+      // 模型开口吐字 = 思考结束，先把正在流式的思考消息定型
+      const prev = messages.value[messages.value.length - 1]
+      if (prev && prev.type === 'reasoning' && prev.streaming) {
+        prev.streaming = false
+      }
       const last = messages.value[messages.value.length - 1]
       if (last && last.type === 'assistant' && last.streaming) {
         // 追加到正在流式输出的助手消息
@@ -77,9 +101,9 @@ export function useAgentStream() {
       return
     }
 
-    // 非 token 事件到来，先把正在流式的助手消息定型（streaming=false）
+    // 非 token/reasoning 事件到来，先把正在流式的 assistant / reasoning 消息定型
     const last = messages.value[messages.value.length - 1]
-    if (last && last.type === 'assistant' && last.streaming) {
+    if (last && (last.type === 'assistant' || last.type === 'reasoning') && last.streaming) {
       last.streaming = false
     }
 
@@ -131,6 +155,9 @@ export function useAgentStream() {
       case 'token':
         pushEvent('token', { text: data.text ?? '' })
         break
+      case 'reasoning':
+        pushEvent('reasoning', { text: data.text ?? '' })
+        break
       case 'tool_call':
         pushEvent('tool_call', { name: data.name, args: data.args })
         break
@@ -144,10 +171,17 @@ export function useAgentStream() {
       case 'blocked':
         pushEvent('blocked', { command: data.command, reason: data.reason })
         break
-      case 'done':
-        pushEvent('done', { finalText: data.finalText })
+      case 'done': {
+        // done 的 finalText 通常等于最后一条流式助手气泡的内容。
+        // 两处都渲染会出现"同一段 markdown 显示两遍"，故重复时 done 只做完成标记。
+        const last = messages.value[messages.value.length - 1]
+        const lastText = last && last.type === 'assistant' ? last.text || '' : ''
+        const ft = data.finalText || ''
+        const redundant = ft.trim() !== '' && ft.trim() === lastText.trim()
+        pushEvent('done', { finalText: ft, redundant })
         status.value = 'done'
         break
+      }
       case 'error':
         pushEvent('error', { message: data.message })
         status.value = 'error'
@@ -393,6 +427,7 @@ export function useAgentStream() {
       conn.task = ''
       messages.value = historyToMessages(detail.messages)
       status.value = 'idle'
+      sessionLoadTick.value++   // 通知视图：历史已回灌，该滚到底
     } catch (e) {
       messages.value = [{ id: nextId(), type: 'error', message: `加载会话失败: ${e.message}` }]
     }
@@ -415,6 +450,8 @@ export function useAgentStream() {
     const last = messages.value[messages.value.length - 1]
     // 最后一条是流式 assistant 且已有文字 = 正在说话，不算思考
     if (last && last.type === 'assistant' && last.streaming && last.text) return false
+    // 最后一条是流式 reasoning = 思考气泡已在实时展示思考内容，不再叠加占位
+    if (last && last.type === 'reasoning' && last.streaming) return false
     return true
   })
 
@@ -428,7 +465,7 @@ export function useAgentStream() {
 
   return {
     messages, status, isRunning, hasSession, conn, run, stop, newSession,
-    sessions, loadSessions, switchSession, activeSessionId, connLive,
+    sessions, loadSessions, switchSession, activeSessionId, connLive, sessionLoadTick,
     isThinking, leftCollapsed, rightCollapsed, toggleLeft, toggleRight,
     hosts, loadHosts, createHost, deleteHost, enterHost, leaveHost,
     hasHost, activeHostId

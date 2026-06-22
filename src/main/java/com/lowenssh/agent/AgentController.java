@@ -95,7 +95,7 @@ public class AgentController {
 
         // 先建会话拿 id：审计要 session_id 关联
         SessionEntity session = new SessionEntity();
-        session.setTitle(req.task());
+        session.setTitle(SessionManager.toTitle(req.task()));
         session.setSshHost(req.host());
         session.setSshPort(port);
         session.setSshUser(req.user());
@@ -131,16 +131,21 @@ public class AgentController {
         boolean firstTurn = req.sessionId() == null;
 
         if (firstTurn) {
-            // 首轮：复用进主机时建好的预连接；没有（curl 直连）则现连一次。再落库建会话行（title=任务）。
+            // 首轮：复用进主机时建好的预连接；没有（curl 直连）则现连一次。再落库建会话行（title=任务摘要）。
             int port = req.port() == 0 ? 22 : req.port();
             try {
                 live = sessionManager.getByHost(req.hostId());
                 if (live == null) {
                     live = sessionManager.connectHost(req.hostId(), req.host(), port, req.user(), req.password());
                 }
-                sessionManager.attachSession(live, req.task());
             } catch (Exception e) {
                 return Flux.just(sse(new AgentEvent.Error("SSH 连接失败: " + e.getMessage())));
+            }
+            // 落库与连接分开归类：落库失败不能误报成连接失败，否则排查方向全错
+            try {
+                sessionManager.attachSession(live, req.task());
+            } catch (Exception e) {
+                return Flux.just(sse(new AgentEvent.Error("创建会话失败: " + e.getMessage())));
             }
         } else {
             // 续聊：取常驻连接；不存在/已过期则提示前端重连

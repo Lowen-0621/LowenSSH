@@ -18,6 +18,9 @@ public sealed interface AgentEvent {
     /** 模型增量输出的一段文本 token */
     record Token(String text) implements AgentEvent {}
 
+    /** 模型的思考过程增量（GLM reasoning_content），前端实时展示"在想什么" */
+    record Reasoning(String text) implements AgentEvent {}
+
     /** 模型决定调用某个工具 */
     record ToolCall(String name, String args) implements AgentEvent {}
 
@@ -40,6 +43,7 @@ public sealed interface AgentEvent {
     default String type() {
         if (this instanceof SessionReady) return "session_ready";
         if (this instanceof Token) return "token";
+        if (this instanceof Reasoning) return "reasoning";
         if (this instanceof ToolCall) return "tool_call";
         if (this instanceof ToolResult) return "tool_result";
         if (this instanceof Blocked) return "blocked";

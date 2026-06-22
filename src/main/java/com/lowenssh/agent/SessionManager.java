@@ -147,7 +147,7 @@ public class SessionManager {
     public Long attachSession(LiveSession live, String task) {
         SessionEntity session = new SessionEntity();
         session.setHostId(live.hostId);
-        session.setTitle(task);
+        session.setTitle(toTitle(task));  // 标题是会话名摘要，截断防超列长（title VARCHAR(255)）
         session.setSshHost(live.host);
         session.setSshPort(live.port);
         session.setSshUser(live.user);
@@ -161,6 +161,16 @@ public class SessionManager {
         bySession.put(sessionId, live);
         log.info("会话已绑定 sessionId={} hostId={} 当前活跃会话数={}", sessionId, live.hostId, bySession.size());
         return sessionId;
+    }
+
+    /** 任务文本压成会话标题：取首行、超 40 字截断加省略号，远小于 title 列上限避免落库截断报错 */
+    public static String toTitle(String task) {
+        if (task == null) return "新会话";
+        String t = task.strip();
+        int nl = t.indexOf('\n');
+        if (nl >= 0) t = t.substring(0, nl).strip();
+        if (t.isEmpty()) return "新会话";
+        return t.length() > 40 ? t.substring(0, 40) + "…" : t;
     }
 
     /**

@@ -37,6 +37,11 @@ function command(args) {
         <span class="task-text"> {{ m.task }}</span>
       </div>
 
+      <!-- 模型思考过程：更暗的注释行，与正式推理区分 -->
+      <div v-else-if="m.type === 'reasoning'" class="ln think">
+        <span class="hash"># 思考 </span>{{ m.text }}<span v-if="m.streaming" class="caret">▋</span>
+      </div>
+
       <!-- 模型推理：注释行风格 -->
       <div v-else-if="m.type === 'assistant'" class="ln model">
         <span class="hash"># </span>{{ m.text }}<span v-if="m.streaming" class="caret">▋</span>
@@ -92,6 +97,9 @@ function command(args) {
 
 .ln.model { color: var(--muted); }
 .ln.model .hash { color: var(--model); }
+/* 思考行：比正式推理更暗、半透明，弱化为背景信息 */
+.ln.think { color: var(--muted); opacity: 0.6; font-style: italic; }
+.ln.think .hash { color: var(--muted); }
 .caret { color: var(--model); animation: blink 1s step-end infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
