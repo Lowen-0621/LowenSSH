@@ -131,10 +131,14 @@ public class AgentController {
         boolean firstTurn = req.sessionId() == null;
 
         if (firstTurn) {
-            // 首轮：建会话 + 连一次 SSH，连接常驻
+            // 首轮：复用进主机时建好的预连接；没有（curl 直连）则现连一次。再落库建会话行（title=任务）。
             int port = req.port() == 0 ? 22 : req.port();
             try {
-                live = sessionManager.open(req.hostId(), req.host(), port, req.user(), req.password(), req.task());
+                live = sessionManager.getByHost(req.hostId());
+                if (live == null) {
+                    live = sessionManager.connectHost(req.hostId(), req.host(), port, req.user(), req.password());
+                }
+                sessionManager.attachSession(live, req.task());
             } catch (Exception e) {
                 return Flux.just(sse(new AgentEvent.Error("SSH 连接失败: " + e.getMessage())));
             }

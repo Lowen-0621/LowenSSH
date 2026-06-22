@@ -334,11 +334,11 @@ export function useAgentStream() {
         body: JSON.stringify({ password: password || null })
       })
       const data = await resp.json().catch(() => ({}))
-      if (!resp.ok || !data.sessionId) {
+      if (!resp.ok || data.error) {
         return { ok: false, error: data.error || `连接失败 (HTTP ${resp.status})` }
       }
       currentHostId = host.id
-      currentSessionId = data.sessionId
+      currentSessionId = null  // 会话行延迟到首条任务才建（lazy create），进主机不预建
       connLive.value = true
       conn.host = host.host
       conn.port = host.port || 22

@@ -18,16 +18,19 @@ import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * 会话管理器 —— 支撑多轮对话的「连接常驻」：
- * 首轮建会话时连一次 SSH，把连接挂在会话上常驻，后续轮复用同一连接（保留 cd 等上下文），
- * 会话结束或超时无活动才关闭。
+ * 进主机时连一次 SSH，把连接挂成「预连接」常驻，首条任务到来才落库建会话行（lazy create），
+ * 后续轮复用同一连接（保留 cd 等上下文），会话结束或超时无活动才关闭。
  *
- * 为什么要它：原设计是「一个 task = 连一次 SSH 跑完即关」，无法多轮。把 SSH 连接的
- * 生命周期从「单次请求」提升到「整个会话」，多轮对话才能复用连接、接续上下文。
+ * 为什么 lazy create：进主机就建会话行会堆出一堆没消息、没标题的空会话。改成
+ * 「进主机只连不落库，首条任务才落库（title=任务）」，标题和消息天然落在同一个 sessionId 上。
  *
- * 并发：SshClient 非线程安全。每个 LiveSession 自带一把锁，同一会话的多个请求串行执行，
- * 避免命令在同一 channel 上交叉。
+ * 两张表：
+ *   byHost   —— 进主机建的预连接（hostId→连接），还没发首条任务，sessionId 仍为 null。
+ *   bySession —— 首条任务 attach 后的正式会话（sessionId→连接），续聊按它查。
+ * 一条预连接首条任务后从 byHost 移出、登记进 bySession，不会同时在两张表里。
  *
- * 连接泄漏防护：常驻连接若只开不关会越积越多。@Scheduled 定时扫描，关掉超时无活动的会话。
+ * 并发：SshClient 非线程安全。每个 LiveSession 自带一把锁，同一会话的多个请求串行执行。
+ * 连接泄漏防护：@Scheduled 定时扫两张表，关掉超时无活动的连接。
  */
 @Component
 public class SessionManager {
@@ -39,8 +42,11 @@ public class SessionManager {
     /** 会话空闲超时（分钟）：超过这么久没活动的连接会被定时任务回收 */
     private final long idleTimeoutMinutes;
 
-    /** sessionId -> 活跃会话（含常驻 SSH 连接） */
-    private final Map<Long, LiveSession> sessions = new ConcurrentHashMap<>();
+    /** hostId -> 进主机时建的预连接（已连 SSH、未发首条任务）。首条任务 attach 后移出。 */
+    private final Map<Long, LiveSession> byHost = new ConcurrentHashMap<>();
+
+    /** sessionId -> 已绑定会话的活连接，续聊按它查。 */
+    private final Map<Long, LiveSession> bySession = new ConcurrentHashMap<>();
 
     public SessionManager(SessionMapper sessionMapper,
                           @Value("${xwssh.agent.session-idle-timeout-minutes:30}") long idleTimeoutMinutes) {
@@ -49,19 +55,25 @@ public class SessionManager {
     }
 
     /**
-     * 一个活跃会话：常驻 SSH 连接 + 锁 + 最后活跃时间。
+     * 一个活跃连接：SSH 连接 + 锁 + 最后活跃时间 + 建连时的连接信息（attach 落库要用）。
+     * sessionId 未绑定会话前为 null（进主机已连，但还没发首条任务）。
      * lock 保证同一会话的请求串行（SshClient 非线程安全）。
      */
     public static class LiveSession {
-        final Long sessionId;
-        final Long hostId;       // 所属主机，connect 时按它复用活会话
+        volatile Long sessionId;   // 首条任务 attach 后回填
+        final Long hostId;         // 所属主机，进主机按它复用预连接
+        final String host;
+        final int port;
+        final String user;
         final SshClient ssh;
         final ReentrantLock lock = new ReentrantLock();
         volatile Instant lastActiveAt = Instant.now();
 
-        LiveSession(Long sessionId, Long hostId, SshClient ssh) {
-            this.sessionId = sessionId;
+        LiveSession(Long hostId, String host, int port, String user, SshClient ssh) {
             this.hostId = hostId;
+            this.host = host;
+            this.port = port;
+            this.user = user;
             this.ssh = ssh;
         }
 
@@ -87,20 +99,19 @@ public class SessionManager {
     }
 
     /**
-     * 首轮：建会话（落库拿 id）+ 连一次 SSH + 挂进常驻表。
-     * 连接失败会抛异常，调用方负责转成 error 事件。
+     * 进主机：复用该主机的预连接（若仍连通），否则连一次 SSH 建预连接。不落库。
+     * 真正的会话行延迟到首条任务 attachSession 时才插，避免堆空会话。
+     * hostId 为 null（curl 直连调试）时不进 byHost，连完直接返回。
+     * 连接失败抛异常，调用方转成 error 事件。
      */
-    public LiveSession open(Long hostId, String host, int port, String user, String password, String task) throws Exception {
-        // 先落库拿 sessionId（审计/历史都按它关联）
-        SessionEntity session = new SessionEntity();
-        session.setHostId(hostId);
-        session.setTitle(task);
-        session.setSshHost(host);
-        session.setSshPort(port);
-        session.setSshUser(user);
-        sessionMapper.insert(session);
-        Long sessionId = session.getId();
-
+    public LiveSession connectHost(Long hostId, String host, int port, String user, String password) throws Exception {
+        if (hostId != null) {
+            LiveSession existing = byHost.get(hostId);
+            if (existing != null && existing.ssh.isConnected()) {
+                existing.touch();
+                return existing;  // 复用该主机现有预连接
+            }
+        }
         SshClient ssh = new SshClient();
         try {
             ssh.connect(host, port, user, password);
@@ -108,42 +119,56 @@ public class SessionManager {
             ssh.close();
             throw e;
         }
-
-        LiveSession live = new LiveSession(sessionId, hostId, ssh);
-        sessions.put(sessionId, live);
-        log.info("会话已建立 sessionId={} hostId={} host={} 当前活跃会话数={}", sessionId, hostId, host, sessions.size());
+        LiveSession live = new LiveSession(hostId, host, port, user, ssh);
+        if (hostId != null) {
+            byHost.put(hostId, live);
+        }
+        log.info("预连接已建立 hostId={} host={}", hostId, host);
         return live;
     }
 
-    /**
-     * 进入主机时调用：若该主机已有活着的会话直接复用（不堆空会话），否则建一个新空会话并连接。
-     * task 传 null —— connect 阶段只建立连接，标题等首条任务到来时再补。
-     */
-    public LiveSession openForHost(Long hostId, String host, int port, String user, String password) throws Exception {
-        LiveSession existing = findLiveByHost(hostId);
-        if (existing != null) {
-            return existing;  // 复用该主机现有活连接
+    /** 取该主机进主机时建的预连接（尚未发首条任务）；无或已断返回 null。 */
+    public LiveSession getByHost(Long hostId) {
+        if (hostId == null) {
+            return null;
         }
-        return open(hostId, host, port, user, password, null);
-    }
-
-    /** 找某主机下当前活着的会话（连接仍连通），没有返回 null */
-    public LiveSession findLiveByHost(Long hostId) {
-        for (LiveSession live : sessions.values()) {
-            if (hostId.equals(live.hostId) && live.ssh.isConnected()) {
-                live.touch();
-                return live;
-            }
+        LiveSession live = byHost.get(hostId);
+        if (live != null && live.ssh.isConnected()) {
+            live.touch();
+            return live;
         }
         return null;
     }
 
     /**
-     * 续聊：取已有会话的常驻连接。
+     * 首条任务：把预连接升级为正式会话 —— 落库拿 sessionId（title=首条任务），
+     * 回填到 live、移出 byHost、登记进 bySession。返回 sessionId。
+     */
+    public Long attachSession(LiveSession live, String task) {
+        SessionEntity session = new SessionEntity();
+        session.setHostId(live.hostId);
+        session.setTitle(task);
+        session.setSshHost(live.host);
+        session.setSshPort(live.port);
+        session.setSshUser(live.user);
+        sessionMapper.insert(session);
+        Long sessionId = session.getId();
+
+        live.sessionId = sessionId;
+        if (live.hostId != null) {
+            byHost.remove(live.hostId, live);  // 出预连接槽（仅当仍是当前预连接）
+        }
+        bySession.put(sessionId, live);
+        log.info("会话已绑定 sessionId={} hostId={} 当前活跃会话数={}", sessionId, live.hostId, bySession.size());
+        return sessionId;
+    }
+
+    /**
+     * 续聊：取已绑定会话的常驻连接。
      * 返回 null 表示会话不存在或已过期（前端据此提示重新连接）。
      */
     public LiveSession get(Long sessionId) {
-        LiveSession live = sessions.get(sessionId);
+        LiveSession live = bySession.get(sessionId);
         if (live == null) {
             return null;
         }
@@ -159,35 +184,43 @@ public class SessionManager {
 
     /** 关闭并移除一个会话（显式结束 / 连接失效时调用） */
     public void close(Long sessionId) {
-        LiveSession live = sessions.remove(sessionId);
+        LiveSession live = bySession.remove(sessionId);
         if (live != null) {
             live.ssh.close();
-            log.info("会话已关闭 sessionId={} 剩余活跃会话数={}", sessionId, sessions.size());
+            if (live.hostId != null) {
+                byHost.remove(live.hostId, live);
+            }
+            log.info("会话已关闭 sessionId={} 剩余活跃会话数={}", sessionId, bySession.size());
         }
     }
 
-    /** 定时回收超时无活动的会话，防连接泄漏。每 5 分钟扫一次。 */
+    /** 定时回收超时无活动的连接（含从未发任务的预连接），防连接泄漏。每 5 分钟扫一次。 */
     @Scheduled(fixedDelay = 5 * 60 * 1000)
     public void reapIdleSessions() {
         Instant deadline = Instant.now().minus(Duration.ofMinutes(idleTimeoutMinutes));
-        Iterator<Map.Entry<Long, LiveSession>> it = sessions.entrySet().iterator();
+        int reaped = reap(byHost, deadline) + reap(bySession, deadline);
+        if (reaped > 0) {
+            log.info("回收超时连接 {} 个，剩余活跃会话 {} 个", reaped, bySession.size());
+        }
+    }
+
+    /** 扫一张表，关掉超时或已断开的连接 */
+    private int reap(Map<Long, LiveSession> map, Instant deadline) {
+        Iterator<Map.Entry<Long, LiveSession>> it = map.entrySet().iterator();
         int reaped = 0;
         while (it.hasNext()) {
-            Map.Entry<Long, LiveSession> entry = it.next();
-            LiveSession live = entry.getValue();
+            LiveSession live = it.next().getValue();
             if (live.lastActiveAt.isBefore(deadline) || !live.ssh.isConnected()) {
                 live.ssh.close();
                 it.remove();
                 reaped++;
             }
         }
-        if (reaped > 0) {
-            log.info("回收超时会话 {} 个，剩余活跃 {} 个", reaped, sessions.size());
-        }
+        return reaped;
     }
 
     /** 当前活跃会话数（监控/测试用） */
     public int activeCount() {
-        return sessions.size();
+        return bySession.size();
     }
 }

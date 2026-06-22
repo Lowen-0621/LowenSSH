@@ -25,19 +25,20 @@ class SessionManagerTest {
 
     private final SessionMapper sessionMapper = mock(SessionMapper.class);
 
-    /** 反射取出内部 sessions map */
+    /** 反射取出内部 bySession map（已绑定会话的活连接） */
     @SuppressWarnings("unchecked")
     private Map<Long, SessionManager.LiveSession> sessionsOf(SessionManager mgr) throws Exception {
-        Field f = SessionManager.class.getDeclaredField("sessions");
+        Field f = SessionManager.class.getDeclaredField("bySession");
         f.setAccessible(true);
         return (Map<Long, SessionManager.LiveSession>) f.get(mgr);
     }
 
-    /** 造一个挂了 mock SshClient 的 LiveSession 并塞进 manager */
+    /** 造一个挂了 mock SshClient 的 LiveSession（回填 sessionId）并塞进 manager */
     private SshClient injectSession(SessionManager mgr, Long id, boolean connected) throws Exception {
         SshClient ssh = mock(SshClient.class);
         when(ssh.isConnected()).thenReturn(connected);
-        SessionManager.LiveSession live = new SessionManager.LiveSession(id, 1L, ssh);
+        SessionManager.LiveSession live = new SessionManager.LiveSession(1L, "h", 22, "root", ssh);
+        live.sessionId = id;
         sessionsOf(mgr).put(id, live);
         return ssh;
     }

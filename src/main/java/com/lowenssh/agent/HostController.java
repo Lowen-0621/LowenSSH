@@ -73,7 +73,8 @@ public class HostController {
     }
 
     /**
-     * 进入主机：解密密码连一次 SSH（或复用该主机已活会话），返回 sessionId 给前端续聊。
+     * 进入主机：解密密码连一次 SSH（或复用该主机已活预连接），只建连不落库。
+     * 会话行延迟到首条任务才建（lazy create），所以这里返回的 sessionId 恒为 null。
      * 没存密码（迁移出的老主机）则要求前端带 password 进来补连。
      */
     @PostMapping("/api/hosts/{id}/connect")
@@ -98,9 +99,10 @@ public class HostController {
         }
 
         try {
-            SessionManager.LiveSession live = sessionManager.openForHost(
+            sessionManager.connectHost(
                     id, h.getSshHost(), h.getSshPort() == null ? 22 : h.getSshPort(), h.getSshUser(), password);
-            return ResponseEntity.ok(new HostDto.ConnectResult(live.sessionId(), null));
+            // 只建连不落库，sessionId 留给首条任务时 attach；这里回 null 表示「连上了，等首条任务」
+            return ResponseEntity.ok(new HostDto.ConnectResult(null, null));
         } catch (Exception e) {
             return ResponseEntity.status(502).body(new HostDto.ConnectResult(null, "SSH 连接失败: " + e.getMessage()));
         }
