@@ -4,6 +4,8 @@ import App from './App.vue'
 import HostsView from './views/HostsView.vue'
 import ChatView from './views/ChatView.vue'
 import TerminalView from './views/TerminalView.vue'
+import FilesView from './views/FilesView.vue'
+import MonitorView from './views/MonitorView.vue'
 import './styles/global.css'
 
 // 路由：/hosts 主机簿主页（选服务器入口）→ 进入主机后到 /chat 三栏对话页
@@ -14,7 +16,9 @@ const router = createRouter({
     { path: '/', redirect: '/hosts' },
     { path: '/hosts', name: 'hosts', component: HostsView },
     { path: '/chat', name: 'chat', component: ChatView },
-    { path: '/terminal', name: 'terminal', component: TerminalView }
+    { path: '/terminal', name: 'terminal', component: TerminalView },
+    { path: '/files', name: 'files', component: FilesView },
+    { path: '/monitor', name: 'monitor', component: MonitorView }
   ]
 })
 

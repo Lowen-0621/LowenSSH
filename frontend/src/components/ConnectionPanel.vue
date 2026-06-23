@@ -3,13 +3,10 @@
 //  - 首轮（无会话）：完整连接表单 host/port/user/password
 //  - 续聊 + 连接存活：已连接信息条 + 新会话
 //  - 续聊 + 连接已断（超时回收）：断线提示，引导开新会话重连
-// 底部放图形/终端视图切换开关。task 输入在底部 composer，这里不放。
-import { useRoute, useRouter } from 'vue-router'
+// task 输入在底部 composer，这里不放。
 import { useAgentStream } from '@/composables/useAgentStream'
 
 const { conn, isRunning, hasSession, connLive, newSession } = useAgentStream()
-const route = useRoute()
-const router = useRouter()
 </script>
 
 <template>
@@ -68,21 +65,6 @@ const router = useRouter()
       </div>
       <p class="hint">这条会话的 SSH 连接已被回收，无法继续追问。开个新会话重新连接吧。</p>
       <button class="btn-new" :disabled="isRunning" @click="newSession">新会话</button>
-    </div>
-
-    <!-- 视图切换：图形 / 终端 -->
-    <div class="view-switch-wrap">
-      <div class="switch-label">呈现方式</div>
-      <div class="view-switch">
-        <button
-          :class="{ active: route.name === 'chat' }"
-          @click="router.push('/')"
-        >图形</button>
-        <button
-          :class="{ active: route.name === 'terminal' }"
-          @click="router.push('/terminal')"
-        >终端</button>
-      </div>
     </div>
   </div>
 </template>
@@ -171,26 +153,4 @@ const router = useRouter()
 }
 .btn-new:hover:not(:disabled) { border-color: var(--model); }
 .btn-new:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* —— 视图切换 —— */
-.view-switch-wrap { margin-top: auto; padding-top: var(--sp-4); }
-.switch-label { font-size: 12px; color: var(--muted); margin-bottom: var(--sp-2); }
-.view-switch {
-  display: flex;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-}
-.view-switch button {
-  flex: 1;
-  padding: var(--sp-2);
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 13px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.view-switch button.active { background: var(--surface-2); color: var(--text); }
-.view-switch button:hover:not(.active) { color: var(--text); }
 </style>

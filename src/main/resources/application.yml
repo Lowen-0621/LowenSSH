@@ -6,6 +6,12 @@ spring:
   application:
     name: lowenssh
 
+  # SFTP 上传：默认 1MB 太小，运维传包/日志放宽到 100MB
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
   # 本机 MySQL，库 xiaowenssh 已建，密码走环境变量 MYSQL_PASSWORD
   datasource:
     # allowPublicKeyRetrieval：MySQL9 默认 caching_sha2 认证，非SSL连接需开此项取公钥加密密码（本地连接安全）
@@ -38,6 +44,16 @@ spring:
 logging:
   level:
     org.springframework.ai: INFO
+
+# 应用自监控：暴露 health + 关键 metrics 给前端"监控"页读取（仅本机/内网，不鉴权）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
 
 # 上下文管理（M3）：防止多轮 loop 把模型上下文撑爆
 # 联调验证压缩逻辑时把阈值调小即可快速触发：

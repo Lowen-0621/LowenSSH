@@ -157,8 +157,9 @@ public class AgentController {
         }
 
         Long sessionId = live.sessionId();
-        // 每轮新建 SshTools，但底层复用 manager 里同一个常驻 SshClient（保留 cd 等上下文）
-        SshTools tools = new SshTools(live.ssh(), sessionId, auditService, guard);
+        // 每轮新建 SshTools，但底层复用 manager 里同一个常驻 SshClient（保留 cd 等上下文）。
+        // 传 live.lock() 让 SFTP 工具与人工面板/监控串行化，避免抢同一条 Session。
+        SshTools tools = new SshTools(live.ssh(), sessionId, auditService, guard, live.lock());
 
         Flux<ServerSentEvent<AgentEvent>> events = agentService
                 .runStream(sessionId, req.task(), tools, new AutoConfirmationHandler())

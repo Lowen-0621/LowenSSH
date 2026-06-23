@@ -42,6 +42,12 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Actuator：应用自监控（健康检查 + JVM/HTTP 指标），配合 Micrometer 暴露 metrics -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
         <!-- Spring AI：走 OpenAI 兼容协议对接 DeepSeek -->
         <dependency>
             <groupId>org.springframework.ai</groupId>

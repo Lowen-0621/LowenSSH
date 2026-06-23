@@ -22,6 +22,8 @@ const { leftCollapsed, rightCollapsed, toggleLeft, toggleRight, loadSessions, le
 
 // 主机簿页（/hosts）全屏渲染，不套三栏外壳
 const isHostsPage = computed(() => route.name === 'hosts')
+// SFTP / 监控页不需要底部输入框
+const noComposer = computed(() => route.name === 'files' || route.name === 'monitor')
 
 // 返回主机簿：断开当前主机上下文并跳转
 function backToHosts() {
@@ -50,6 +52,12 @@ onMounted(loadSessions)
           <span class="brand-name">LowenSSH</span>
           <span class="brand-sub">{{ conn.host ? `${conn.user}@${conn.host}` : 'SSH 智能体' }}</span>
         </div>
+        <!-- 顶栏功能切换：智能体对话 / SFTP 文件管理 -->
+        <nav class="top-tabs">
+          <button :class="{ active: route.name === 'chat' }" @click="router.push('/chat')">智能体</button>
+          <button :class="{ active: route.name === 'files' }" @click="router.push('/files')">SFTP</button>
+          <button :class="{ active: route.name === 'monitor' }" @click="router.push('/monitor')">监控</button>
+        </nav>
       </div>
       <button class="icon-btn" :title="rightCollapsed ? '展开连接' : '收起连接'" @click="toggleRight">
         <span class="icon-panel" />
@@ -67,7 +75,7 @@ onMounted(loadSessions)
         <div class="main-stream">
           <router-view />
         </div>
-        <ChatComposer />
+        <ChatComposer v-if="!noComposer" />
       </main>
 
       <!-- 右侧连接栏 -->
@@ -122,6 +130,31 @@ onMounted(loadSessions)
 .brand-mark { color: var(--ok); font-size: 18px; }
 .brand-name { font-weight: 600; font-size: 16px; letter-spacing: 0.3px; }
 .brand-sub { color: var(--muted); font-size: 12px; }
+
+/* 顶栏功能切换 tab：智能体 / SFTP */
+.top-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: var(--sp-4);
+  padding: 2px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+.top-tabs button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+}
+.top-tabs button:hover { color: var(--text); }
+.top-tabs button.active {
+  background: var(--bg);
+  color: var(--text);
+}
 
 /* 顶部图标按钮 */
 .icon-btn {
