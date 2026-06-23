@@ -1,16 +1,16 @@
-# XiaowenSSH 本地一键启动
+# LowenSSH 本地一键启动
 # 用法：先 export MYSQL_PASSWORD 和 GLM_API_KEY，再 docker compose up
 services:
   mysql:
     image: mysql:8.4
     environment:
-      # root 密码 + 自动建库 xiaowenssh
+      # root 密码 + 自动建库 lowenssh
       MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD}
-      MYSQL_DATABASE: xiaowenssh
+      MYSQL_DATABASE: lowenssh
     ports:
       - "3306:3306"
     volumes:
-      # 容器首次启动时在 xiaowenssh 库执行建表脚本
+      # 容器首次启动时在 lowenssh 库执行建表脚本
       - ./src/main/resources/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
       - mysql-data:/var/lib/mysql
     healthcheck:

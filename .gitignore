@@ -17,6 +17,9 @@ target/
 # Mac
 .DS_Store
 
+# 远端拉取的服务器日志，不进仓库
+logs/
+
 # 前端
 frontend/node_modules/
 frontend/dist/

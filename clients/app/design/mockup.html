@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LowenSSH — App 端 UI 设计稿</title>
+<style>
+  /* ===== Catppuccin Mocha 配色 ===== */
+  :root {
+    --base: #1e1e2e;       /* 主背景 */
+    --mantle: #181825;     /* 次背景（侧栏） */
+    --crust: #11111b;      /* 最深（状态栏/终端） */
+    --surface0: #313244;   /* 边框/分隔 */
+    --surface1: #45475a;   /* 高亮边框 */
+    --surface2: #585b70;
+    --text: #cdd6f4;       /* 主文字 */
+    --subtext: #a6adc8;    /* 次文字 */
+    --overlay: #6c7086;    /* 暗淡文字 */
+    --blue: #89b4fa;
+    --lavender: #b4befe;
+    --sapphire: #74c7ec;
+    --green: #a6e3a1;
+    --yellow: #f9e2af;
+    --peach: #fab387;
+    --red: #f38ba8;
+    --mauve: #cba6f7;
+    --teal: #94e2d5;
+    --pink: #f5c2e7;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: var(--base);
+    color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  .mono { font-family: "SF Mono", "JetBrains Mono", "Cascadia Code", Consolas, monospace; }
+
+  /* ===== 整体布局：窗口 ===== */
+  .window {
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 38px 1fr 26px;   /* 顶栏 / 主体 / 状态栏 */
+  }
+
+  /* ===== 顶栏 TopBar ===== */
+  .topbar {
+    background: var(--mantle);
+    border-bottom: 1px solid var(--surface0);
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    gap: 12px;
+    -webkit-app-region: drag;
+  }
+  .traffic { display: flex; gap: 8px; margin-right: 6px; }
+  .traffic span { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .traffic .c { background: #ff5f56; }
+  .traffic .m { background: #ffbd2e; }
+  .traffic .g { background: #27c93f; }
+  .logo { font-weight: 700; color: var(--lavender); letter-spacing: .3px; }
+  .logo .glyph { color: var(--blue); }
+  .search {
+    flex: 0 1 280px;
+    background: var(--base);
+    border: 1px solid var(--surface0);
+    border-radius: 6px;
+    padding: 5px 10px;
+    color: var(--subtext);
+    display: flex; align-items: center; gap: 6px;
+    -webkit-app-region: no-drag;
+  }
+  .search .ph { color: var(--overlay); }
+  .topbar-actions { margin-left: auto; display: flex; gap: 6px; -webkit-app-region: no-drag; }
+  .btn {
+    background: var(--surface0);
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    font-size: 12px;
+  }
+  .btn:hover { background: var(--surface1); }
+  .btn.primary { background: var(--blue); color: var(--crust); font-weight: 600; }
+  .btn.primary:hover { background: var(--sapphire); }
+  .btn .ic { font-size: 13px; }
+
+  /* ===== 主体三栏 ===== */
+  .body {
+    display: grid;
+    grid-template-columns: 232px 1fr 300px;
+    overflow: hidden;
+  }
+
+  /* ===== 左栏 ===== */
+  .leftbar {
+    background: var(--mantle);
+    border-right: 1px solid var(--surface0);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .nav-section { padding: 10px 0 4px; }
+  .nav-title {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--overlay);
+    padding: 4px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-title .add { cursor: pointer; color: var(--subtext); font-size: 14px; }
+  .nav-title .add:hover { color: var(--blue); }
+
+  .group-label {
+    padding: 5px 14px 5px 14px;
+    color: var(--subtext);
+    font-size: 11px;
+    display: flex; align-items: center; gap: 6px;
+    cursor: pointer;
+  }
+  .group-label .caret { color: var(--overlay); font-size: 9px; }
+
+  .host-item {
+    padding: 6px 14px 6px 30px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+  }
+  .host-item:hover { background: var(--base); }
+  .host-item.active { background: var(--base); border-left-color: var(--blue); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+  .dot.on { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.off { background: var(--overlay); }
+  .host-name { flex: 1; }
+  .host-name .addr { color: var(--overlay); font-size: 10.5px; }
+  .os-icon { font-size: 12px; }
+
+  .nav-link {
+    padding: 7px 14px;
+    display: flex; align-items: center; gap: 9px;
+    cursor: pointer;
+    color: var(--subtext);
+  }
+  .nav-link:hover { background: var(--base); color: var(--text); }
+  .nav-link .ic { width: 16px; text-align: center; }
+  .nav-link .badge {
+    margin-left: auto; background: var(--surface0);
+    border-radius: 10px; padding: 1px 7px; font-size: 10px; color: var(--subtext);
+  }
+  .nav-divider { height: 1px; background: var(--surface0); margin: 6px 12px; }
+
+  /* ===== 中栏 ===== */
+  .center {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--base);
+  }
+  .center-tabs {
+    display: flex;
+    background: var(--mantle);
+    border-bottom: 1px solid var(--surface0);
+    align-items: center;
+    padding-right: 8px;
+  }
+  .ctab {
+    padding: 8px 16px;
+    color: var(--subtext);
+    cursor: pointer;
+    border-right: 1px solid var(--surface0);
+    display: flex; align-items: center; gap: 7px;
+    font-size: 12px;
+  }
+  .ctab.active { background: var(--base); color: var(--text); }
+  .ctab .close { color: var(--overlay); margin-left: 4px; }
+  .ctab .ic { font-size: 12px; }
+  .split-btn { margin-left: auto; color: var(--subtext); cursor: pointer; padding: 4px 8px; }
+  .split-btn:hover { color: var(--blue); }
+
+  /* 分屏容器：左终端 右AI */
+  .split {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+  }
+  .pane { display: flex; flex-direction: column; overflow: hidden; }
+  .pane-head {
+    padding: 5px 12px;
+    background: var(--mantle);
+    border-bottom: 1px solid var(--surface0);
+    color: var(--overlay);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pane.terminal { border-right: 1px solid var(--surface0); }
+
+  /* 终端 */
+  .term-body {
+    flex: 1;
+    background: var(--crust);
+    padding: 10px 12px;
+    overflow-y: auto;
+    line-height: 1.55;
+    font-size: 12px;
+  }
+  .term-body .prompt { color: var(--green); }
+  .term-body .path { color: var(--blue); }
+  .term-body .out { color: var(--subtext); white-space: pre; }
+  .term-body .warn { color: var(--yellow); }
+  .term-body .cursor {
+    display: inline-block; width: 7px; height: 14px;
+    background: var(--text); vertical-align: middle;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink { 0%,50%{opacity:1} 50.01%,100%{opacity:0} }
+
+  /* AI 对话 */
+  .ai-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .msg { display: flex; flex-direction: column; gap: 4px; }
+  .msg .role { font-size: 10.5px; color: var(--overlay); display: flex; align-items: center; gap: 5px; }
+  .msg.user .bubble {
+    background: var(--surface0); border-radius: 8px 8px 2px 8px;
+    padding: 8px 11px; align-self: flex-end; max-width: 85%;
+  }
+  .msg.user { align-items: flex-end; }
+  .msg .reasoning {
+    color: var(--overlay); font-size: 11.5px; font-style: italic;
+    border-left: 2px solid var(--surface1); padding-left: 9px;
+  }
+  .msg .text { color: var(--text); line-height: 1.5; }
+
+  /* 工具调用卡片 */
+  .tool-card {
+    border: 1px solid var(--surface0);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--mantle);
+  }
+  .tool-head {
+    padding: 6px 10px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11.5px;
+  }
+  .tool-head .name { color: var(--sapphire); font-weight: 600; }
+  .tool-head .status { margin-left: auto; font-size: 10.5px; }
+  .tool-head .status.ok { color: var(--green); }
+  .tool-head .status.run { color: var(--yellow); }
+  .tool-cmd {
+    padding: 7px 10px; background: var(--crust);
+    color: var(--peach); font-size: 11.5px;
+    border-top: 1px solid var(--surface0);
+  }
+  .tool-result {
+    padding: 7px 10px; color: var(--subtext); font-size: 11.5px;
+    border-top: 1px solid var(--surface0); white-space: pre-wrap;
+    max-height: 80px; overflow: hidden;
+  }
+
+  /* 被拦截卡片 */
+  .blocked-card {
+    border: 1px solid var(--red);
+    border-radius: 8px;
+    background: rgba(243,139,168,.08);
+    padding: 8px 11px;
+  }
+  .blocked-card .bh { color: var(--red); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .blocked-card .cmd { color: var(--peach); margin: 5px 0; font-size: 11.5px; }
+  .blocked-card .why { color: var(--subtext); font-size: 11px; }
+
+  /* 确认卡片 ASK */
+  .ask-card {
+    border: 1px solid var(--yellow);
+    border-radius: 8px;
+    background: rgba(249,226,175,.08);
+    padding: 9px 11px;
+  }
+  .ask-card .ah { color: var(--yellow); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .ask-card .cmd { color: var(--peach); margin: 5px 0; font-size: 12px; }
+  .ask-card .why { color: var(--subtext); font-size: 11px; margin-bottom: 8px; }
+  .ask-actions { display: flex; gap: 8px; }
+  .ask-actions .btn { padding: 4px 14px; font-size: 11.5px; }
+  .btn.danger { background: var(--red); color: var(--crust); font-weight: 600; }
+  .btn.ghost { background: transparent; border: 1px solid var(--surface1); }
+
+  /* AI 输入框 */
+  .ai-input {
+    border-top: 1px solid var(--surface0);
+    padding: 10px 12px;
+    background: var(--mantle);
+  }
+  .ai-input .box {
+    background: var(--base); border: 1px solid var(--surface1);
+    border-radius: 8px; padding: 9px 11px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ai-input .box .ph { color: var(--overlay); flex: 1; }
+  .ai-input .send { color: var(--blue); cursor: pointer; }
+  .ai-input .hint { color: var(--overlay); font-size: 10px; margin-top: 6px; display: flex; gap: 14px; }
+
+  /* ===== 右栏 ===== */
+  .rightbar {
+    background: var(--mantle);
+    border-left: 1px solid var(--surface0);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .right-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--surface0);
+  }
+  .rtab {
+    flex: 1; text-align: center; padding: 9px 4px;
+    color: var(--subtext); cursor: pointer; font-size: 11.5px;
+    border-bottom: 2px solid transparent;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .rtab.active { color: var(--text); border-bottom-color: var(--blue); }
+  .right-body { flex: 1; overflow-y: auto; padding: 12px; }
+
+  /* 安全策略面板 */
+  .sec-summary { display: flex; gap: 8px; margin-bottom: 14px; }
+  .sec-stat {
+    flex: 1; text-align: center; padding: 9px 4px;
+    border-radius: 8px; border: 1px solid var(--surface0);
+  }
+  .sec-stat .num { font-size: 19px; font-weight: 700; }
+  .sec-stat .lbl { font-size: 10px; color: var(--overlay); margin-top: 2px; }
+  .sec-stat.deny .num { color: var(--red); }
+  .sec-stat.ask .num { color: var(--yellow); }
+  .sec-stat.allow .num { color: var(--green); }
+
+  .panel-title {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--overlay); margin: 14px 0 8px;
+  }
+  .rule {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border-radius: 6px; margin-bottom: 4px;
+    background: var(--base);
+  }
+  .tag {
+    font-size: 9.5px; font-weight: 700; padding: 2px 7px;
+    border-radius: 4px; text-transform: uppercase; letter-spacing: .5px;
+  }
+  .tag.deny { background: rgba(243,139,168,.18); color: var(--red); }
+  .tag.ask { background: rgba(249,226,175,.18); color: var(--yellow); }
+  .tag.allow { background: rgba(166,227,161,.18); color: var(--green); }
+  .rule .pat { flex: 1; font-size: 11px; color: var(--subtext); }
+  .rule .hits { font-size: 10px; color: var(--overlay); }
+
+  .log-item {
+    padding: 7px 9px; border-radius: 6px; margin-bottom: 5px;
+    background: var(--base); border-left: 2px solid var(--red);
+  }
+  .log-item .lcmd { color: var(--peach); font-size: 11px; }
+  .log-item .lmeta { color: var(--overlay); font-size: 10px; margin-top: 3px; display: flex; justify-content: space-between; }
+  .log-item .release { color: var(--blue); cursor: pointer; }
+
+  /* SFTP 文件面板（次要展示，先放占位） */
+  .file-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 6px; border-radius: 5px; cursor: pointer; font-size: 12px;
+  }
+  .file-row:hover { background: var(--base); }
+  .file-row .fic { width: 16px; text-align: center; }
+  .file-row .fname { flex: 1; }
+  .file-row .perm { color: var(--overlay); font-size: 10px; }
+  .file-row.dir .fname { color: var(--blue); }
+
+  /* ===== SFTP 双栏文件管理器（中栏完整视图） ===== */
+  .sftp-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .sftp-toolbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; background: var(--mantle);
+    border-bottom: 1px solid var(--surface0);
+  }
+  .path-bar {
+    flex: 1; display: flex; align-items: center; gap: 8px;
+    background: var(--base); border: 1px solid var(--surface0);
+    border-radius: 6px; padding: 5px 10px; font-size: 11.5px; color: var(--subtext);
+  }
+  .path-bar .side { color: var(--overlay); font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+  .path-bar .side.remote { color: var(--blue); }
+  .transfer-ctrl { display: flex; flex-direction: column; gap: 5px; }
+  .transfer-ctrl .arrow {
+    background: var(--surface0); border-radius: 5px; padding: 3px 12px;
+    font-size: 11px; cursor: pointer; color: var(--text); white-space: nowrap;
+  }
+  .transfer-ctrl .arrow:hover { background: var(--blue); color: var(--crust); }
+  .sftp-dual { flex: 1; display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+  .fs-pane { display: flex; flex-direction: column; overflow: hidden; }
+  .fs-pane:first-child { border-right: 1px solid var(--surface0); }
+  .fs-head {
+    padding: 7px 12px; background: var(--mantle); color: var(--subtext);
+    font-size: 11.5px; border-bottom: 1px solid var(--surface0);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .fs-head .fs-host { margin-left: auto; color: var(--green); font-size: 10px; }
+  .fs-list { flex: 1; overflow-y: auto; padding: 6px 8px; }
+  .file-row.uploading { background: rgba(137,180,250,.10); }
+  .file-row.uploading .perm { color: var(--blue); }
+  .sftp-status {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 12px; background: var(--crust); border-top: 1px solid var(--surface0);
+    font-size: 10.5px; color: var(--blue);
+  }
+  .sftp-status .dim { color: var(--overlay); }
+
+  /* 右栏文件面板 */
+  .fbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 8px; background: var(--base); border-radius: 6px;
+    margin-bottom: 8px; font-size: 11px;
+  }
+  .fbar-path { color: var(--subtext); }
+  .fbar-act { color: var(--blue); cursor: pointer; }
+  .fdrop {
+    margin-top: 10px; padding: 16px; text-align: center;
+    border: 1px dashed var(--surface1); border-radius: 8px;
+    color: var(--overlay); font-size: 11px;
+  }
+
+  /* 监控面板 */
+  .metric { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+  .metric .mlbl { width: 48px; font-size: 11px; color: var(--subtext); }
+  .metric .bar { flex: 1; height: 7px; background: var(--base); border-radius: 4px; overflow: hidden; }
+  .metric .bar i { display: block; height: 100%; background: var(--blue); border-radius: 4px; }
+  .metric .bar.warn i { background: var(--red); }
+  .metric .mval { width: 38px; text-align: right; font-size: 11px; color: var(--text); }
+
+  /* ===== 底部状态栏 ===== */
+  .statusbar {
+    background: var(--crust);
+    border-top: 1px solid var(--surface0);
+    display: flex; align-items: center;
+    padding: 0 12px; gap: 16px;
+    font-size: 11px; color: var(--subtext);
+  }
+  .st { display: flex; align-items: center; gap: 6px; }
+  .st .dot { width: 7px; height: 7px; }
+  .st.sep { margin-left: auto; }
+  .st .k { color: var(--overlay); }
+  .st .v { color: var(--text); }
+  .st .v.good { color: var(--green); }
+  .st .v.warn { color: var(--yellow); }
+  .st .v.bad { color: var(--red); }
+
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: var(--surface0); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--surface1); }
+</style>
+</head>
+<body>
+<div class="window">
+
+  <!-- ============ 顶栏 ============ -->
+  <div class="topbar">
+    <div class="traffic"><span class="c"></span><span class="m"></span><span class="g"></span></div>
+    <div class="logo"><span class="glyph">◈</span> LowenSSH</div>
+    <div class="search"><span>🔍</span><span class="ph">搜索主机、命令片段…</span></div>
+    <div class="topbar-actions">
+      <div class="btn primary"><span class="ic">⚡</span> 连接</div>
+      <div class="btn"><span class="ic">＋</span> 新建主机</div>
+      <div class="btn" id="btn-sftp"><span class="ic">📁</span> SFTP</div>
+      <div class="btn"><span class="ic">⛶</span> 分屏</div>
+      <div class="btn"><span class="ic">⚙</span></div>
+    </div>
+  </div>
+
+  <!-- ============ 主体三栏 ============ -->
+  <div class="body">
+
+    <!-- ---- 左栏 ---- -->
+    <div class="leftbar">
+      <div class="nav-section">
+        <div class="nav-title">主机 <span class="add">＋</span></div>
+
+        <div class="group-label"><span class="caret">▾</span> 生产组</div>
+        <div class="host-item active">
+          <span class="dot on"></span>
+          <span class="os-icon">🐧</span>
+          <span class="host-name">web01 <span class="addr">10.0.1.21</span></span>
+        </div>
+        <div class="host-item">
+          <span class="dot on"></span>
+          <span class="os-icon">🐧</span>
+          <span class="host-name">web02 <span class="addr">10.0.1.22</span></span>
+        </div>
+        <div class="host-item">
+          <span class="dot off"></span>
+          <span class="os-icon">🐧</span>
+          <span class="host-name">db01 <span class="addr">10.0.1.30</span></span>
+        </div>
+
+        <div class="group-label"><span class="caret">▾</span> 测试组</div>
+        <div class="host-item">
+          <span class="dot off"></span>
+          <span class="os-icon">🪟</span>
+          <span class="host-name">win-test <span class="addr">10.0.2.5</span></span>
+        </div>
+      </div>
+
+      <div class="nav-divider"></div>
+
+      <div class="nav-link"><span class="ic">🔑</span> 密钥库 <span class="badge">3</span></div>
+      <div class="nav-link"><span class="ic">📋</span> 命令片段 <span class="badge">12</span></div>
+      <div class="nav-link"><span class="ic">🔀</span> 端口转发</div>
+      <div class="nav-link"><span class="ic">🛡️</span> 安全策略</div>
+      <div class="nav-link"><span class="ic">📜</span> 审计日志</div>
+    </div>
+
+    <!-- ---- 中栏：终端 + AI 分屏 ---- -->
+    <div class="center">
+      <div class="center-tabs">
+        <div class="ctab active" data-view="split"><span class="ic">▸</span> web01 <span class="close">✕</span></div>
+        <div class="ctab" data-view="sftp"><span class="ic">📁</span> SFTP · web01 <span class="close">✕</span></div>
+        <div class="ctab"><span class="ic">▸</span> db01 <span class="close">✕</span></div>
+        <div class="split-btn" title="分屏布局">⛶ 终端 + 智能体</div>
+      </div>
+
+      <div class="split" data-pane="split">
+        <!-- 左：真终端 -->
+        <div class="pane terminal">
+          <div class="pane-head"><span>▸</span> 终端 · web01</div>
+          <div class="term-body mono">
+<div><span class="prompt">root@web01</span>:<span class="path">~</span># df -h</div>
+<div class="out">Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        50G   46G  1.5G  <span class="warn">92%</span> /
+tmpfs           3.9G     0  3.9G   0% /dev/shm</div>
+<div><span class="prompt">root@web01</span>:<span class="path">~</span># <span class="out">du -sh /var/log/*</span></div>
+<div class="out">2.1G  /var/log/nginx
+1.8G  /var/log/app
+512M  /var/log/syslog</div>
+<div><span class="prompt">root@web01</span>:<span class="path">~</span># <span class="cursor"></span></div>
+          </div>
+        </div>
+
+        <!-- 右：AI 对话 -->
+        <div class="pane ai">
+          <div class="pane-head"><span>🤖</span> 智能体 · GLM-4.6</div>
+          <div class="ai-body">
+            <div class="msg user">
+              <div class="bubble">web01 磁盘满了，帮我查下哪占的空间，清理掉能删的日志</div>
+            </div>
+
+            <div class="msg">
+              <div class="role">🤖 智能体</div>
+              <div class="reasoning">先看磁盘占用，定位大文件，再判断哪些日志可以安全清理…</div>
+              <div class="text">根目录已用 92%。我先看一下各目录占用情况。</div>
+            </div>
+
+            <div class="tool-card">
+              <div class="tool-head">
+                <span class="ic">⚙</span><span class="name">execCommand</span>
+                <span class="status ok">✓ 已执行</span>
+              </div>
+              <div class="tool-cmd mono">du -sh /var/log/*</div>
+              <div class="tool-result mono">2.1G /var/log/nginx
+1.8G /var/log/app
+512M /var/log/syslog</div>
+            </div>
+
+            <div class="msg">
+              <div class="text">nginx 和 app 日志占了 3.9G。旧的轮转日志可以安全删除，但我要先确认。</div>
+            </div>
+
+            <!-- ASK 态：内联确认 -->
+            <div class="ask-card">
+              <div class="ah">⚠ 需要确认 · 该命令会删除文件</div>
+              <div class="cmd mono">rm -f /var/log/nginx/*.gz /var/log/app/*.1</div>
+              <div class="why">门禁判定：ASK — 匹配规则「rm 删除操作需人工确认」</div>
+              <div class="ask-actions">
+                <div class="btn danger">允许执行</div>
+                <div class="btn ghost">拒绝</div>
+                <div class="btn ghost">总是允许此类</div>
+              </div>
+            </div>
+
+            <!-- DENY 态：被拦截 -->
+            <div class="blocked-card">
+              <div class="bh">⛔ 已拦截 · 高危命令</div>
+              <div class="cmd mono">rm -rf /var --no-preserve-root</div>
+              <div class="why">门禁判定：DENY — 匹配规则「递归删除系统目录」，已阻止执行并回灌模型</div>
+            </div>
+          </div>
+
+          <div class="ai-input">
+            <div class="box">
+              <span class="ph">输入运维任务，或 @ 引用主机…</span>
+              <span class="send mono">↵ 发送</span>
+            </div>
+            <div class="hint mono">
+              <span>⏎ 发送</span><span>⇧⏎ 换行</span><span>Esc 中断</span><span>⌘K 命令面板</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SFTP 双栏文件管理器（默认隐藏，点 SFTP 标签切换） -->
+      <div class="sftp-view" data-pane="sftp" style="display:none">
+        <div class="sftp-toolbar">
+          <div class="path-bar"><span class="side">本地</span><span class="mono">~/Downloads</span></div>
+          <div class="transfer-ctrl">
+            <span class="arrow" title="上传到远程">⬆ 上传</span>
+            <span class="arrow" title="下载到本地">⬇ 下载</span>
+          </div>
+          <div class="path-bar"><span class="side remote">远程 · web01</span><span class="mono">/var/www</span></div>
+        </div>
+        <div class="sftp-dual">
+          <!-- 本地 -->
+          <div class="fs-pane">
+            <div class="fs-head mono">📂 ~/Downloads</div>
+            <div class="fs-list">
+              <div class="file-row dir"><span class="fic">📁</span><span class="fname">..</span></div>
+              <div class="file-row dir"><span class="fic">📁</span><span class="fname">project</span><span class="perm">drwxr-xr-x</span></div>
+              <div class="file-row"><span class="fic">📄</span><span class="fname">app.conf</span><span class="perm">2.1 KB</span></div>
+              <div class="file-row"><span class="fic">📦</span><span class="fname">release.tar.gz</span><span class="perm">48 MB</span></div>
+              <div class="file-row"><span class="fic">🖼️</span><span class="fname">logo.png</span><span class="perm">31 KB</span></div>
+            </div>
+          </div>
+          <!-- 远程 -->
+          <div class="fs-pane">
+            <div class="fs-head mono">📂 /var/www <span class="fs-host">web01</span></div>
+            <div class="fs-list">
+              <div class="file-row dir"><span class="fic">📁</span><span class="fname">..</span></div>
+              <div class="file-row dir"><span class="fic">📁</span><span class="fname">html</span><span class="perm">drwxr-xr-x</span></div>
+              <div class="file-row dir"><span class="fic">📁</span><span class="fname">logs</span><span class="perm">drwxr-xr-x</span></div>
+              <div class="file-row uploading"><span class="fic">📦</span><span class="fname">release.tar.gz</span><span class="perm">⬆ 67%</span></div>
+              <div class="file-row"><span class="fic">📄</span><span class="fname">nginx.conf</span><span class="perm">-rw-r--r--</span></div>
+              <div class="file-row"><span class="fic">📄</span><span class="fname">index.html</span><span class="perm">-rw-r--r--</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="sftp-status mono">
+          <span>⬆ release.tar.gz · 32.1/48 MB · 8.4 MB/s · 剩 2s</span>
+          <span class="dim">双击文件用内置编辑器打开 · 拖拽可跨栏传输</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- 右栏：安全策略 / SFTP / 监控 ---- -->
+    <div class="rightbar">
+      <div class="right-tabs">
+        <div class="rtab active" data-rpanel="sec"><span>🛡️</span> 安全</div>
+        <div class="rtab" data-rpanel="files"><span>📁</span> 文件</div>
+        <div class="rtab" data-rpanel="mon"><span>📊</span> 监控</div>
+      </div>
+      <div class="right-body">
+
+        <!-- 安全策略面板（差异化核心） -->
+        <div class="rpanel" data-rpanel="sec">
+        <div class="sec-summary">
+          <div class="sec-stat deny"><div class="num">2</div><div class="lbl">已拦截</div></div>
+          <div class="sec-stat ask"><div class="num">1</div><div class="lbl">待确认</div></div>
+          <div class="sec-stat allow"><div class="num">14</div><div class="lbl">已放行</div></div>
+        </div>
+
+        <div class="panel-title">门禁规则（按严格度）</div>
+        <div class="rule">
+          <span class="tag deny">deny</span>
+          <span class="pat mono">rm -rf / · :(){:|:&};:</span>
+          <span class="hits">2 次</span>
+        </div>
+        <div class="rule">
+          <span class="tag ask">ask</span>
+          <span class="pat mono">rm · kill · systemctl stop</span>
+          <span class="hits">1 次</span>
+        </div>
+        <div class="rule">
+          <span class="tag ask">ask</span>
+          <span class="pat mono">> 重定向 · chmod · chown</span>
+          <span class="hits">0 次</span>
+        </div>
+        <div class="rule">
+          <span class="tag allow">allow</span>
+          <span class="pat mono">ls · cat · df · du · tail（只读）</span>
+          <span class="hits">14 次</span>
+        </div>
+
+        <div class="panel-title">拦截历史</div>
+        <div class="log-item">
+          <div class="lcmd mono">rm -rf /var --no-preserve-root</div>
+          <div class="lmeta"><span>14:32:08 · DENY</span><span class="release">临时放行</span></div>
+        </div>
+        <div class="log-item">
+          <div class="lcmd mono">dd if=/dev/zero of=/dev/sda</div>
+          <div class="lmeta"><span>14:30:51 · DENY</span><span class="release">临时放行</span></div>
+        </div>
+        </div><!-- /sec -->
+
+        <!-- 文件面板（轻量 SFTP，随手看远程文件） -->
+        <div class="rpanel" data-rpanel="files" style="display:none">
+          <div class="fbar mono">
+            <span class="fbar-path">/var/www</span>
+            <span class="fbar-act" title="在中栏打开完整 SFTP">⛶ 完整视图</span>
+          </div>
+          <div class="file-row dir"><span class="fic">📁</span><span class="fname">..</span></div>
+          <div class="file-row dir"><span class="fic">📁</span><span class="fname">html</span><span class="perm">drwxr-xr-x</span></div>
+          <div class="file-row dir"><span class="fic">📁</span><span class="fname">logs</span><span class="perm">drwxr-xr-x</span></div>
+          <div class="file-row"><span class="fic">📄</span><span class="fname">nginx.conf</span><span class="perm">1.2 KB</span></div>
+          <div class="file-row"><span class="fic">📄</span><span class="fname">index.html</span><span class="perm">4.5 KB</span></div>
+          <div class="file-row"><span class="fic">📦</span><span class="fname">release.tar.gz</span><span class="perm">48 MB</span></div>
+          <div class="fdrop">⬆ 拖文件到此处上传到 /var/www</div>
+        </div>
+
+        <!-- 监控面板 -->
+        <div class="rpanel" data-rpanel="mon" style="display:none">
+          <div class="panel-title">资源占用</div>
+          <div class="metric"><span class="mlbl">CPU</span><div class="bar"><i style="width:34%"></i></div><span class="mval">34%</span></div>
+          <div class="metric"><span class="mlbl">内存</span><div class="bar"><i style="width:61%"></i></div><span class="mval">61%</span></div>
+          <div class="metric"><span class="mlbl">磁盘 /</span><div class="bar warn"><i style="width:92%"></i></div><span class="mval">92%</span></div>
+          <div class="metric"><span class="mlbl">负载</span><div class="bar"><i style="width:45%"></i></div><span class="mval">1.8</span></div>
+          <div class="panel-title">网络</div>
+          <div class="rule"><span class="pat mono">↓ 入站</span><span class="hits">2.4 MB/s</span></div>
+          <div class="rule"><span class="pat mono">↑ 出站</span><span class="hits">512 KB/s</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============ 底部状态栏 ============ -->
+  <div class="statusbar mono">
+    <div class="st"><span class="dot on"></span> <span class="v good">web01 已连接</span></div>
+    <div class="st"><span class="k">门禁</span> <span class="v good">ON</span> · <span class="v bad">拦2</span> · <span class="v warn">待确认1</span></div>
+    <div class="st" id="st-sftp" style="cursor:pointer"><span class="k">SFTP</span> <span class="v">/var/www</span></div>
+    <div class="st sep"><span class="k">GLM-4.6</span> <span class="v good">缓存 98%</span></div>
+    <div class="st"><span class="k">上下文</span> <span class="v">12 轮 · 8.2k tok</span></div>
+    <div class="st"><span class="k">延迟</span> <span class="v">42ms</span></div>
+  </div>
+
+</div>
+<script>
+  // 中栏：终端分屏 ↔ SFTP 双栏 切换
+  document.querySelectorAll('.center-tabs .ctab[data-view]').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const view = tab.dataset.view;
+      document.querySelectorAll('.center-tabs .ctab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelector('[data-pane="split"]').style.display = view === 'split' ? 'grid' : 'none';
+      document.querySelector('[data-pane="sftp"]').style.display = view === 'sftp' ? 'flex' : 'none';
+    });
+  });
+
+  // 右栏：安全 / 文件 / 监控 切换
+  document.querySelectorAll('.right-tabs .rtab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const panel = tab.dataset.rpanel;
+      document.querySelectorAll('.right-tabs .rtab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      document.querySelectorAll('.right-body .rpanel').forEach(p => {
+        p.style.display = p.dataset.rpanel === panel ? 'block' : 'none';
+      });
+    });
+  });
+
+  // 右栏"完整视图"→ 跳中栏 SFTP 标签
+  document.querySelector('.fbar-act')?.addEventListener('click', () => {
+    document.querySelector('.ctab[data-view="sftp"]').click();
+  });
+
+  // 顶栏 SFTP 按钮 + 状态栏路径 → 打开中栏 SFTP
+  const openSftp = () => document.querySelector('.ctab[data-view="sftp"]').click();
+  document.getElementById('btn-sftp')?.addEventListener('click', openSftp);
+  document.getElementById('st-sftp')?.addEventListener('click', openSftp);
+</script>
+</body>
+</html>

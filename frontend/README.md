@@ -1,4 +1,4 @@
-# XiaowenSSH 前端
+# LowenSSH 前端
 
 AI SSH 智能运维 Agent 的 Web 界面。一套代码两种界面，共享同一份会话状态：
 

@@ -4,13 +4,19 @@ server:
 
 spring:
   application:
-    name: xiaowenssh
+    name: lowenssh
 
-  # 本机 MySQL，库 xiaowenssh 已建，密码走环境变量 MYSQL_PASSWORD
+  # SFTP 上传：默认 1MB 太小，运维传包/日志放宽到 100MB
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+  # 本机 MySQL，库 lowenssh 已建，密码走环境变量 MYSQL_PASSWORD
   datasource:
     # allowPublicKeyRetrieval：MySQL9 默认 caching_sha2 认证，非SSL连接需开此项取公钥加密密码（本地连接安全）
     # DB_HOST：本地直跑默认 localhost；docker-compose 下设为 mysql 指向容器
-    url: jdbc:mysql://${DB_HOST:localhost}:3306/xiaowenssh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/lowenssh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: root
     password: ${MYSQL_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -31,7 +37,7 @@ spring:
         # 覆盖 Spring AI 默认的 /v1/chat/completions，否则会 404
         completions-path: /chat/completions
         options:
-          model: glm-4.6
+          model: glm-4.7
           temperature: 0.7
 
 # 日志：方便看 Spring AI 发出的请求
@@ -39,17 +45,41 @@ logging:
   level:
     org.springframework.ai: INFO
 
+# 应用自监控：暴露 health + 关键 metrics 给前端"监控"页读取（仅本机/内网，不鉴权）
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
 # 上下文管理（M3）：防止多轮 loop 把模型上下文撑爆
 # 联调验证压缩逻辑时把阈值调小即可快速触发：
 #   tool-result-max-chars 调到 2000、max-context-tokens 调到 2000
 xwssh:
+  agent:
+    # agentic loop 最大循环轮数，防模型反复调工具停不下来。
+    # 注意：轮数直接乘 token——第 N 轮要把前 N-1 轮历史全发一遍，是 O(N²) 累积。
+    # 25 对复杂运维够用，又能挡住失控的烧钱长循环。
+    max-rounds: 25
+    # 会话空闲超时（分钟）：超过这么久没活动的常驻 SSH 连接会被定时回收，防连接泄漏。
+    # 设 120（2h）让演示/续聊期间基本不会中途断；断了也能点"新会话"用同样信息秒重连。
+    session-idle-timeout-minutes: 120
   context:
-    # Layer 0：单条工具结果回灌给模型的最大字符数，超出截掉中段（完整内容仍存 t_message）
-    tool-result-max-chars: 8000
-    # Layer 4：整段上下文估算 token 超此值触发 LLM 压缩历史
-    max-context-tokens: 32000
+    # Layer 0：最近几条工具结果回灌给模型的最大字符数，超出截掉中段（完整内容仍存 t_message）。
+    # 这条最关键：工具结果每轮都重发，留得越大、轮数越多，token 烧得越凶。
+    # 3000 字符≈1200token，运维命令输出大多看头尾就够判断，调小立竿见影省钱。
+    tool-result-max-chars: 3000
+    # Layer 0：更早（保留区之外）的工具结果用更小阈值大力收紧——旧命令模型已读过、结论已在历史里，
+    # 没必要每轮全量重发。800 字符≈320token，让上下文不随轮数线性膨胀。
+    old-tool-result-max-chars: 800
+    # Layer 4：整段上下文估算 token 超此值触发 LLM 压缩历史。
+    # 12000 比原来 32000 早压缩，但压缩本身也要调一次模型，不宜过小，否则频繁压缩反而费钱。
+    max-context-tokens: 12000
     # Layer 4：压缩时保留最近多少条消息原文（不进摘要）
-    keep-recent-messages: 6
+    keep-recent-messages: 4
     # Layer 4：摘要 LLM 连续失败达此次数后熔断，停止压缩裸跑兜底
     circuit-limit: 3
 

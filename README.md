@@ -51,8 +51,8 @@ export GLM_API_KEY='你的智谱AI key'      # https://open.bigmodel.cn 申请
 先建库,再执行建表脚本:
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS xiaowenssh DEFAULT CHARSET utf8mb4;"
-mysql -u root -p xiaowenssh < src/main/resources/schema.sql
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS lowenssh DEFAULT CHARSET utf8mb4;"
+mysql -u root -p lowenssh < src/main/resources/schema.sql
 ```
 
 #### 3. 构建前端
@@ -80,8 +80,8 @@ cd frontend && npm run dev    # dev server 在 5173，/api 自动代理到后端
 ## 项目结构
 
 ```
-xiaowenssh/
-├── src/main/java/com/xiaowenssh/
+LowenSSH/
+├── src/main/java/com/lowenssh/
 │   ├── agent/          # Agent 核心：loop、SSE 事件、上下文管理、安全门禁
 │   ├── ssh/            # JSch SSH 执行
 │   └── ...

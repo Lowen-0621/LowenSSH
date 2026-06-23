@@ -11,10 +11,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.xiaowenssh</groupId>
-    <artifactId>xiaowenssh</artifactId>
+    <groupId>com.lowenssh</groupId>
+    <artifactId>lowenssh</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>xiaowenssh</name>
+    <name>lowenssh</name>
     <description>AI SSH 智能运维 Agent</description>
 
     <properties>
@@ -40,6 +40,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Actuator：应用自监控（健康检查 + JVM/HTTP 指标），配合 Micrometer 暴露 metrics -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
         <!-- Spring AI：走 OpenAI 兼容协议对接 DeepSeek -->
