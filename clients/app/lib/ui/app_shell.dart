@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import 'top_bar.dart';
 import 'status_bar.dart';
+import 'left_bar.dart';
 
 /// 应用主骨架 —— 三栏 IDE 布局
 /// 纵向：顶栏(38) / 主体(三栏 Row) / 状态栏(26)
@@ -20,13 +21,8 @@ class AppShell extends StatelessWidget {
           Expanded(
             child: Row(
               children: [
-                // 左栏（批次B 替换为 LeftBar）
-                _Placeholder(
-                    width: 232,
-                    color: AppColors.mantle,
-                    label: '左栏 · 主机树',
-                    border: Border(
-                        right: BorderSide(color: AppColors.surface0))),
+                // 左栏
+                LeftBar(),
                 // 中栏（批次C 替换为 CenterPanel）
                 Expanded(
                   child: _Placeholder(
