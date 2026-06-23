@@ -12,11 +12,11 @@ spring:
       max-file-size: 100MB
       max-request-size: 100MB
 
-  # 本机 MySQL，库 xiaowenssh 已建，密码走环境变量 MYSQL_PASSWORD
+  # 本机 MySQL，库 lowenssh 已建，密码走环境变量 MYSQL_PASSWORD
   datasource:
     # allowPublicKeyRetrieval：MySQL9 默认 caching_sha2 认证，非SSL连接需开此项取公钥加密密码（本地连接安全）
     # DB_HOST：本地直跑默认 localhost；docker-compose 下设为 mysql 指向容器
-    url: jdbc:mysql://${DB_HOST:localhost}:3306/xiaowenssh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/lowenssh?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=UTF-8
     username: root
     password: ${MYSQL_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver

@@ -25,7 +25,7 @@ RUN mvn -q clean package -DskipTests
 # 只带 JRE，镜像更小
 FROM eclipse-temurin:17-jre
 WORKDIR /app
-COPY --from=backend /build/target/xiaowenssh-*.jar app.jar
+COPY --from=backend /build/target/lowenssh-*.jar app.jar
 EXPOSE 8081
 # 密钥全走环境变量，镜像里不含任何凭据
 ENTRYPOINT ["java", "-jar", "app.jar"]

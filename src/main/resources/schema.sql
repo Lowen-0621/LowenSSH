@@ -1,5 +1,5 @@
--- XiaowenSSH 建表 SQL（手动执行：mysql -u root -p xiaowenssh < schema.sql）
--- 库已建：CREATE DATABASE xiaowenssh DEFAULT CHARACTER SET utf8mb4;
+-- LowenSSH 建表 SQL（手动执行：mysql -u root -p lowenssh < schema.sql）
+-- 库已建：CREATE DATABASE lowenssh DEFAULT CHARACTER SET utf8mb4;
 -- 注：应用启动时 SchemaInitializer 会自动跑这些建表/加列，平时无需手动执行此文件。
 
 -- 主机表：主机簿里的一台常用服务器，password_enc 存 AES-GCM 密文

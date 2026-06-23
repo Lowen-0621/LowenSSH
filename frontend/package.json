@@ -1,7 +1,7 @@
 {
   "name": "lowenssh-frontend",
   "version": "1.0.0",
-  "description": "XiaowenSSH AI SSH 智能运维 Agent 前端：图形版 + 终端版双界面",
+  "description": "LowenSSH AI SSH 智能运维 Agent 前端：图形版 + 终端版双界面",
   "private": true,
   "type": "module",
   "scripts": {

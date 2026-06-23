@@ -1,4 +1,4 @@
-# XiaowenSSH 多端客户端实施计划（App 端 + 终端端）
+# LowenSSH 多端客户端实施计划（App 端 + 终端端）
 
 ## 目标
 在现有 Web 版（Vue + Spring Boot，单端口 8081）之外，新增两个**独立客户端**，各自**内置逻辑**（不依赖 Spring Boot 后端，自己实现 SSH + Agent loop + 门禁 + 调 GLM）：
