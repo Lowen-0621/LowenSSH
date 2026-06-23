@@ -17,11 +17,7 @@ class _RightBarState extends State<RightBar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 300,
-      decoration: const BoxDecoration(
-        color: AppColors.mantle,
-        border: Border(left: BorderSide(color: AppColors.surface0)),
-      ),
+      color: AppColors.mantle,
       child: Column(
         children: [
           _tabs(),

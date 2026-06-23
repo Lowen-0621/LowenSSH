@@ -48,11 +48,7 @@ class LeftBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 232,
-      decoration: const BoxDecoration(
-        color: AppColors.mantle,
-        border: Border(right: BorderSide(color: AppColors.surface0)),
-      ),
+      color: AppColors.mantle,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
