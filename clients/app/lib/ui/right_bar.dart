@@ -38,7 +38,7 @@ class _RightBarState extends State<RightBar> {
 
   // 顶部三 tab，底部蓝条标记 active
   Widget _tabs() {
-    Widget tab(String id, String icon, String label) {
+    Widget tab(String id, IconData icon, String label) {
       final active = _tab == id;
       return Expanded(
         child: GestureDetector(
@@ -57,7 +57,9 @@ class _RightBarState extends State<RightBar> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(icon, style: const TextStyle(fontSize: 11.5)),
+                Icon(icon,
+                    size: 14,
+                    color: active ? AppColors.text : AppColors.subtext),
                 const SizedBox(width: 5),
                 Text(label,
                     style: TextStyle(
@@ -76,9 +78,9 @@ class _RightBarState extends State<RightBar> {
       ),
       child: Row(
         children: [
-          tab('sec', '🛡️', '安全'),
-          tab('files', '📁', '文件'),
-          tab('mon', '📊', '监控'),
+          tab('sec', Icons.shield_outlined, '安全'),
+          tab('files', Icons.folder_outlined, '文件'),
+          tab('mon', Icons.monitor_heart_outlined, '监控'),
         ],
       ),
     );

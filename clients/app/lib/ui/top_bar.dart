@@ -51,7 +51,7 @@ class TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       child: Row(
         children: const [
-          Text('🔍', style: TextStyle(fontSize: 12)),
+          Icon(Icons.search, size: 15, color: AppColors.overlay),
           SizedBox(width: 6),
           Text('搜索主机、命令片段…',
               style: TextStyle(color: AppColors.overlay, fontSize: 13)),
@@ -63,30 +63,31 @@ class TopBar extends StatelessWidget {
   Widget _actions() {
     return Row(
       children: [
-        _btn(icon: '⚡', label: '连接', primary: true),
+        _btn(icon: Icons.bolt, label: '连接', primary: true),
         const SizedBox(width: 6),
-        _btn(icon: '＋', label: '新建主机'),
+        _btn(icon: Icons.add, label: '新建主机'),
         const SizedBox(width: 6),
-        _btn(icon: '📁', label: 'SFTP'),
+        _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
-        _btn(icon: '⛶', label: '分屏'),
+        _btn(icon: Icons.splitscreen_outlined, label: '分屏'),
         const SizedBox(width: 6),
-        _btn(icon: '⚙'),
+        _btn(icon: Icons.settings_outlined),
       ],
     );
   }
 
-  Widget _btn({required String icon, String? label, bool primary = false}) {
+  Widget _btn({required IconData icon, String? label, bool primary = false}) {
     return Container(
       decoration: BoxDecoration(
         color: primary ? AppColors.blue : AppColors.surface0,
         borderRadius: BorderRadius.circular(6),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(icon, style: const TextStyle(fontSize: 13)),
+          Icon(icon,
+              size: 15, color: primary ? AppColors.crust : AppColors.text),
           if (label != null) ...[
             const SizedBox(width: 5),
             Text(label,

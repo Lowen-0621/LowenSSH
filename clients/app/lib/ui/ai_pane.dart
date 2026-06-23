@@ -8,72 +8,56 @@ class AiPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _paneHead('🤖', '智能体 · GLM-4.6'),
-        // 对话流
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _userBubble('web01 磁盘满了，帮我查下哪占的空间，清理掉能删的日志'),
-                const SizedBox(height: 12),
-                _assistantMsg(
-                  reasoning: '先看磁盘占用，定位大文件，再判断哪些日志可以安全清理…',
-                  text: '根目录已用 92%。我先看一下各目录占用情况。',
-                ),
-                const SizedBox(height: 12),
-                _toolCard(
-                  name: 'execCommand',
-                  status: 'ok',
-                  cmd: 'du -sh /var/log/*',
-                  result: '2.1G /var/log/nginx\n1.8G /var/log/app\n512M /var/log/syslog',
-                ),
-                const SizedBox(height: 12),
-                _assistantMsg(
-                    text: 'nginx 和 app 日志占了 3.9G。旧的轮转日志可以安全删除，但我要先确认。'),
-                const SizedBox(height: 12),
-                // ASK 态：内联确认
-                _askCard(
-                  cmd: 'rm -f /var/log/nginx/*.gz /var/log/app/*.1',
-                  why: '门禁判定：ASK — 匹配规则「rm 删除操作需人工确认」',
-                ),
-                const SizedBox(height: 12),
-                // DENY 态：被拦截
-                _blockedCard(
-                  cmd: 'rm -rf /var --no-preserve-root',
-                  why: '门禁判定：DENY — 匹配规则「递归删除系统目录」，已阻止执行并回灌模型',
-                ),
-              ],
+    return Container(
+      color: AppColors.base,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 对话流
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _userBubble('web01 磁盘满了，帮我查下哪占的空间，清理掉能删的日志'),
+                  const SizedBox(height: 12),
+                  _assistantMsg(
+                    reasoning: '先看磁盘占用，定位大文件，再判断哪些日志可以安全清理…',
+                    text: '根目录已用 92%。我先看一下各目录占用情况。',
+                  ),
+                  const SizedBox(height: 12),
+                  _toolCard(
+                    name: 'execCommand',
+                    status: 'ok',
+                    cmd: 'du -sh /var/log/*',
+                    result:
+                        '2.1G /var/log/nginx\n1.8G /var/log/app\n512M /var/log/syslog',
+                  ),
+                  const SizedBox(height: 12),
+                  _assistantMsg(
+                      text: 'nginx 和 app 日志占了 3.9G。旧的轮转日志可以安全删除，但我要先确认。'),
+                  const SizedBox(height: 12),
+                  // ASK 态：内联确认
+                  _askCard(
+                    cmd: 'rm -f /var/log/nginx/*.gz /var/log/app/*.1',
+                    why: '门禁判定：ASK — 匹配规则「rm 删除操作需人工确认」',
+                  ),
+                  const SizedBox(height: 12),
+                  // DENY 态：被拦截
+                  _blockedCard(
+                    cmd: 'rm -rf /var --no-preserve-root',
+                    why: '门禁判定：DENY — 匹配规则「递归删除系统目录」，已阻止执行并回灌模型',
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        _inputBox(),
-      ],
+          _inputBox(),
+        ],
+      ),
     );
   }
-
-  Widget _paneHead(String icon, String title) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: const BoxDecoration(
-          color: AppColors.mantle,
-          border: Border(bottom: BorderSide(color: AppColors.surface0)),
-        ),
-        child: Row(
-          children: [
-            Text(icon, style: const TextStyle(fontSize: 11)),
-            const SizedBox(width: 6),
-            Text(title.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 10.5,
-                    letterSpacing: .8,
-                    color: AppColors.overlay)),
-          ],
-        ),
-      );
 
   // 用户气泡（右对齐，圆角缺右下）
   Widget _userBubble(String text) => Align(

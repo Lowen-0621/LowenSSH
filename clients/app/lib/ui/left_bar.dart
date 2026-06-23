@@ -6,7 +6,7 @@ class _Host {
   final String name;
   final String addr;
   final bool online;
-  final String osIcon;
+  final IconData osIcon;
   final bool active;
   const _Host(this.name, this.addr, this.online, this.osIcon,
       {this.active = false});
@@ -19,30 +19,30 @@ class _Group {
   const _Group(this.label, this.hosts);
 }
 
-/// 左栏 —— 主机分组树 + 导航链接（宽 232px）
-/// 对应设计稿 .leftbar
+/// 左栏 —— 主机分组树 + 导航链接
+/// 对应设计稿 .leftbar。图标统一用 Material 单色线性图标。
 class LeftBar extends StatelessWidget {
   const LeftBar({super.key});
 
   // 静态占位数据（Step 4 接 provider）
   static const _groups = [
     _Group('生产组', [
-      _Host('web01', '10.0.1.21', true, '🐧', active: true),
-      _Host('web02', '10.0.1.22', true, '🐧'),
-      _Host('db01', '10.0.1.30', false, '🐧'),
+      _Host('web01', '10.0.1.21', true, Icons.dns_outlined, active: true),
+      _Host('web02', '10.0.1.22', true, Icons.dns_outlined),
+      _Host('db01', '10.0.1.30', false, Icons.storage_outlined),
     ]),
     _Group('测试组', [
-      _Host('win-test', '10.0.2.5', false, '🪟'),
+      _Host('win-test', '10.0.2.5', false, Icons.desktop_windows_outlined),
     ]),
   ];
 
   // 导航链接：图标/标题/badge
   static const _links = [
-    ('🔑', '密钥库', '3'),
-    ('📋', '命令片段', '12'),
-    ('🔀', '端口转发', null),
-    ('🛡️', '安全策略', null),
-    ('📜', '审计日志', null),
+    (Icons.vpn_key_outlined, '密钥库', '3'),
+    (Icons.content_paste_outlined, '命令片段', '12'),
+    (Icons.swap_horiz_outlined, '端口转发', null),
+    (Icons.shield_outlined, '安全策略', null),
+    (Icons.receipt_long_outlined, '审计日志', null),
   ];
 
   @override
@@ -115,7 +115,7 @@ class LeftBar extends StatelessWidget {
           children: [
             _onlineDot(h.online),
             const SizedBox(width: 8),
-            Text(h.osIcon, style: const TextStyle(fontSize: 12)),
+            Icon(h.osIcon, size: 15, color: AppColors.subtext),
             const SizedBox(width: 8),
             Expanded(
               child: Row(
@@ -157,17 +157,13 @@ class LeftBar extends StatelessWidget {
         color: AppColors.surface0,
       );
 
-  // 导航链接（图标 + 标题 + 可选 badge）
-  Widget _navLink(String icon, String label, String? badge) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+  // 导航链接（图标 + 标题 + 可选 badge）。固定行高，间距统一。
+  Widget _navLink(IconData icon, String label, String? badge) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         child: Row(
           children: [
-            SizedBox(
-                width: 16,
-                child: Text(icon,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 13))),
-            const SizedBox(width: 9),
+            Icon(icon, size: 16, color: AppColors.subtext),
+            const SizedBox(width: 10),
             Expanded(
               child: Text(label,
                   style:

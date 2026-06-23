@@ -9,72 +9,37 @@ class TerminalPane extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(right: BorderSide(color: AppColors.surface0)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _paneHead('▸', '终端 · web01'),
-          Expanded(
-            child: Container(
-              color: AppColors.crust,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: SingleChildScrollView(
-                child: DefaultTextStyle(
-                  style: const TextStyle(
-                      fontFamily: kMonoFont, fontSize: 12, height: 1.55),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _promptLine('df -h'),
-                      _out('Filesystem      Size  Used Avail Use% Mounted on'),
-                      _outWithWarn('/dev/sda1        50G   46G  1.5G  ', '92%',
-                          ' /'),
-                      _out('tmpfs           3.9G     0  3.9G   0% /dev/shm'),
-                      _promptLine('du -sh /var/log/*'),
-                      _out('2.1G  /var/log/nginx'),
-                      _out('1.8G  /var/log/app'),
-                      _out('512M  /var/log/syslog'),
-                      // 光标行
-                      Row(
-                        children: [
-                          _prompt(),
-                          const SizedBox(width: 4),
-                          Container(width: 7, height: 14, color: AppColors.text),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+      color: AppColors.crust,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: SingleChildScrollView(
+        child: DefaultTextStyle(
+          style: const TextStyle(
+              fontFamily: kMonoFont, fontSize: 12, height: 1.55),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _promptLine('df -h'),
+              _out('Filesystem      Size  Used Avail Use% Mounted on'),
+              _outWithWarn('/dev/sda1        50G   46G  1.5G  ', '92%', ' /'),
+              _out('tmpfs           3.9G     0  3.9G   0% /dev/shm'),
+              _promptLine('du -sh /var/log/*'),
+              _out('2.1G  /var/log/nginx'),
+              _out('1.8G  /var/log/app'),
+              _out('512M  /var/log/syslog'),
+              // 光标行
+              Row(
+                children: [
+                  _prompt(),
+                  const SizedBox(width: 4),
+                  Container(width: 7, height: 14, color: AppColors.text),
+                ],
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
-
-  // 面板头（小标题，大写）
-  Widget _paneHead(String icon, String title) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: const BoxDecoration(
-          color: AppColors.mantle,
-          border: Border(bottom: BorderSide(color: AppColors.surface0)),
-        ),
-        child: Row(
-          children: [
-            Text(icon,
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
-            const SizedBox(width: 6),
-            Text(title.toUpperCase(),
-                style: const TextStyle(
-                    fontSize: 10.5,
-                    letterSpacing: .8,
-                    color: AppColors.overlay)),
-          ],
-        ),
-      );
 
   // 提示符 root@web01:~#
   Widget _prompt() => RichText(
