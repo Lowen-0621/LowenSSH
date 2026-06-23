@@ -17,9 +17,6 @@ class TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          // macOS 红绿灯
-          _trafficLights(),
-          const SizedBox(width: 12),
           // Logo
           Row(
             children: const [
@@ -40,23 +37,6 @@ class TopBar extends StatelessWidget {
           _actions(),
         ],
       ),
-    );
-  }
-
-  Widget _trafficLights() {
-    Widget dot(Color c) => Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: c, shape: BoxShape.circle),
-        );
-    return Row(
-      children: [
-        dot(const Color(0xFFFF5F56)),
-        const SizedBox(width: 8),
-        dot(const Color(0xFFFFBD2E)),
-        const SizedBox(width: 8),
-        dot(const Color(0xFF27C93F)),
-      ],
     );
   }
 

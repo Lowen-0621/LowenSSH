@@ -32,7 +32,7 @@ class StatusBar extends StatelessWidget {
               const Text('门禁 ', style: TextStyle(color: AppColors.overlay)),
               const Text('ON', style: TextStyle(color: AppColors.green)),
               const Text(' · ', style: TextStyle(color: AppColors.overlay)),
-              const Text('拦2', style: TextStyle(color: AppColors.red)),
+              const Text('阻止2', style: TextStyle(color: AppColors.red)),
               const Text(' · ', style: TextStyle(color: AppColors.overlay)),
               const Text('待确认1', style: TextStyle(color: AppColors.yellow)),
             ]),

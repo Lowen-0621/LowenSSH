@@ -246,7 +246,7 @@ class AiPane extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⛔ 已拦截 · 高危命令',
+            const Text('⛔ 已阻止 · 高危命令',
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,

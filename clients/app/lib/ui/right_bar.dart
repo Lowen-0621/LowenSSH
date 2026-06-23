@@ -116,7 +116,7 @@ class _SecurityPanel extends StatelessWidget {
         // 统计三卡：已拦截/待确认/已放行
         Row(
           children: [
-            _stat('2', '已拦截', AppColors.red),
+            _stat('2', '已阻止', AppColors.red),
             const SizedBox(width: 8),
             _stat('1', '待确认', AppColors.yellow),
             const SizedBox(width: 8),
@@ -127,7 +127,7 @@ class _SecurityPanel extends StatelessWidget {
         _panelTitle('门禁规则（按严格度）'),
         for (final r in _rules) _ruleRow(r.$1, r.$2, r.$3),
         const SizedBox(height: 14),
-        _panelTitle('拦截历史'),
+        _panelTitle('阻止历史'),
         for (final l in _logs) _logItem(l.$1, l.$2),
       ],
     );
