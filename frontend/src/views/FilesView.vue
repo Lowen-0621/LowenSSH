@@ -249,20 +249,25 @@ watch(hostId, (id) => { if (id != null) loadDir('/') })
 }
 .host-tag {
   font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--muted);
+  font-size: 12px;
+  color: var(--hud);
+  background: var(--hud-dim);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  padding: 3px 10px;
+  border-radius: 6px;
 }
 .actions { display: flex; gap: var(--sp-2); }
 .btn {
-  padding: 6px 14px;
+  padding: 7px 14px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
   font-size: 13px;
   cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
 }
-.btn:hover:not(:disabled) { border-color: var(--model); }
+.btn:hover:not(:disabled) { border-color: var(--hud); color: var(--hud); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn.ghost { background: transparent; }
 
@@ -286,10 +291,11 @@ watch(hostId, (id) => { if (id != null) loadDir('/') })
 .crumb {
   background: none;
   border: none;
-  color: var(--model);
+  color: var(--hud);
   cursor: pointer;
   padding: 2px 4px;
   font-size: 13px;
+  font-family: var(--font-mono);
 }
 .crumb:hover { text-decoration: underline; }
 .sep { color: var(--muted); }
@@ -307,7 +313,7 @@ watch(hostId, (id) => { if (id != null) loadDir('/') })
   flex: 1;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 10px;
 }
 .empty {
   padding: var(--sp-8);
@@ -361,7 +367,7 @@ watch(hostId, (id) => { if (id != null) loadDir('/') })
   cursor: pointer;
   font-size: 12px;
 }
-.op:hover { border-color: var(--model); }
+.op:hover { border-color: var(--hud); color: var(--hud); }
 .op.danger { color: var(--danger); }
-.op.danger:hover { border-color: var(--danger); }
+.op.danger:hover { border-color: var(--danger); color: var(--danger); }
 </style>

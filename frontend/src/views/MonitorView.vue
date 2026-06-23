@@ -84,11 +84,11 @@ function stop() {
   if (timer) { clearInterval(timer); timer = null }
 }
 
-// —— 纯 SVG 折线：把历史点映射到 viewBox 100x40 ——
-function buildPath(history) {
+// —— 纯 SVG 折线：把历史点映射到 viewBox 100 x h（默认 44 配合趋势卡）——
+function buildPath(history, h = 44) {
   const arr = history.value
   if (arr.length < 2) return ''
-  const w = 100, h = 40
+  const w = 100
   const step = w / (MAX_POINTS - 1)
   return arr.map((p, i) => {
     const x = i * step
@@ -98,6 +98,24 @@ function buildPath(history) {
 }
 const cpuPath = computed(() => buildPath(cpuHistory))
 const memPath = computed(() => buildPath(memHistory))
+
+// —— 环形 dial：半径 27，周长 C=2π·27≈169.6，把百分比映射成 stroke-dashoffset ——
+const DIAL_C = 2 * Math.PI * 27
+function dialOffset(pct) {
+  const v = Math.min(100, Math.max(0, pct || 0))
+  return DIAL_C * (1 - v / 100)
+}
+
+// —— 趋势线面积填充：在折线基础上闭合到底边，配 linearGradient 染青蓝 ——
+function buildArea(history) {
+  const arr = history.value
+  if (arr.length < 2) return ''
+  const w = 100, h = 44
+  const step = w / (MAX_POINTS - 1)
+  const lastX = (arr.length - 1) * step
+  return buildPath(history, h) + ` L${lastX.toFixed(1)},${h} L0,${h} Z`
+}
+const cpuArea = computed(() => buildArea(cpuHistory))
 
 // uptime 秒转 "Xd Xh Xm"
 function fmtUptime(sec) {
@@ -156,29 +174,58 @@ watch(hostId, (id) => {
 
     <div v-if="!metrics && loading" class="empty">采集中…</div>
 
-    <div v-else-if="metrics" class="grid">
-      <!-- CPU -->
-      <div class="card">
+    <div v-else-if="metrics" class="grid grid-top">
+      <!-- CPU + 内存：环形遥测 dial -->
+      <div class="card dial-card">
         <div class="card-head">
-          <span class="title">CPU</span>
-          <span class="big" :style="{ color: pctColor(metrics.cpuPercent) }">{{ metrics.cpuPercent }}%</span>
+          <span class="title">远程主机 · 实时</span>
+          <span class="health-badge hud"><span class="hb-dot" />{{ POLL_MS / 1000 }}s</span>
         </div>
-        <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none">
-          <path :d="cpuPath" fill="none" :stroke="pctColor(metrics.cpuPercent)" stroke-width="1.5" />
-        </svg>
+        <div class="dial-row">
+          <div class="dial">
+            <svg viewBox="0 0 64 64">
+              <circle class="track" cx="32" cy="32" r="27" />
+              <circle class="arc" cx="32" cy="32" r="27"
+                      :stroke="pctColor(metrics.cpuPercent)"
+                      :stroke-dasharray="DIAL_C"
+                      :stroke-dashoffset="dialOffset(metrics.cpuPercent)" />
+            </svg>
+            <div class="dial-val" :style="{ color: pctColor(metrics.cpuPercent) }">{{ metrics.cpuPercent }}%</div>
+            <div class="dial-label">CPU</div>
+          </div>
+          <div class="dial">
+            <svg viewBox="0 0 64 64">
+              <circle class="track" cx="32" cy="32" r="27" />
+              <circle class="arc" cx="32" cy="32" r="27"
+                      :stroke="pctColor(metrics.memPercent)"
+                      :stroke-dasharray="DIAL_C"
+                      :stroke-dashoffset="dialOffset(metrics.memPercent)" />
+            </svg>
+            <div class="dial-val" :style="{ color: pctColor(metrics.memPercent) }">{{ metrics.memPercent }}%</div>
+            <div class="dial-label">内存</div>
+          </div>
+        </div>
         <div class="sub">{{ metrics.cpuCores }} 核 · 负载 {{ metrics.load1 }} / {{ metrics.load5 }} / {{ metrics.load15 }}</div>
+        <div class="sub">内存 {{ fmtGb(metrics.memUsedKb) }} / {{ fmtGb(metrics.memTotalKb) }}</div>
       </div>
 
-      <!-- 内存 -->
-      <div class="card">
+      <!-- CPU 趋势线：带青蓝渐变填充 -->
+      <div class="card spark-card">
         <div class="card-head">
-          <span class="title">内存</span>
-          <span class="big" :style="{ color: pctColor(metrics.memPercent) }">{{ metrics.memPercent }}%</span>
+          <span class="title">CPU 趋势 · 5min</span>
+          <span class="big" :style="{ color: pctColor(metrics.cpuPercent) }">{{ metrics.cpuPercent }}%</span>
         </div>
-        <svg class="spark" viewBox="0 0 100 40" preserveAspectRatio="none">
-          <path :d="memPath" fill="none" :stroke="pctColor(metrics.memPercent)" stroke-width="1.5" />
+        <svg class="spark" viewBox="0 0 100 44" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="cpuFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="rgba(88,166,255,0.30)" />
+              <stop offset="1" stop-color="rgba(88,166,255,0)" />
+            </linearGradient>
+          </defs>
+          <path v-if="cpuArea" :d="cpuArea" fill="url(#cpuFill)" />
+          <path :d="cpuPath" fill="none" :stroke="pctColor(metrics.cpuPercent)" stroke-width="1.5" />
         </svg>
-        <div class="sub">{{ fmtGb(metrics.memUsedKb) }} / {{ fmtGb(metrics.memTotalKb) }}</div>
+        <div class="sub">采样每 {{ POLL_MS / 1000 }}s，最近 {{ MAX_POINTS }} 点</div>
       </div>
 
       <!-- 磁盘 -->
@@ -285,10 +332,55 @@ watch(hostId, (id) => {
   gap: var(--sp-3);
 }
 .card-head { display: flex; align-items: baseline; justify-content: space-between; }
-.title { font-size: 13px; color: var(--muted); }
-.big { font-size: 26px; font-weight: 600; font-family: var(--font-mono); }
-.spark { width: 100%; height: 40px; }
+.title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.big { font-size: 22px; font-weight: 700; font-family: var(--font-mono); }
+.spark { width: 100%; height: 44px; }
 .sub { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+/* —— 环形遥测 dial —— */
+.dial-card .dial-row { display: flex; gap: var(--sp-3); justify-content: center; }
+.dial { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 110px; }
+.dial svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+.dial .track { fill: none; stroke: var(--surface-2); stroke-width: 6; }
+.dial .arc { fill: none; stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 0.6s ease; }
+.dial .dial-val {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: -48px;
+  margin-bottom: 30px;
+}
+.dial .dial-label { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.5px; }
+
+/* 健康徽章（HUD 青 / UP 绿 / DOWN 红） */
+.health-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 5px;
+  letter-spacing: 1px;
+  background: var(--ok-bg);
+  color: var(--ok);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+.health-badge .hb-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+.health-badge.hud {
+  background: var(--hud-dim);
+  color: var(--hud);
+  border-color: rgba(45, 212, 191, 0.3);
+}
+.health-badge.hud .hb-dot { background: var(--hud); box-shadow: 0 0 6px var(--hud); }
 
 .bar {
   height: 10px;
@@ -305,9 +397,12 @@ watch(hostId, (id) => {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
   margin-top: var(--sp-4);
 }
 .badge {

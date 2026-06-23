@@ -74,7 +74,7 @@ async function onDelete(h) {
   <div class="hosts-page">
     <header class="hosts-header">
       <div class="brand">
-        <span class="brand-mark">▢</span>
+        <span class="brand-mark">▰</span>
         <span class="brand-name">LowenSSH</span>
         <span class="brand-sub">选择一台服务器开始</span>
       </div>
@@ -91,7 +91,12 @@ async function onDelete(h) {
         :class="{ connecting: connecting === h.id }"
         @click="onConnect(h)"
       >
-        <div class="host-icon">🖥</div>
+        <div class="host-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6">
+            <rect x="3" y="4" width="18" height="12" rx="1.5" />
+            <path d="M8 20h8M12 16v4" />
+          </svg>
+        </div>
         <div class="host-info">
           <div class="host-title">{{ h.alias || h.host }}</div>
           <div class="host-sub">ssh, {{ h.user }}@{{ h.host }}:{{ h.port }}</div>
@@ -154,10 +159,24 @@ async function onDelete(h) {
   justify-content: space-between;
   margin-bottom: var(--sp-6);
 }
-.brand { display: flex; align-items: baseline; gap: var(--sp-2); }
-.brand-mark { color: var(--ok); font-size: 20px; }
-.brand-name { font-weight: 600; font-size: 18px; }
-.brand-sub { color: var(--muted); font-size: 13px; }
+.brand { display: flex; align-items: center; gap: var(--sp-3); }
+/* 品牌 mark：青光方块，与顶栏 HUD 标识一致 */
+.brand-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--hud-dim);
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  color: var(--hud);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.25);
+}
+.brand-name { font-weight: 700; font-size: 19px; letter-spacing: 0.4px; }
+.brand-sub { color: var(--muted); font-size: 13px; align-self: flex-end; padding-bottom: 2px; }
 
 .alert {
   background: rgba(216, 60, 60, 0.12);
@@ -176,6 +195,7 @@ async function onDelete(h) {
   gap: var(--sp-4);
 }
 .host-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--sp-3);
@@ -184,12 +204,27 @@ async function onDelete(h) {
   border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
+  overflow: hidden;
   transition: border-color 0.15s, transform 0.1s, box-shadow 0.15s;
 }
-.host-card:hover {
-  border-color: var(--accent, #4a90d9);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+/* 左侧高亮条：默认收起，hover 时青光亮起，HUD 节点选中感 */
+.host-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--hud);
+  box-shadow: 0 0 10px var(--hud);
+  transform: scaleY(0);
+  transition: transform 0.18s;
 }
+.host-card:hover {
+  border-color: var(--border-lit);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(45, 212, 191, 0.15);
+}
+.host-card:hover::before { transform: scaleY(1); }
 .host-card:active { transform: scale(0.99); }
 .host-card.connecting { opacity: 0.7; pointer-events: none; }
 
@@ -199,8 +234,9 @@ async function onDelete(h) {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  background: var(--surface-2);
+  color: var(--hud);
+  background: var(--hud-dim);
+  border: 1px solid rgba(45, 212, 191, 0.25);
   border-radius: 10px;
   flex-shrink: 0;
 }
@@ -213,21 +249,23 @@ async function onDelete(h) {
   text-overflow: ellipsis;
 }
 .host-sub {
+  font-family: var(--font-mono);
   color: var(--muted);
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .host-tag {
   display: inline-block;
-  margin-top: 4px;
+  margin-top: 6px;
   font-size: 11px;
-  color: var(--warn, #d8862a);
-  border: 1px solid var(--warn, #d8862a);
+  color: var(--warn);
+  background: rgba(216, 134, 42, 0.1);
+  border: 1px solid rgba(216, 134, 42, 0.4);
   border-radius: 4px;
-  padding: 0 6px;
+  padding: 1px 7px;
 }
 .host-actions { flex-shrink: 0; }
 .del-btn {
@@ -254,7 +292,7 @@ async function onDelete(h) {
   width: 16px;
   height: 16px;
   border: 2px solid var(--border);
-  border-top-color: var(--accent, #4a90d9);
+  border-top-color: var(--hud);
   border-radius: 50%;
   animation: spin 0.7s linear infinite;
 }
@@ -298,7 +336,7 @@ async function onDelete(h) {
   font-size: 14px;
   box-sizing: border-box;
 }
-.modal input:focus { outline: none; border-color: var(--accent, #4a90d9); }
+.modal input:focus { outline: none; border-color: var(--hud); }
 .row { display: flex; gap: var(--sp-3); }
 .flex2 { flex: 2; }
 .flex1 { flex: 1; }
@@ -309,15 +347,20 @@ async function onDelete(h) {
   margin-top: var(--sp-4);
 }
 .btn-primary {
-  background: var(--accent, #4a90d9);
-  color: #fff;
-  border: none;
+  background: var(--hud-dim);
+  color: var(--hud);
+  border: 1px solid rgba(45, 212, 191, 0.4);
   padding: 8px 16px;
-  border-radius: 6px;
+  border-radius: 7px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s, box-shadow 0.15s;
 }
-.btn-primary:hover { opacity: 0.9; }
+.btn-primary:hover {
+  background: rgba(45, 212, 191, 0.22);
+  box-shadow: 0 0 14px rgba(45, 212, 191, 0.25);
+}
 .btn-ghost {
   background: transparent;
   color: var(--muted);

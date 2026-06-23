@@ -127,13 +127,22 @@ onMounted(async () => {
 
       <!-- 命令与输出不在对话视图渲染（要看执行过程切终端视图） -->
 
-      <!-- 被安全门禁拦截：全场最重 -->
-      <div v-else-if="m.type === 'blocked'" class="card blocked-card">
-        <div class="card-head danger">
-          <span class="block-icon">⛔</span>命令被安全门禁拦截
+      <!-- 被安全门禁拦截：全场最重的英雄时刻，独立红色盾牌告警面板 -->
+      <div v-else-if="m.type === 'blocked'" class="alert-panel">
+        <div class="alert-bar">
+          <svg class="shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            <line x1="12" y1="8" x2="12" y2="13" />
+            <circle cx="12" cy="16.5" r="0.6" fill="currentColor" />
+          </svg>
+          <span class="alert-title">Security Gate · Command Blocked</span>
+          <span class="alert-flag">DENY</span>
         </div>
-        <pre class="code">{{ m.command }}</pre>
-        <div class="reason">拦截原因：{{ m.reason }}</div>
+        <div class="alert-cmd"><span class="x">⛔ </span>{{ m.command }}</div>
+        <div class="alert-reason">
+          <span class="rk">REASON</span>
+          <span>{{ m.reason }}</span>
+        </div>
       </div>
 
       <!-- 最终结论：内容已在上方流式气泡显示过时，这里只标记完成、不重复渲染 -->
@@ -243,21 +252,83 @@ onMounted(async () => {
   overflow: auto;
 }
 
-/* —— blocked：全场最重 —— */
-.blocked-card {
-  border: 1px solid var(--danger);
+/* —— blocked：全场最重的英雄时刻，独立红色盾牌告警面板 —— */
+.alert-panel {
+  position: relative;
+  background:
+    radial-gradient(120% 100% at 0% 0%, var(--danger-bg) 0%, transparent 60%),
+    var(--surface);
+  border: 1px solid rgba(248, 81, 73, 0.45);
   border-left: 4px solid var(--danger);
-  background: var(--danger-bg);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(248, 81, 73, 0.12), 0 8px 30px rgba(248, 81, 73, 0.18);
 }
-.blocked-card .card-head.danger {
+/* 顶部告警条：盾牌图标 + 标题 + DENY 标签 */
+.alert-panel .alert-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px var(--sp-4);
+  background: linear-gradient(90deg, var(--danger-bg), transparent);
+  border-bottom: 1px solid rgba(248, 81, 73, 0.25);
+}
+.alert-panel .shield {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
   color: var(--danger);
-  border-bottom-color: var(--danger);
-  font-size: 14px;
 }
-.block-icon { font-size: 16px; }
-.blocked-card .code { background: rgba(248, 81, 73, 0.06); }
+.alert-panel .alert-title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--danger);
+}
+.alert-panel .alert-flag {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--danger);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 1px;
+}
+.alert-panel .alert-cmd {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 500;
+  padding: var(--sp-3) var(--sp-4);
+  color: #ffd7d4;
+  background: rgba(248, 81, 73, 0.06);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.alert-panel .alert-cmd .x { color: var(--danger); user-select: none; }
+.alert-panel .alert-reason {
+  padding: var(--sp-3) var(--sp-4);
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.alert-panel .alert-reason .rk {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--danger);
+  letter-spacing: 1px;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+
+/* error / expired 卡片的说明文字 */
 .reason { padding: var(--sp-2) var(--sp-3); font-size: 13px; color: var(--text); }
-.blocked-card .reason { color: var(--danger); }
 
 /* error：品红 */
 .error-card { border-color: var(--error); }

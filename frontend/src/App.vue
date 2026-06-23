@@ -48,9 +48,12 @@ onMounted(loadSessions)
           <span class="icon-burger" />
         </button>
         <div class="brand">
-          <span class="brand-mark">▢</span>
-          <span class="brand-name">LowenSSH</span>
-          <span class="brand-sub">{{ conn.host ? `${conn.user}@${conn.host}` : 'SSH 智能体' }}</span>
+          <span class="brand-mark">▰</span>
+          <h1 class="brand-name">LowenSSH</h1>
+          <span v-if="conn.host" class="host-pill">
+            <span class="live-dot" />{{ conn.user }}@{{ conn.host }}
+          </span>
+          <span v-else class="brand-sub">SSH 智能体</span>
         </div>
         <!-- 顶栏功能切换：智能体对话 / SFTP 文件管理 -->
         <nav class="top-tabs">
@@ -97,10 +100,21 @@ onMounted(loadSessions)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--sp-2) var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface) 0%, rgba(17, 22, 31, 0.92) 100%);
   flex-shrink: 0;
+  position: relative;
+}
+/* 顶栏底部一道极细青光，HUD 仪表感 */
+.app-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--hud-dim) 30%, var(--hud-dim) 70%, transparent);
 }
 .header-left {
   display: flex;
@@ -124,36 +138,77 @@ onMounted(loadSessions)
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--sp-2);
 }
-.brand-mark { color: var(--ok); font-size: 18px; }
-.brand-name { font-weight: 600; font-size: 16px; letter-spacing: 0.3px; }
+/* 品牌 mark：青光方块，HUD 标识 */
+.brand-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--hud-dim);
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  color: var(--hud);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 0 12px rgba(45, 212, 191, 0.25);
+}
+.brand-name { font-weight: 700; font-size: 16px; letter-spacing: 0.4px; display: inline; }
 .brand-sub { color: var(--muted); font-size: 12px; }
+/* 主机标识：青色 pill + 呼吸活体点 */
+.host-pill {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--hud);
+  background: var(--hud-dim);
+  border: 1px solid rgba(45, 212, 191, 0.3);
+  padding: 3px 10px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.host-pill .live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px var(--ok);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* 顶栏功能切换 tab：智能体 / SFTP */
+/* 顶栏功能切换 tab：智能体 / SFTP / 监控 */
 .top-tabs {
   display: flex;
   gap: 2px;
   margin-left: var(--sp-4);
-  padding: 2px;
-  background: var(--surface-2);
-  border-radius: 8px;
+  padding: 3px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
 }
 .top-tabs button {
   border: none;
   background: transparent;
   color: var(--muted);
-  padding: 5px 16px;
+  padding: 8px 18px;
   border-radius: 6px;
   cursor: pointer;
+  font-family: var(--font-ui);
   font-size: 13px;
-  transition: background 0.15s, color 0.15s;
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .top-tabs button:hover { color: var(--text); }
 .top-tabs button.active {
-  background: var(--bg);
-  color: var(--text);
+  background: var(--surface-2);
+  color: var(--hud);
+  box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.3);
 }
 
 /* 顶部图标按钮 */
