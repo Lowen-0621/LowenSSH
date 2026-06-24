@@ -1,13 +1,47 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config.dart';
 
-/// 应用配置 provider —— 加载 ~/.lowenssh/config.json（主机簿 + LLM 配置）
-/// Step 4：先只读；增删主机后续接 saveConfig 再 invalidate。
-final configProvider = Provider<AppConfig>((ref) {
-  return loadConfig();
-});
+/// 应用配置 Notifier —— 加载/增删主机/改 LLM，变更后刷新依赖此 provider 的 UI
+class ConfigNotifier extends Notifier<AppConfig> {
+  @override
+  AppConfig build() => loadConfig();
 
-/// 主机列表 provider（派生自 configProvider）
+  /// 新增主机（密码加密落库），返回新建主机
+  Host addHostEntry({
+    String? alias,
+    required String host,
+    int port = 22,
+    String user = 'root',
+    String? password,
+  }) {
+    final h = addHost(
+        alias: alias,
+        host: host,
+        port: port,
+        user: user,
+        password: password);
+    state = loadConfig(); // 刷新
+    return h;
+  }
+
+  /// 删除主机
+  void deleteHost(String id) {
+    removeHost(id);
+    state = loadConfig();
+  }
+
+  /// 更新 LLM 配置
+  void updateLlm(LlmConfig llm) {
+    final cfg = loadConfig();
+    saveConfig(AppConfig(hosts: cfg.hosts, llm: llm));
+    state = loadConfig();
+  }
+}
+
+final configProvider =
+    NotifierProvider<ConfigNotifier, AppConfig>(ConfigNotifier.new);
+
+/// 主机列表 provider（派生）
 final hostsProvider = Provider<List<Host>>((ref) {
   return ref.watch(configProvider).hosts;
 });

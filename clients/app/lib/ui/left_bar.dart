@@ -4,6 +4,7 @@ import '../theme.dart';
 import '../core/config.dart';
 import '../state/config_provider.dart';
 import '../state/connection_provider.dart';
+import 'dialogs.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
@@ -32,7 +33,7 @@ class LeftBar extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 10),
-            _navTitle('主机'),
+            _navTitle(context, ref, '主机'),
             if (hosts.isEmpty)
               const Padding(
                 padding: EdgeInsets.fromLTRB(14, 8, 14, 8),
@@ -49,8 +50,9 @@ class LeftBar extends ConsumerWidget {
     );
   }
 
-  // 区块标题（带 + 添加）
-  Widget _navTitle(String title) => Padding(
+  // 区块标题（带 + 添加主机）
+  Widget _navTitle(BuildContext context, WidgetRef ref, String title) =>
+      Padding(
         padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
         child: Row(
           children: [
@@ -60,8 +62,10 @@ class LeftBar extends ConsumerWidget {
                     letterSpacing: 1,
                     color: AppColors.overlay)),
             const Spacer(),
-            const Text('＋',
-                style: TextStyle(fontSize: 14, color: AppColors.subtext)),
+            InkWell(
+              onTap: () => showAddHostDialog(context, ref),
+              child: const Icon(Icons.add, size: 15, color: AppColors.subtext),
+            ),
           ],
         ),
       );

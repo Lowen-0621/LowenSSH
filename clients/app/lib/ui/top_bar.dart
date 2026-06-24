@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import 'dialogs.dart';
 
-/// 顶栏 —— 红绿灯 + Logo + 搜索框 + 操作按钮（高 38px）
+/// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
 /// 对应设计稿 .topbar
-class TopBar extends StatelessWidget {
+class TopBar extends ConsumerWidget {
   const TopBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 38,
       decoration: const BoxDecoration(
@@ -34,7 +36,7 @@ class TopBar extends StatelessWidget {
           _searchBox(),
           const Spacer(),
           // 操作按钮组
-          _actions(),
+          _actions(context, ref),
         ],
       ),
     );
@@ -60,43 +62,57 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  Widget _actions() {
+  Widget _actions(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         _btn(icon: Icons.bolt, label: '连接', primary: true),
         const SizedBox(width: 6),
-        _btn(icon: Icons.add, label: '新建主机'),
+        _btn(
+            icon: Icons.add,
+            label: '新建主机',
+            onTap: () => showAddHostDialog(context, ref)),
         const SizedBox(width: 6),
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
         _btn(icon: Icons.splitscreen_outlined, label: '分屏'),
         const SizedBox(width: 6),
-        _btn(icon: Icons.settings_outlined),
+        _btn(
+            icon: Icons.settings_outlined,
+            onTap: () => showLlmSettingsDialog(context, ref)),
       ],
     );
   }
 
-  Widget _btn({required IconData icon, String? label, bool primary = false}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: primary ? AppColors.blue : AppColors.surface0,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              size: 15, color: primary ? AppColors.crust : AppColors.text),
-          if (label != null) ...[
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: primary ? FontWeight.w600 : FontWeight.normal,
-                    color: primary ? AppColors.crust : AppColors.text)),
+  Widget _btn(
+      {required IconData icon,
+      String? label,
+      bool primary = false,
+      VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: primary ? AppColors.blue : AppColors.surface0,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 15, color: primary ? AppColors.crust : AppColors.text),
+            if (label != null) ...[
+              const SizedBox(width: 5),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          primary ? FontWeight.w600 : FontWeight.normal,
+                      color: primary ? AppColors.crust : AppColors.text)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
