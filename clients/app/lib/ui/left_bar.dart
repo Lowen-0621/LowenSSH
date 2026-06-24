@@ -1,42 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../core/config.dart';
+import '../state/config_provider.dart';
+import '../state/connection_provider.dart';
 
-/// 主机条目占位 model（Step 4 替换为 core/config.dart 的 HostEntry）
-class _Host {
-  final String name;
-  final String addr;
-  final bool online;
-  final IconData osIcon;
-  final bool active;
-  const _Host(this.name, this.addr, this.online, this.osIcon,
-      {this.active = false});
-}
-
-/// 主机分组占位 model
-class _Group {
-  final String label;
-  final List<_Host> hosts;
-  const _Group(this.label, this.hosts);
-}
-
-/// 左栏 —— 主机分组树 + 导航链接
-/// 对应设计稿 .leftbar。图标统一用 Material 单色线性图标。
-class LeftBar extends StatelessWidget {
+/// 左栏 —— 主机列表 + 导航链接
+/// 对应设计稿 .leftbar。图标统一 Material 线性图标。
+/// 主机数据来自 configProvider，点击触发连接。
+class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
 
-  // 静态占位数据（Step 4 接 provider）
-  static const _groups = [
-    _Group('生产组', [
-      _Host('web01', '10.0.1.21', true, Icons.dns_outlined, active: true),
-      _Host('web02', '10.0.1.22', true, Icons.dns_outlined),
-      _Host('db01', '10.0.1.30', false, Icons.storage_outlined),
-    ]),
-    _Group('测试组', [
-      _Host('win-test', '10.0.2.5', false, Icons.desktop_windows_outlined),
-    ]),
-  ];
-
-  // 导航链接：图标/标题/badge
+  // 导航链接：图标/标题/badge（暂为静态展示项）
   static const _links = [
     (Icons.vpn_key_outlined, '密钥库', '3'),
     (Icons.content_paste_outlined, '命令片段', '12'),
@@ -46,7 +21,10 @@ class LeftBar extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final hosts = ref.watch(hostsProvider);
+    final conn = ref.watch(connectionProvider);
+
     return Container(
       color: AppColors.mantle,
       child: SingleChildScrollView(
@@ -55,10 +33,14 @@ class LeftBar extends StatelessWidget {
           children: [
             const SizedBox(height: 10),
             _navTitle('主机'),
-            for (final g in _groups) ...[
-              _groupLabel(g.label),
-              for (final h in g.hosts) _hostItem(h),
-            ],
+            if (hosts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.fromLTRB(14, 8, 14, 8),
+                child: Text('暂无主机，点 + 添加',
+                    style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+              )
+            else
+              for (final h in hosts) _hostItem(context, ref, h, conn),
             _divider(),
             for (final l in _links) _navLink(l.$1, l.$2, l.$3),
           ],
@@ -84,47 +66,55 @@ class LeftBar extends StatelessWidget {
         ),
       );
 
-  // 分组折叠标签
-  Widget _groupLabel(String label) => Padding(
-        padding: const EdgeInsets.fromLTRB(14, 5, 14, 5),
-        child: Row(
-          children: [
-            const Text('▾',
-                style: TextStyle(fontSize: 9, color: AppColors.overlay)),
-            const SizedBox(width: 6),
-            Text(label,
-                style:
-                    const TextStyle(fontSize: 11, color: AppColors.subtext)),
-          ],
-        ),
-      );
+  // 主机条目：点击连接。当前主机左侧蓝条高亮，已连绿点/连接中转圈。
+  Widget _hostItem(
+      BuildContext context, WidgetRef ref, Host h, ConnState conn) {
+    final isCurrent = conn.host?.id == h.id;
+    final connected = isCurrent && conn.phase == ConnPhase.connected;
+    final connecting = isCurrent && conn.phase == ConnPhase.connecting;
+    final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
 
-  // 主机条目（在线点 + OS图标 + 名称 + 地址，active 左边蓝条高亮）
-  Widget _hostItem(_Host h) => Container(
-        padding: const EdgeInsets.fromLTRB(30, 6, 14, 6),
+    return InkWell(
+      onTap: connecting
+          ? null
+          : () => ref.read(connectionProvider.notifier).connect(h),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 7, 14, 7),
         decoration: BoxDecoration(
-          color: h.active ? AppColors.base : null,
+          color: isCurrent ? AppColors.base : null,
           border: Border(
             left: BorderSide(
-              color: h.active ? AppColors.blue : Colors.transparent,
+              color: isCurrent ? AppColors.blue : Colors.transparent,
               width: 2,
             ),
           ),
         ),
         child: Row(
           children: [
-            _onlineDot(h.online),
-            const SizedBox(width: 8),
-            Icon(h.osIcon, size: 15, color: AppColors.subtext),
+            // 状态：连接中转圈 / 否则绿(已连)灰(未连)点
+            if (connecting)
+              const SizedBox(
+                width: 9,
+                height: 9,
+                child: CircularProgressIndicator(
+                    strokeWidth: 1.5, color: AppColors.blue),
+              )
+            else
+              _onlineDot(connected),
+            const SizedBox(width: 9),
+            const Icon(Icons.dns_outlined, size: 15, color: AppColors.subtext),
             const SizedBox(width: 8),
             Expanded(
               child: Row(
                 children: [
-                  Text(h.name,
-                      style: const TextStyle(
-                          fontSize: 13, color: AppColors.text)),
+                  Flexible(
+                    child: Text(name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, color: AppColors.text)),
+                  ),
                   const SizedBox(width: 6),
-                  Text(h.addr,
+                  Text('${h.host}:${h.port}',
                       style: const TextStyle(
                           fontSize: 10.5, color: AppColors.overlay)),
                 ],
@@ -132,7 +122,9 @@ class LeftBar extends StatelessWidget {
             ),
           ],
         ),
-      );
+      ),
+    );
+  }
 
   // 在线状态点（绿色带辉光 / 灰色）
   Widget _onlineDot(bool online) => Container(

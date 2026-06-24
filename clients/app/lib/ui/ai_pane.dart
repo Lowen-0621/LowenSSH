@@ -1,13 +1,65 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../state/agent_provider.dart';
 
 /// AI 对话面板 —— 对话流 + 工具卡片 + 门禁卡片 + 输入框
 /// 对应设计稿 .pane.ai。三种卡片(tool/ask/blocked)是门禁可视化核心。
-class AiPane extends StatelessWidget {
+/// 数据来自 agentProvider，输入框发送任务，ASK 卡片桥接确认。
+class AiPane extends ConsumerStatefulWidget {
   const AiPane({super.key});
 
   @override
+  ConsumerState<AiPane> createState() => _AiPaneState();
+}
+
+class _AiPaneState extends ConsumerState<AiPane> {
+  final _controller = TextEditingController();
+  final _scrollCtrl = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
+  void _send() {
+    final text = _controller.text.trim();
+    if (text.isEmpty) return;
+    _controller.clear();
+    ref.read(agentProvider.notifier).send(text);
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollCtrl.hasClients) {
+        _scrollCtrl.jumpTo(_scrollCtrl.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final st = ref.watch(agentProvider);
+    // 新消息进来自动滚到底
+    ref.listen(agentProvider, (prev, next) => _scrollToBottom());
+
+    final children = <Widget>[];
+    for (final item in st.items) {
+      children.add(_renderItem(item));
+      children.add(const SizedBox(height: 12));
+    }
+    // 末尾插入待确认卡片（ASK 态）
+    if (st.pendingAsk != null) {
+      children.add(_askCard(
+        cmd: st.pendingAsk!.command,
+        why: '门禁判定：ASK — ${st.pendingAsk!.reason}',
+      ));
+      children.add(const SizedBox(height: 12));
+    }
+
     return Container(
       color: AppColors.base,
       child: Column(
@@ -15,49 +67,59 @@ class AiPane extends StatelessWidget {
         children: [
           // 对话流
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _userBubble('web01 磁盘满了，帮我查下哪占的空间，清理掉能删的日志'),
-                  const SizedBox(height: 12),
-                  _assistantMsg(
-                    reasoning: '先看磁盘占用，定位大文件，再判断哪些日志可以安全清理…',
-                    text: '根目录已用 92%。我先看一下各目录占用情况。',
+            child: st.items.isEmpty && st.pendingAsk == null
+                ? const Center(
+                    child: Text('连接主机后，输入运维任务开始对话',
+                        style:
+                            TextStyle(fontSize: 12, color: AppColors.overlay)),
+                  )
+                : SingleChildScrollView(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _toolCard(
-                    name: 'execCommand',
-                    status: 'ok',
-                    cmd: 'du -sh /var/log/*',
-                    result:
-                        '2.1G /var/log/nginx\n1.8G /var/log/app\n512M /var/log/syslog',
-                  ),
-                  const SizedBox(height: 12),
-                  _assistantMsg(
-                      text: 'nginx 和 app 日志占了 3.9G。旧的轮转日志可以安全删除，但我要先确认。'),
-                  const SizedBox(height: 12),
-                  // ASK 态：内联确认
-                  _askCard(
-                    cmd: 'rm -f /var/log/nginx/*.gz /var/log/app/*.1',
-                    why: '门禁判定：ASK — 匹配规则「rm 删除操作需人工确认」',
-                  ),
-                  const SizedBox(height: 12),
-                  // DENY 态：被拦截
-                  _blockedCard(
-                    cmd: 'rm -rf /var --no-preserve-root',
-                    why: '门禁判定：DENY — 匹配规则「递归删除系统目录」，已阻止执行并回灌模型',
-                  ),
-                ],
-              ),
-            ),
           ),
-          _inputBox(),
+          if (st.error != null)
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              color: AppColors.red.withValues(alpha: .12),
+              child: Text('错误：${st.error}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.red)),
+            ),
+          _inputBox(st.running),
         ],
       ),
     );
   }
+
+  // 按 ChatItem 类型分发渲染
+  Widget _renderItem(ChatItem it) {
+    switch (it.kind) {
+      case ChatItemKind.user:
+        return _userBubble(it.text);
+      case ChatItemKind.reasoning:
+        return _reasoningBlock(it.text);
+      case ChatItemKind.assistant:
+        return _assistantMsg(text: it.text);
+      case ChatItemKind.tool:
+        return _toolCard(
+          name: it.toolName ?? '',
+          status: it.toolResult == null ? 'run' : 'ok',
+          cmd: it.toolArgs ?? '',
+          result: it.toolResult ?? '执行中…',
+        );
+      case ChatItemKind.blocked:
+        return _blockedCard(cmd: it.command ?? '', why: it.reason ?? '');
+      case ChatItemKind.ask:
+        return _askCard(cmd: it.command ?? '', why: it.reason ?? '');
+    }
+  }
+
 
   // 用户气泡（右对齐，圆角缺右下）
   Widget _userBubble(String text) => Align(
@@ -79,8 +141,8 @@ class AiPane extends StatelessWidget {
         ),
       );
 
-  // 智能体消息（可选 reasoning 斜体 + 正文）
-  Widget _assistantMsg({String? reasoning, required String text}) => Column(
+  // 智能体消息正文
+  Widget _assistantMsg({required String text}) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -93,25 +155,24 @@ class AiPane extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          if (reasoning != null) ...[
-            Container(
-              padding: const EdgeInsets.only(left: 9),
-              decoration: const BoxDecoration(
-                border:
-                    Border(left: BorderSide(color: AppColors.surface1, width: 2)),
-              ),
-              child: Text(reasoning,
-                  style: const TextStyle(
-                      fontSize: 11.5,
-                      fontStyle: FontStyle.italic,
-                      color: AppColors.overlay)),
-            ),
-            const SizedBox(height: 4),
-          ],
           Text(text,
               style: const TextStyle(
                   fontSize: 13, height: 1.5, color: AppColors.text)),
         ],
+      );
+
+  // 思考过程块（reasoning，灰色斜体，左边竖线）
+  Widget _reasoningBlock(String text) => Container(
+        padding: const EdgeInsets.only(left: 9),
+        decoration: const BoxDecoration(
+          border:
+              Border(left: BorderSide(color: AppColors.surface1, width: 2)),
+        ),
+        child: Text(text,
+            style: const TextStyle(
+                fontSize: 11.5,
+                fontStyle: FontStyle.italic,
+                color: AppColors.overlay)),
       );
 
   // 工具调用卡片（头部名称+状态 / 命令 / 结果）
@@ -205,7 +266,7 @@ class AiPane extends StatelessWidget {
                 Icon(Icons.warning_amber_rounded,
                     size: 14, color: AppColors.yellow),
                 SizedBox(width: 6),
-                Text('需要确认 · 该命令会删除文件',
+                Text('需要确认 · 该命令需人工放行',
                     style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
@@ -225,11 +286,13 @@ class AiPane extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                _cardBtn('允许执行', danger: true),
+                _cardBtn('允许执行', danger: true,
+                    onTap: () =>
+                        ref.read(agentProvider.notifier).resolveAsk(true)),
                 const SizedBox(width: 8),
-                _cardBtn('拒绝', ghost: true),
-                const SizedBox(width: 8),
-                _cardBtn('总是允许此类', ghost: true),
+                _cardBtn('拒绝', ghost: true,
+                    onTap: () =>
+                        ref.read(agentProvider.notifier).resolveAsk(false)),
               ],
             ),
           ],
@@ -273,23 +336,28 @@ class AiPane extends StatelessWidget {
       );
 
   // 卡片按钮（danger红底 / ghost透明描边）
-  Widget _cardBtn(String label, {bool danger = false, bool ghost = false}) =>
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: danger ? AppColors.red : Colors.transparent,
-          border: ghost ? Border.all(color: AppColors.surface1) : null,
-          borderRadius: BorderRadius.circular(6),
+  Widget _cardBtn(String label,
+          {bool danger = false, bool ghost = false, VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+          decoration: BoxDecoration(
+            color: danger ? AppColors.red : Colors.transparent,
+            border: ghost ? Border.all(color: AppColors.surface1) : null,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: danger ? FontWeight.w600 : FontWeight.normal,
+                  color: danger ? AppColors.crust : AppColors.text)),
         ),
-        child: Text(label,
-            style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: danger ? FontWeight.w600 : FontWeight.normal,
-                color: danger ? AppColors.crust : AppColors.text)),
       );
 
-  // AI 输入框 + 快捷键提示
-  Widget _inputBox() => Container(
+  // AI 输入框 + 快捷键提示。running 时禁用并显示中断。
+  Widget _inputBox(bool running) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: const BoxDecoration(
           color: AppColors.mantle,
@@ -299,24 +367,61 @@ class AiPane extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.base,
                 border: Border.all(color: AppColors.surface1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
-                children: const [
+                children: [
                   Expanded(
-                    child: Text('输入运维任务，或 @ 引用主机…',
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.overlay)),
+                    child: TextField(
+                      controller: _controller,
+                      enabled: !running,
+                      onSubmitted: (_) => _send(),
+                      style: const TextStyle(
+                          fontSize: 13, color: AppColors.text),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: '输入运维任务，或 @ 引用主机…',
+                        hintStyle: TextStyle(
+                            fontSize: 13, color: AppColors.overlay),
+                      ),
+                    ),
                   ),
-                  Text('↵ 发送',
-                      style: TextStyle(
-                          fontFamily: kMonoFont,
-                          fontSize: 12,
-                          color: AppColors.blue)),
+                  const SizedBox(width: 8),
+                  // running 时显示中断，否则显示发送
+                  running
+                      ? InkWell(
+                          onTap: () =>
+                              ref.read(agentProvider.notifier).abort(),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 12,
+                                height: 12,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: AppColors.yellow),
+                              ),
+                              SizedBox(width: 6),
+                              Text('中断',
+                                  style: TextStyle(
+                                      fontSize: 12, color: AppColors.yellow)),
+                            ],
+                          ),
+                        )
+                      : InkWell(
+                          onTap: _send,
+                          child: const Text('↵ 发送',
+                              style: TextStyle(
+                                  fontFamily: kMonoFont,
+                                  fontSize: 12,
+                                  color: AppColors.blue)),
+                        ),
                 ],
               ),
             ),
