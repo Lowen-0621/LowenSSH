@@ -43,13 +43,17 @@ TabbedViewThemeData buildTabbedTheme() {
   return theme;
 }
 
-/// 分隔条主题：VS Code 式 sash —— 平时 1px 浅灰细线，hover 变蓝
+/// 分隔条主题：VS Code 式 sash
+/// 命中区 9px(鼠标易对准)，平时只画 1px 浅灰细线，hover 加粗变蓝。
 MultiSplitViewThemeData buildSplitTheme() {
   return MultiSplitViewThemeData(
-    dividerThickness: 1, // 1px 细线，不糊
-    dividerPainter: DividerPainters.background(
-      color: AppColors.surface0, // 平时：浅灰细线（可见但低调）
-      highlightedColor: AppColors.blue, // hover/拖拽：蓝色高亮
+    dividerThickness: 9, // 命中区 9px，便于拖拽
+    dividerPainter: DividerPainters.dashed(
+      gap: 100000, // 超大间隙 → 实际渲染为一整条实线
+      color: AppColors.surface0, // 平时：1px 浅灰细线
+      highlightedColor: AppColors.blue, // hover/拖拽：蓝色
+      thickness: 1, // 平时线宽 1px
+      highlightedThickness: 3, // hover 加粗到 3px
     ),
   );
 }
