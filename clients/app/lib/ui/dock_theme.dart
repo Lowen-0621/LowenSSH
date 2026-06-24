@@ -49,7 +49,8 @@ MultiSplitViewThemeData buildSplitTheme() {
   return MultiSplitViewThemeData(
     dividerThickness: 9, // 命中区 9px，便于拖拽
     dividerPainter: DividerPainters.dashed(
-      gap: 100000, // 超大间隙 → 实际渲染为一整条实线
+      size: 100000, // 单段超长 → 铺满整条，渲染为实线
+      gap: 1, // gap 必须 >0，因 size 极大永不触发间隙
       color: AppColors.surface0, // 平时：1px 浅灰细线
       highlightedColor: AppColors.blue, // hover/拖拽：蓝色
       thickness: 1, // 平时线宽 1px
