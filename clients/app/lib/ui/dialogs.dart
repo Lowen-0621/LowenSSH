@@ -22,44 +22,79 @@ Future<T?> _showDark<T>(BuildContext context, Widget child) {
   );
 }
 
-/// 暗色输入框
-Widget _field(TextEditingController c, String label,
-    {String? hint, bool obscure = false}) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label,
-            style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
-        const SizedBox(height: 4),
-        TextField(
-          controller: c,
-          obscureText: obscure,
-          style: const TextStyle(fontSize: 13, color: AppColors.text),
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hint,
-            hintStyle:
-                const TextStyle(fontSize: 12, color: AppColors.overlay),
-            filled: true,
-            fillColor: AppColors.base,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: AppColors.surface0),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
-              borderSide: const BorderSide(color: AppColors.blue),
+/// 暗色输入框。密码框（obscure:true）带显示/隐藏切换按钮，
+/// 避免不可见输入时丢字符却无从察觉。
+class _Field extends StatefulWidget {
+  final TextEditingController controller;
+  final String label;
+  final String? hint;
+  final bool obscure;
+  const _Field(this.controller, this.label, {this.hint, this.obscure = false});
+
+  @override
+  State<_Field> createState() => _FieldState();
+}
+
+class _FieldState extends State<_Field> {
+  late bool _hidden = widget.obscure; // 密码框默认隐藏
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(widget.label,
+              style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+          const SizedBox(height: 4),
+          TextField(
+            controller: widget.controller,
+            obscureText: _hidden,
+            style: const TextStyle(fontSize: 13, color: AppColors.text),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: widget.hint,
+              hintStyle:
+                  const TextStyle(fontSize: 12, color: AppColors.overlay),
+              filled: true,
+              fillColor: AppColors.base,
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              // 密码框右侧眼睛：点击切换明文/密文
+              suffixIcon: widget.obscure
+                  ? IconButton(
+                      icon: Icon(
+                        _hidden
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        size: 16,
+                        color: AppColors.overlay,
+                      ),
+                      splashRadius: 16,
+                      onPressed: () => setState(() => _hidden = !_hidden),
+                    )
+                  : null,
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.surface0),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.blue),
+              ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
+
+/// 兼容旧调用点的简写
+Widget _field(TextEditingController c, String label,
+        {String? hint, bool obscure = false}) =>
+    _Field(c, label, hint: hint, obscure: obscure);
 
 Widget _title(IconData icon, String text) => Padding(
       padding: const EdgeInsets.only(bottom: 16),
