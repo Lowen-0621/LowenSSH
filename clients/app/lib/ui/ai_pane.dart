@@ -83,8 +83,15 @@ class AiPane extends StatelessWidget {
   Widget _assistantMsg({String? reasoning, required String text}) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('🤖 智能体',
-              style: TextStyle(fontSize: 10.5, color: AppColors.overlay)),
+          Row(
+            children: const [
+              Icon(Icons.smart_toy_outlined,
+                  size: 13, color: AppColors.overlay),
+              SizedBox(width: 5),
+              Text('智能体',
+                  style: TextStyle(fontSize: 10.5, color: AppColors.overlay)),
+            ],
+          ),
           const SizedBox(height: 4),
           if (reasoning != null) ...[
             Container(
@@ -114,9 +121,9 @@ class AiPane extends StatelessWidget {
     required String cmd,
     required String result,
   }) {
-    final (Color sc, String st) = switch (status) {
-      'run' => (AppColors.yellow, '● 执行中'),
-      _ => (AppColors.green, '✓ 已执行'),
+    final (Color sc, IconData si, String st) = switch (status) {
+      'run' => (AppColors.yellow, Icons.pending_outlined, '执行中'),
+      _ => (AppColors.green, Icons.check_circle_outline, '已执行'),
     };
     return Container(
       decoration: BoxDecoration(
@@ -133,7 +140,8 @@ class AiPane extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Row(
               children: [
-                const Text('⚙', style: TextStyle(fontSize: 11.5)),
+                const Icon(Icons.terminal,
+                    size: 14, color: AppColors.sapphire),
                 const SizedBox(width: 7),
                 Text(name,
                     style: const TextStyle(
@@ -141,6 +149,8 @@ class AiPane extends StatelessWidget {
                         fontWeight: FontWeight.w600,
                         color: AppColors.sapphire)),
                 const Spacer(),
+                Icon(si, size: 12, color: sc),
+                const SizedBox(width: 4),
                 Text(st, style: TextStyle(fontSize: 10.5, color: sc)),
               ],
             ),
@@ -190,11 +200,18 @@ class AiPane extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⚠ 需要确认 · 该命令会删除文件',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.yellow)),
+            Row(
+              children: const [
+                Icon(Icons.warning_amber_rounded,
+                    size: 14, color: AppColors.yellow),
+                SizedBox(width: 6),
+                Text('需要确认 · 该命令会删除文件',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.yellow)),
+              ],
+            ),
             const SizedBox(height: 5),
             Text(cmd,
                 style: const TextStyle(
@@ -230,11 +247,17 @@ class AiPane extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⛔ 已阻止 · 高危命令',
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.red)),
+            Row(
+              children: const [
+                Icon(Icons.block, size: 14, color: AppColors.red),
+                SizedBox(width: 6),
+                Text('已阻止 · 高危命令',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.red)),
+              ],
+            ),
             const SizedBox(height: 5),
             Text(cmd,
                 style: const TextStyle(

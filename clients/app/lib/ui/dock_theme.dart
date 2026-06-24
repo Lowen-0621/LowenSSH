@@ -43,12 +43,12 @@ TabbedViewThemeData buildTabbedTheme() {
   return theme;
 }
 
-/// 分隔条主题：VS Code 式 sash —— 平时几乎隐形，hover 才变蓝
+/// 分隔条主题：VS Code 式 sash —— 平时 1px 浅灰细线，hover 变蓝
 MultiSplitViewThemeData buildSplitTheme() {
   return MultiSplitViewThemeData(
-    dividerThickness: 6, // 命中区 6px，拖拽更跟手
+    dividerThickness: 1, // 1px 细线，不糊
     dividerPainter: DividerPainters.background(
-      color: AppColors.base, // 平时：与背景同色，近乎隐形(靠面板自身边界区分)
+      color: AppColors.surface0, // 平时：浅灰细线（可见但低调）
       highlightedColor: AppColors.blue, // hover/拖拽：蓝色高亮
     ),
   );

@@ -243,12 +243,12 @@ class _FilesPanel extends StatelessWidget {
   const _FilesPanel();
 
   static const _files = [
-    ('📁', '..', null, true),
-    ('📁', 'html', 'drwxr-xr-x', true),
-    ('📁', 'logs', 'drwxr-xr-x', true),
-    ('📄', 'nginx.conf', '1.2 KB', false),
-    ('📄', 'index.html', '4.5 KB', false),
-    ('📦', 'release.tar.gz', '48 MB', false),
+    (Icons.folder_outlined, '..', null, true),
+    (Icons.folder_outlined, 'html', 'drwxr-xr-x', true),
+    (Icons.folder_outlined, 'logs', 'drwxr-xr-x', true),
+    (Icons.description_outlined, 'nginx.conf', '1.2 KB', false),
+    (Icons.description_outlined, 'index.html', '4.5 KB', false),
+    (Icons.inventory_2_outlined, 'release.tar.gz', '48 MB', false),
   ];
 
   @override
@@ -271,8 +271,15 @@ class _FilesPanel extends StatelessWidget {
                       fontFamily: kMonoFont,
                       fontSize: 11,
                       color: AppColors.subtext)),
-              Text('⛶ 完整视图',
-                  style: TextStyle(fontSize: 11, color: AppColors.blue)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.open_in_full, size: 12, color: AppColors.blue),
+                  SizedBox(width: 4),
+                  Text('完整视图',
+                      style: TextStyle(fontSize: 11, color: AppColors.blue)),
+                ],
+              ),
             ],
           ),
         ),
@@ -287,23 +294,29 @@ class _FilesPanel extends StatelessWidget {
                 color: AppColors.surface1, style: BorderStyle.solid),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Text('⬆ 拖文件到此处上传到 /var/www',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+          child: Column(
+            children: const [
+              Icon(Icons.upload_outlined, size: 18, color: AppColors.overlay),
+              SizedBox(height: 6),
+              Text('拖文件到此处上传到 /var/www',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            ],
+          ),
         ),
       ],
     );
   }
 
-  Widget _fileRow(String icon, String name, String? perm, bool isDir) =>
+  Widget _fileRow(IconData icon, String name, String? perm, bool isDir) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         child: Row(
           children: [
-            SizedBox(
-                width: 16,
-                child: Text(icon, textAlign: TextAlign.center)),
-            const SizedBox(width: 8),
+            Icon(icon,
+                size: 15,
+                color: isDir ? AppColors.blue : AppColors.subtext),
+            const SizedBox(width: 9),
             Expanded(
               child: Text(name,
                   style: TextStyle(
