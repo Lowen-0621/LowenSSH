@@ -42,6 +42,19 @@ class LeftBar extends ConsumerWidget {
               )
             else
               for (final h in hosts) _hostItem(context, ref, h, conn),
+            // 连接错误显示（定位失败原因）
+            if (conn.phase == ConnPhase.error && conn.error != null)
+              Container(
+                margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.red.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('连接失败：${conn.error}',
+                    style: const TextStyle(
+                        fontSize: 10.5, color: AppColors.red)),
+              ),
             _divider(),
             for (final l in _links) _navLink(l.$1, l.$2, l.$3),
           ],
@@ -76,6 +89,7 @@ class LeftBar extends ConsumerWidget {
     final isCurrent = conn.host?.id == h.id;
     final connected = isCurrent && conn.phase == ConnPhase.connected;
     final connecting = isCurrent && conn.phase == ConnPhase.connecting;
+    final failed = isCurrent && conn.phase == ConnPhase.error;
     final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
 
     return InkWell(
@@ -95,13 +109,20 @@ class LeftBar extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // 状态：连接中转圈 / 否则绿(已连)灰(未连)点
+            // 状态：连接中转圈 / error红点 / 已连绿点 / 未连灰点
             if (connecting)
               const SizedBox(
                 width: 9,
                 height: 9,
                 child: CircularProgressIndicator(
                     strokeWidth: 1.5, color: AppColors.blue),
+              )
+            else if (failed)
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                    color: AppColors.red, shape: BoxShape.circle),
               )
             else
               _onlineDot(connected),

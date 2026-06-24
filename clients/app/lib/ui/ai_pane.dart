@@ -429,14 +429,13 @@ class _AiPaneState extends ConsumerState<AiPane> {
             DefaultTextStyle(
               style: const TextStyle(
                   fontFamily: kMonoFont, fontSize: 10, color: AppColors.overlay),
-              child: Row(
+              child: Wrap(
+                spacing: 14,
+                runSpacing: 4,
                 children: const [
                   Text('⏎ 发送'),
-                  SizedBox(width: 14),
                   Text('⇧⏎ 换行'),
-                  SizedBox(width: 14),
                   Text('Esc 中断'),
-                  SizedBox(width: 14),
                   Text('⌘K 命令面板'),
                 ],
               ),
