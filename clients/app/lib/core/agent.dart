@@ -11,6 +11,7 @@
 /// 安全是独立代码路径：门禁不写进工具、不靠模型自觉，越狱也绕不过。
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'guard.dart';
 import 'ssh.dart';
@@ -156,9 +157,23 @@ class _ScreenResult {
   const _ScreenResult(this.content, this.rejected);
 }
 
-/// 跑一轮 agent 任务，以 async* 吐事件流。
-/// 调用方 await for 消费事件；事件语义见 events.dart。
-Stream<AgentEvent> runAgent(String task, AgentDeps deps) async* {
+/// 跑一轮 agent 任务，返回事件流。
+/// 用 StreamController 驱动：GLM 流式 token 在回调里实时 add，
+/// 不再攒到整轮结束才发——保证 UI 真正逐字流式显示。
+Stream<AgentEvent> runAgent(String task, AgentDeps deps) {
+  final controller = StreamController<AgentEvent>();
+  // 异步跑 loop，事件实时推进 controller
+  _runLoop(task, deps, controller).whenComplete(() {
+    if (!controller.isClosed) controller.close();
+  });
+  return controller.stream;
+}
+
+Future<void> _runLoop(
+  String task,
+  AgentDeps deps,
+  StreamController<AgentEvent> out,
+) async {
   final llm = deps.llm;
   final ssh = deps.ssh;
   final ctx = ContextManager(llm);
@@ -169,60 +184,51 @@ Stream<AgentEvent> runAgent(String task, AgentDeps deps) async* {
     ChatMessage.user(task),
   ];
 
-  for (var round = 1; round <= maxRounds; round++) {
-    // 进模型前整理上下文：Layer 0 截断 + Layer 4 压缩
-    messages = ctx.truncateToolResponses(messages);
-    messages = await ctx.compressIfNeeded(messages);
+  try {
+    for (var round = 1; round <= maxRounds; round++) {
+      // 进模型前整理上下文：Layer 0 截断 + Layer 4 压缩
+      messages = ctx.truncateToolResponses(messages);
+      messages = await ctx.compressIfNeeded(messages);
 
-    // 一次流式调用：边推 token/reasoning 边聚合
-    final pending = <AgentEvent>[];
-    final result = await llm.stream(messages, tools, StreamHandlers(
-      onToken: (t) => pending.add(TokenEvent(t)),
-      onReasoning: (t) => pending.add(ReasoningEvent(t)),
-    ));
-    // 把流式期间攒的增量事件吐出去
-    for (final ev in pending) {
-      yield ev;
-    }
-    pending.clear();
+      // 一次流式调用：token/reasoning 在回调里实时推给 UI
+      final result = await llm.stream(messages, tools, StreamHandlers(
+        onToken: (t) => out.add(TokenEvent(t)),
+        onReasoning: (t) => out.add(ReasoningEvent(t)),
+      ));
 
-    // 没有 tool_call：模型给出最终结论，结束。
-    // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号 + 兜底文本，
-    // 由 UI 层去重（空文本或与已显示内容重复则不再追加）。
-    if (result.toolCalls.isEmpty) {
-      yield DoneEvent(result.text.trim());
-      return;
+      // 没有 tool_call：模型给出最终结论，结束。
+      // 正文已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
+      if (result.toolCalls.isEmpty) {
+        out.add(DoneEvent(result.text.trim()));
+        return;
+      }
+
+      // 落 assistant（文字 + tool_calls）
+      final assistant = ChatMessage.assistant(
+        result.text.isNotEmpty ? result.text : null,
+        toolCalls: result.toolCalls,
+      );
+      // 先把本轮要调的工具吐出去
+      for (final call in result.toolCalls) {
+        out.add(ToolCallEvent(call.name, call.arguments));
+      }
+
+      // —— 门禁预检 + 执行 ——（事件实时 add 到 out）
+      final toolResponses = <ChatMessage>[];
+      for (final call in result.toolCalls) {
+        final r = await _screenAndRun(call, ssh, deps.confirmer, out.add);
+        toolResponses.add(ChatMessage.tool(call.id, r.content));
+      }
+
+      // 回灌历史：assistant + 所有 tool 结果（被拒的也回灌"拒绝"文本，让模型换方案）
+      messages.add(assistant);
+      messages.addAll(toolResponses);
     }
 
-    // 落 assistant（文字 + tool_calls）
-    final assistant = ChatMessage.assistant(
-      result.text.isNotEmpty ? result.text : null,
-      toolCalls: result.toolCalls,
-    );
-    // 先把本轮要调的工具吐出去
-    for (final call in result.toolCalls) {
-      yield ToolCallEvent(call.name, call.arguments);
-    }
-
-    // —— 门禁预检 + 执行 ——
-    final toolResponses = <ChatMessage>[];
-    for (final call in result.toolCalls) {
-      final r = await _screenAndRun(call, ssh, deps.confirmer, pending.add);
-      // _screenAndRun 把 blocked/tool_result 事件塞进 pending
-      toolResponses.add(ChatMessage.tool(call.id, r.content));
-    }
-    // 吐出执行阶段攒的事件（blocked / tool_result）
-    for (final ev in pending) {
-      yield ev;
-    }
-    pending.clear();
-
-    // 回灌历史：assistant + 所有 tool 结果（被拒的也回灌"拒绝"文本，让模型换方案）
-    messages.add(assistant);
-    messages.addAll(toolResponses);
+    out.add(DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。'));
+  } catch (e) {
+    out.add(ErrorEvent(e.toString()));
   }
-
-  yield DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。');
 }
 
 /// 对单个 tool_call 过门禁并执行。通过 emit 推 blocked / tool_result 事件。
