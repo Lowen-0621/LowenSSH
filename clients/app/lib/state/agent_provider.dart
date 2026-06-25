@@ -77,153 +77,227 @@ class AgentState {
       );
 }
 
-/// 会话 Notifier —— 发送任务、消费事件流、桥接 ASK 确认
+/// 单台主机的会话状态（内存隔离的最小单元）。
+/// 每台主机一份：独立的对话项、core 多轮历史、运行态、挂起确认、事件订阅。
+class _HostSession {
+  final List<ChatItem> items = [];
+  final List<ChatMessage> history = []; // core loop 多轮历史
+  bool running = false;
+  PendingAsk? pendingAsk;
+  String? error;
+  StreamSubscription<AgentEvent>? sub;
+  int undoMark = 0; // 本轮发送前的 items 长度，中断时撤回到此
+}
+
+/// 会话 Notifier —— 按主机分桶隔离对话。
+/// 内部维护 `Map<hostId, _HostSession>`；当前展示哪台由 connectionProvider 的 host 决定。
+/// 关键：事件回调绑定「发起任务时的 hostId」，而非「当前展示的 host」，
+/// 所以 A 主机任务运行时切到 B，A 的输出仍写进 A 的会话；切回 A 可看到继续更新。
 class AgentNotifier extends Notifier<AgentState> {
-  // core 多轮历史（loop 内部用），与 UI items 分离
-  final List<ChatMessage> _history = [];
-  StreamSubscription<AgentEvent>? _sub;
-  int _undoMark = 0; // 本轮发送前的 items 长度，中断时撤回到此
+  final Map<String, _HostSession> _sessions = {};
+  String? _currentHostId; // 当前展示的主机 id
 
   @override
   AgentState build() {
-    ref.onDispose(() => _sub?.cancel());
-    return const AgentState();
+    // 监听主机切换：切到哪台就把 state 换成那台会话的快照
+    ref.listen(connectionProvider.select((s) => s.host?.id), (prev, next) {
+      _currentHostId = next;
+      _syncState();
+    });
+    _currentHostId = ref.read(connectionProvider).host?.id;
+    ref.onDispose(() {
+      for (final s in _sessions.values) {
+        s.sub?.cancel();
+      }
+    });
+    return _snapshot(_currentHostId);
   }
 
-  /// 用户发送一条运维任务
+  /// 取某主机会话（不存在则建）
+  _HostSession _session(String hostId) =>
+      _sessions.putIfAbsent(hostId, () => _HostSession());
+
+  /// 把某会话投影成对外 AgentState
+  AgentState _snapshot(String? hostId) {
+    final s = hostId == null ? null : _sessions[hostId];
+    if (s == null) return const AgentState();
+    return AgentState(
+      items: s.items,
+      running: s.running,
+      pendingAsk: s.pendingAsk,
+      error: s.error,
+    );
+  }
+
+  /// 若传入的 hostId 正是当前展示主机，则刷新对外 state（驱动 UI 重建）
+  void _refreshIfCurrent(String hostId) {
+    if (hostId == _currentHostId) _syncState();
+  }
+
+  /// 用当前展示主机的会话刷新对外 state
+  void _syncState() {
+    state = _snapshot(_currentHostId);
+  }
+
+  /// 用户发送一条运维任务（落到当前展示主机的会话）
   Future<void> send(String task) async {
-    if (state.running || task.trim().isEmpty) return;
+    if (task.trim().isEmpty) return;
 
     final conn = ref.read(connectionProvider);
-    if (!conn.isConnected) {
-      _append(ChatItem(
-          kind: ChatItemKind.blocked,
-          command: task,
-          reason: '尚未连接主机，请先在左栏选择并连接一台主机。'));
+    final hostId = conn.host?.id;
+    if (hostId == null || !conn.isConnected) {
+      // 未连接：临时挂一条阻断提示到当前会话（若有），否则忽略
+      if (hostId != null) {
+        final s = _session(hostId);
+        s.items.add(ChatItem(
+            kind: ChatItemKind.blocked,
+            command: task,
+            reason: '尚未连接主机，请先在左栏选择并连接一台主机。'));
+        _refreshIfCurrent(hostId);
+      }
       return;
     }
 
+    final s = _session(hostId);
+    if (s.running) return; // 该主机已有任务在跑
+
     final cfg = ref.read(configProvider);
     // 记录撤回点（user 气泡之前），中断时回到这里
-    _undoMark = state.items.length;
-    // 追加用户气泡
-    _append(ChatItem(kind: ChatItemKind.user, text: task));
-    state = state.copyWith(running: true, error: null);
+    s.undoMark = s.items.length;
+    s.items.add(ChatItem(kind: ChatItemKind.user, text: task));
+    s.running = true;
+    s.error = null;
+    _refreshIfCurrent(hostId);
 
     final deps = AgentDeps(
       llm: GlmClient(cfg.llm),
       ssh: conn.client!,
-      confirmer: _confirm, // ASK 桥接
-      history: _history,
+      confirmer: (cmd, reason) => _confirm(hostId, cmd, reason), // ASK 桥接（绑定 hostId）
+      history: s.history,
     );
 
-    // 消费事件流
-    _sub = runAgent(task, deps).listen(
-      _onEvent,
+    // 消费事件流：所有回调绑定 hostId，写进对应会话
+    s.sub = runAgent(task, deps).listen(
+      (ev) => _onEvent(hostId, ev),
       onError: (e) {
-        state = state.copyWith(running: false, error: e.toString());
+        s.error = e.toString();
+        s.running = false;
+        _refreshIfCurrent(hostId);
       },
       onDone: () {
-        state = state.copyWith(running: false);
+        s.running = false;
+        _refreshIfCurrent(hostId);
       },
     );
   }
 
   /// Confirmer：loop 遇到 ASK 命令时调用，挂起等 UI 决断
-  Future<bool> _confirm(String command, String reason) {
+  Future<bool> _confirm(String hostId, String command, String reason) {
     ref.read(guardProvider.notifier).recordAsk(); // 记一次待确认
     final ask = PendingAsk(command, reason);
-    state = state.copyWith(pendingAsk: ask);
+    _session(hostId).pendingAsk = ask;
+    _refreshIfCurrent(hostId);
     return ask.completer.future;
   }
 
-  /// UI 点击 ASK 卡片的「允许/拒绝」
+  /// UI 点击 ASK 卡片的「允许/拒绝」（作用于当前展示主机）
   void resolveAsk(bool allow) {
-    final ask = state.pendingAsk;
-    if (ask == null || ask.completer.isCompleted) return;
+    final hostId = _currentHostId;
+    if (hostId == null) return;
+    final s = _sessions[hostId];
+    final ask = s?.pendingAsk;
+    if (s == null || ask == null || ask.completer.isCompleted) return;
     ask.completer.complete(allow);
-    state = state.copyWith(clearPending: true);
+    s.pendingAsk = null;
+    _refreshIfCurrent(hostId);
   }
 
-  /// 中断当前任务：停止流，并撤回本轮的用户输入与 AI 输出（回到发送前）
+  /// 中断当前展示主机的任务：停止流，撤回本轮的用户输入与 AI 输出
   void abort() {
-    _sub?.cancel();
-    _sub = null;
+    final hostId = _currentHostId;
+    if (hostId == null) return;
+    final s = _sessions[hostId];
+    if (s == null) return;
+    s.sub?.cancel();
+    s.sub = null;
     // 若有挂起确认，按拒绝处理
-    final ask = state.pendingAsk;
+    final ask = s.pendingAsk;
     if (ask != null && !ask.completer.isCompleted) {
       ask.completer.complete(false);
     }
+    s.pendingAsk = null;
     // 撤回到本轮发送前的对话项
-    final kept = _undoMark <= state.items.length
-        ? state.items.sublist(0, _undoMark)
-        : state.items;
-    state = AgentState(items: kept, running: false);
+    if (s.undoMark <= s.items.length) {
+      s.items.removeRange(s.undoMark, s.items.length);
+    }
+    s.running = false;
+    _refreshIfCurrent(hostId);
   }
 
-  // 把 core 事件映射成 UI 对话项
-  void _onEvent(AgentEvent ev) {
+  // 把 core 事件映射成 UI 对话项，写进指定 hostId 的会话
+  void _onEvent(String hostId, AgentEvent ev) {
+    final s = _sessions[hostId];
+    if (s == null) return;
     switch (ev) {
       case ReasoningEvent(:final text):
-        _appendOrExtend(ChatItemKind.reasoning, text);
+        _appendOrExtend(hostId, s, ChatItemKind.reasoning, text);
       case TokenEvent(:final text):
-        _appendOrExtend(ChatItemKind.assistant, text);
+        _appendOrExtend(hostId, s, ChatItemKind.assistant, text);
       case ToolCallEvent(:final name, :final args):
-        _append(ChatItem(
+        s.items.add(ChatItem(
             kind: ChatItemKind.tool, toolName: name, toolArgs: args));
+        _refreshIfCurrent(hostId);
       case ToolResultEvent(:final name, :final summary, :final executed):
         if (executed) {
           ref.read(guardProvider.notifier).recordAllow(); // 成功执行计入已放行
         }
         // 回填最近一个同名 tool 卡
-        final list = [...state.items];
-        for (var i = list.length - 1; i >= 0; i--) {
-          if (list[i].kind == ChatItemKind.tool &&
-              list[i].toolName == name &&
-              list[i].toolResult == null) {
-            list[i].toolResult = summary;
-            list[i].toolExecuted = executed;
+        for (var i = s.items.length - 1; i >= 0; i--) {
+          if (s.items[i].kind == ChatItemKind.tool &&
+              s.items[i].toolName == name &&
+              s.items[i].toolResult == null) {
+            s.items[i].toolResult = summary;
+            s.items[i].toolExecuted = executed;
             break;
           }
         }
-        state = state.copyWith(items: list);
+        _refreshIfCurrent(hostId);
       case BlockedEvent(:final command, :final reason):
         ref.read(guardProvider.notifier).recordDeny(command); // 计入已阻止+历史
-        _append(ChatItem(
+        s.items.add(ChatItem(
             kind: ChatItemKind.blocked, command: command, reason: reason));
+        _refreshIfCurrent(hostId);
       case DoneEvent(:final finalText):
         final t = finalText.trim();
         if (t.isEmpty) break; // 空结论：正文已流式显示完，无需追加
         // 去重：若最后一条 assistant 正文已是同样内容（流式已显示过），不再重复追加
-        final last = state.items.isNotEmpty ? state.items.last : null;
+        final last = s.items.isNotEmpty ? s.items.last : null;
         if (last != null &&
             last.kind == ChatItemKind.assistant &&
             last.text.trim() == t) {
           break;
         }
-        _append(ChatItem(kind: ChatItemKind.assistant, text: t));
+        s.items.add(ChatItem(kind: ChatItemKind.assistant, text: t));
+        _refreshIfCurrent(hostId);
       case ErrorEvent(:final message):
-        state = state.copyWith(error: message);
+        s.error = message;
+        _refreshIfCurrent(hostId);
     }
-  }
-
-  void _append(ChatItem item) {
-    state = state.copyWith(items: [...state.items, item]);
   }
 
   /// 同类型连续增量（reasoning/assistant 流式 token）拼到末尾同类项。
   /// reasoning 额外记录开始时刻并实时更新耗时（秒）。
-  void _appendOrExtend(ChatItemKind kind, String delta) {
-    final list = [...state.items];
-    if (list.isNotEmpty && list.last.kind == kind) {
-      list.last.text += delta;
-      if (kind == ChatItemKind.reasoning && list.last.reasoningStart != null) {
-        list.last.reasoningSec =
-            DateTime.now().difference(list.last.reasoningStart!).inSeconds;
+  void _appendOrExtend(
+      String hostId, _HostSession s, ChatItemKind kind, String delta) {
+    final items = s.items;
+    if (items.isNotEmpty && items.last.kind == kind) {
+      items.last.text += delta;
+      if (kind == ChatItemKind.reasoning && items.last.reasoningStart != null) {
+        items.last.reasoningSec =
+            DateTime.now().difference(items.last.reasoningStart!).inSeconds;
       }
-      state = state.copyWith(items: list);
     } else {
-      _append(ChatItem(
+      items.add(ChatItem(
         kind: kind,
         text: delta,
         reasoningStart:
@@ -231,6 +305,7 @@ class AgentNotifier extends Notifier<AgentState> {
         reasoningSec: kind == ChatItemKind.reasoning ? 0 : null,
       ));
     }
+    _refreshIfCurrent(hostId);
   }
 }
 

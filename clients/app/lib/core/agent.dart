@@ -177,10 +177,15 @@ Future<void> _runLoop(
   final ssh = deps.ssh;
   final ctx = ContextManager(llm);
 
+  // 本轮 user 输入，先暂存；本轮新增的 assistant/tool 消息累加到 newTurn，
+  // 结束时一次性回写 deps.history，供下一轮续聊（修复多轮历史从不落回的 bug）。
+  final userMsg = ChatMessage.user(task);
+  final newTurn = <ChatMessage>[userMsg];
+
   var messages = <ChatMessage>[
     ChatMessage.system(systemPrompt),
     ...(deps.history ?? const []),
-    ChatMessage.user(task),
+    userMsg,
   ];
 
   try {
@@ -202,6 +207,11 @@ Future<void> _runLoop(
       // 没有 tool_call：模型给出最终结论，结束。
       // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
       if (result.toolCalls.isEmpty) {
+        // 最终结论也要进历史，否则下一轮模型看不到自己上次说了什么
+        if (result.text.trim().isNotEmpty) {
+          newTurn.add(ChatMessage.assistant(result.text));
+        }
+        deps.history?.addAll(newTurn);
         out.add(DoneEvent(result.text.trim()));
         return;
       }
@@ -226,8 +236,12 @@ Future<void> _runLoop(
       // 回灌历史：assistant + 所有 tool 结果（被拒的也回灌"拒绝"文本，让模型换方案）
       messages.add(assistant);
       messages.addAll(toolResponses);
+      // 同步累加到本轮新增，供结束时回写 deps.history
+      newTurn.add(assistant);
+      newTurn.addAll(toolResponses);
     }
 
+    deps.history?.addAll(newTurn);
     out.add(DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。'));
   } catch (e) {
     out.add(ErrorEvent(e.toString()));
