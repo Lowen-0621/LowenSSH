@@ -62,6 +62,21 @@ class SshClient {
 
   bool isConnected() => _connected && _client != null;
 
+  /// 开一个交互式 shell（PTY），供 xterm 双向绑定。
+  /// 与 exec 各走独立 channel：exec 给 agent 拿结构化结果，shell 给用户手敲。
+  Future<SSHSession> shell({
+    int width = 80,
+    int height = 24,
+  }) async {
+    final client = _client;
+    if (client == null || !_connected) {
+      throw StateError('SSH 未连接，先调用 connect()');
+    }
+    return client.shell(
+      pty: SSHPtyConfig(width: width, height: height),
+    );
+  }
+
   /// 执行一条命令，收集 stdout、stderr、exitCode。
   Future<ExecResult> exec(String command) async {
     final client = _client;
