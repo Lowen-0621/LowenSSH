@@ -284,6 +284,8 @@ class AgentNotifier extends Notifier<AgentState> {
   void _onEvent(String hostId, AgentEvent ev) {
     final s = _sessions[hostId];
     if (s == null) return;
+    // reasoning 块在下一个非 reasoning 事件到来时定格耗时，避免一直显示「思考中…」
+    if (ev is! ReasoningEvent) _sealReasoning(s);
     switch (ev) {
       case ReasoningEvent(:final text):
         _appendOrExtend(hostId, s, ChatItemKind.reasoning, text);
@@ -328,6 +330,20 @@ class AgentNotifier extends Notifier<AgentState> {
       case ErrorEvent(:final message):
         s.error = message;
         _refreshIfCurrent(hostId);
+    }
+  }
+
+  /// 定格最后一个 reasoning 块的耗时（思考结束、转入工具/正文时调用）。
+  /// 避免「思考中…」不消失：用 reasoningStart 算最终秒数，不足 1 秒按 1 秒计。
+  void _sealReasoning(_HostSession s) {
+    if (s.items.isEmpty) return;
+    final last = s.items.last;
+    if (last.kind != ChatItemKind.reasoning) return;
+    if (last.reasoningStart != null) {
+      final sec = DateTime.now().difference(last.reasoningStart!).inSeconds;
+      last.reasoningSec = sec < 1 ? 1 : sec;
+    } else {
+      last.reasoningSec ??= 1;
     }
   }
 
