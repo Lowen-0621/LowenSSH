@@ -21,6 +21,9 @@ class ChatItem {
   // blocked/ask 卡专用
   final String? command;
   final String? reason;
+  // reasoning 专用：开始时刻 + 思考耗时（秒），用于折叠标题"思考 Xs"
+  final DateTime? reasoningStart;
+  int? reasoningSec;
 
   ChatItem({
     required this.kind,
@@ -31,6 +34,8 @@ class ChatItem {
     this.toolExecuted = false,
     this.command,
     this.reason,
+    this.reasoningStart,
+    this.reasoningSec,
   });
 }
 
@@ -193,14 +198,25 @@ class AgentNotifier extends Notifier<AgentState> {
     state = state.copyWith(items: [...state.items, item]);
   }
 
-  /// 同类型连续增量（reasoning/assistant 流式 token）拼到末尾同类项
+  /// 同类型连续增量（reasoning/assistant 流式 token）拼到末尾同类项。
+  /// reasoning 额外记录开始时刻并实时更新耗时（秒）。
   void _appendOrExtend(ChatItemKind kind, String delta) {
     final list = [...state.items];
     if (list.isNotEmpty && list.last.kind == kind) {
       list.last.text += delta;
+      if (kind == ChatItemKind.reasoning && list.last.reasoningStart != null) {
+        list.last.reasoningSec =
+            DateTime.now().difference(list.last.reasoningStart!).inSeconds;
+      }
       state = state.copyWith(items: list);
     } else {
-      _append(ChatItem(kind: kind, text: delta));
+      _append(ChatItem(
+        kind: kind,
+        text: delta,
+        reasoningStart:
+            kind == ChatItemKind.reasoning ? DateTime.now() : null,
+        reasoningSec: kind == ChatItemKind.reasoning ? 0 : null,
+      ));
     }
   }
 }

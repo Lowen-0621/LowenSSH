@@ -104,7 +104,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
       case ChatItemKind.user:
         return _userBubble(it.text);
       case ChatItemKind.reasoning:
-        return _reasoningBlock(it.text);
+        return _ReasoningTile(text: it.text, seconds: it.reasoningSec ?? 0);
       case ChatItemKind.assistant:
         return _assistantMsg(text: it.text);
       case ChatItemKind.tool:
@@ -167,19 +167,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
         ],
       );
 
-  // 思考过程块（reasoning，灰色斜体，左边竖线）
-  Widget _reasoningBlock(String text) => Container(
-        padding: const EdgeInsets.only(left: 9),
-        decoration: const BoxDecoration(
-          border:
-              Border(left: BorderSide(color: AppColors.surface1, width: 2)),
-        ),
-        child: Text(text,
-            style: const TextStyle(
-                fontSize: 11.5,
-                fontStyle: FontStyle.italic,
-                color: AppColors.overlay)),
-      );
+  // 思考过程块 → 改用 _ReasoningTile（行内可折叠，见文件末尾）
 
   // 工具调用卡片（头部名称+状态 / 命令 / 结果）
   Widget _toolCard({
@@ -449,4 +437,70 @@ class _AiPaneState extends ConsumerState<AiPane> {
           ],
         ),
       );
+}
+
+/// 思考过程行内折叠块（仿 Claude Code "Thought for Xs"）。
+/// 默认折叠成一行"思考 Xs"，点击展开看完整思考；运行中也可随时展开。
+class _ReasoningTile extends StatefulWidget {
+  final String text;
+  final int seconds;
+  const _ReasoningTile({required this.text, required this.seconds});
+
+  @override
+  State<_ReasoningTile> createState() => _ReasoningTileState();
+}
+
+class _ReasoningTileState extends State<_ReasoningTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final title = widget.seconds > 0 ? '思考 ${widget.seconds}s' : '思考中…';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 折叠标题行：脑图标 + "思考 Xs" + 展开箭头
+        InkWell(
+          onTap: () => setState(() => _expanded = !_expanded),
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.psychology_outlined,
+                    size: 13, color: AppColors.overlay),
+                const SizedBox(width: 5),
+                Text(title,
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.overlay)),
+                const SizedBox(width: 3),
+                Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_down
+                        : Icons.keyboard_arrow_right,
+                    size: 14,
+                    color: AppColors.overlay),
+              ],
+            ),
+          ),
+        ),
+        // 展开后：完整思考内容（灰色斜体，左竖线）
+        if (_expanded && widget.text.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 4, left: 2),
+            padding: const EdgeInsets.only(left: 9),
+            decoration: const BoxDecoration(
+              border:
+                  Border(left: BorderSide(color: AppColors.surface1, width: 2)),
+            ),
+            child: SelectableText(widget.text,
+                style: const TextStyle(
+                    fontSize: 11.5,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.overlay)),
+          ),
+      ],
+    );
+  }
 }
