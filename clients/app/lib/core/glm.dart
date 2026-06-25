@@ -49,6 +49,19 @@ class ChatMessage {
         return {'role': role, 'content': content};
     }
   }
+
+  /// 从持久化 JSON 还原（toJson 的逆）。用于重启后恢复多轮历史。
+  factory ChatMessage.fromJson(Map<String, dynamic> j) {
+    final tc = (j['tool_calls'] as List<dynamic>?)
+        ?.map((e) => ToolCall.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return ChatMessage._(
+      role: j['role'] as String,
+      content: j['content'] as String?,
+      toolCalls: tc,
+      toolCallId: j['tool_call_id'] as String?,
+    );
+  }
 }
 
 /// 一次工具调用
@@ -63,6 +76,16 @@ class ToolCall {
         'type': 'function',
         'function': {'name': name, 'arguments': arguments},
       };
+
+  /// 从持久化 JSON 还原（toJson 的逆）
+  factory ToolCall.fromJson(Map<String, dynamic> j) {
+    final fn = j['function'] as Map<String, dynamic>?;
+    return ToolCall(
+      id: j['id'] as String? ?? '',
+      name: fn?['name'] as String? ?? '',
+      arguments: fn?['arguments'] as String? ?? '',
+    );
+  }
 }
 
 /// 工具定义（function schema）

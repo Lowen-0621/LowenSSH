@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/config.dart';
+import '../core/chat_store.dart';
 
 /// 应用配置 Notifier —— 加载/增删主机/改 LLM，变更后刷新依赖此 provider 的 UI
 class ConfigNotifier extends Notifier<AppConfig> {
@@ -24,9 +25,10 @@ class ConfigNotifier extends Notifier<AppConfig> {
     return h;
   }
 
-  /// 删除主机
+  /// 删除主机（连同其对话存档一起清理）
   void deleteHost(String id) {
     removeHost(id);
+    deleteChat(id); // 清理落盘的对话历史
     state = loadConfig();
   }
 

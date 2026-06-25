@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/agent.dart';
+import '../core/chat_store.dart';
 import '../core/events.dart';
 import '../core/glm.dart';
 import 'config_provider.dart';
@@ -38,6 +39,31 @@ class ChatItem {
     this.reasoningStart,
     this.reasoningSec,
   });
+
+  /// 持久化序列化。reasoningStart 是运行时计时用，不存（存结果 reasoningSec 即可）。
+  Map<String, dynamic> toJson() => {
+        'kind': kind.name,
+        'text': text,
+        if (toolName != null) 'toolName': toolName,
+        if (toolArgs != null) 'toolArgs': toolArgs,
+        if (toolResult != null) 'toolResult': toolResult,
+        'toolExecuted': toolExecuted,
+        if (command != null) 'command': command,
+        if (reason != null) 'reason': reason,
+        if (reasoningSec != null) 'reasoningSec': reasoningSec,
+      };
+
+  factory ChatItem.fromJson(Map<String, dynamic> j) => ChatItem(
+        kind: ChatItemKind.values.byName(j['kind'] as String),
+        text: j['text'] as String? ?? '',
+        toolName: j['toolName'] as String?,
+        toolArgs: j['toolArgs'] as String?,
+        toolResult: j['toolResult'] as String?,
+        toolExecuted: j['toolExecuted'] as bool? ?? false,
+        command: j['command'] as String?,
+        reason: j['reason'] as String?,
+        reasoningSec: (j['reasoningSec'] as num?)?.toInt(),
+      );
 }
 
 /// 待确认请求（ASK 态）—— Completer 桥接 loop 与 UI
@@ -113,17 +139,31 @@ class AgentNotifier extends Notifier<AgentState> {
     return _snapshot(_currentHostId);
   }
 
-  /// 取某主机会话（不存在则建）
+  /// 取某主机会话（不存在则从磁盘加载存档建一份）
   _HostSession _session(String hostId) =>
-      _sessions.putIfAbsent(hostId, () => _HostSession());
+      _sessions.putIfAbsent(hostId, () {
+        final s = _HostSession();
+        // 懒加载：首次访问该主机时恢复落盘的对话 + 多轮历史
+        final archive = loadChat(hostId);
+        s.items.addAll(archive.items);
+        s.history.addAll(archive.history);
+        return s;
+      });
+
+  /// 把某主机会话落盘（每轮结束/中断后调用）
+  void _persist(String hostId) {
+    final s = _sessions[hostId];
+    if (s == null) return;
+    saveChat(hostId, s.items, s.history);
+  }
 
   /// 某主机是否有 AI 任务正在运行（供连接池 LRU 判断「忙的不踢」）
   bool isBusy(String hostId) => _sessions[hostId]?.running ?? false;
 
-  /// 把某会话投影成对外 AgentState
+  /// 把某会话投影成对外 AgentState（会触发懒加载，恢复落盘的对话）
   AgentState _snapshot(String? hostId) {
-    final s = hostId == null ? null : _sessions[hostId];
-    if (s == null) return const AgentState();
+    if (hostId == null) return const AgentState();
+    final s = _session(hostId); // 首次访问自动从磁盘恢复
     return AgentState(
       items: s.items,
       running: s.running,
@@ -186,10 +226,12 @@ class AgentNotifier extends Notifier<AgentState> {
         s.error = e.toString();
         s.running = false;
         _refreshIfCurrent(hostId);
+        _persist(hostId); // 出错也落盘（保留已产生的对话）
       },
       onDone: () {
         s.running = false;
         _refreshIfCurrent(hostId);
+        _persist(hostId); // 一轮结束落盘
       },
     );
   }
@@ -235,6 +277,7 @@ class AgentNotifier extends Notifier<AgentState> {
     }
     s.running = false;
     _refreshIfCurrent(hostId);
+    _persist(hostId); // 撤回后落盘（与磁盘保持一致）
   }
 
   // 把 core 事件映射成 UI 对话项，写进指定 hostId 的会话
