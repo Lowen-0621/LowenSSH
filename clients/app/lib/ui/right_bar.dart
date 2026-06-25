@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/guard_provider.dart';
+import '../state/connection_provider.dart';
+import '../state/sftp_provider.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
 /// 对应设计稿 .rightbar。安全面板是差异化核心，重点还原。
@@ -257,26 +259,47 @@ class _SecurityPanel extends ConsumerWidget {
       );
 }
 
-// ============ 文件面板（轻量 SFTP）============
+// ============ 文件面板（轻量 SFTP，真实数据）============
 
-class _FilesPanel extends StatelessWidget {
+class _FilesPanel extends ConsumerStatefulWidget {
   const _FilesPanel();
 
-  static const _files = [
-    (Icons.folder_outlined, '..', null, true),
-    (Icons.folder_outlined, 'html', 'drwxr-xr-x', true),
-    (Icons.folder_outlined, 'logs', 'drwxr-xr-x', true),
-    (Icons.description_outlined, 'nginx.conf', '1.2 KB', false),
-    (Icons.description_outlined, 'index.html', '4.5 KB', false),
-    (Icons.inventory_2_outlined, 'release.tar.gz', '48 MB', false),
-  ];
+  @override
+  ConsumerState<_FilesPanel> createState() => _FilesPanelState();
+}
+
+class _FilesPanelState extends ConsumerState<_FilesPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // 首次进入文件 tab 时，若已连接则加载当前目录
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final conn = ref.read(connectionProvider);
+      final sftp = ref.read(sftpProvider);
+      if (conn.isConnected && sftp.files.isEmpty && !sftp.loading) {
+        ref.read(sftpProvider.notifier).load('/');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final conn = ref.watch(connectionProvider);
+    final sftp = ref.watch(sftpProvider);
+
+    if (!conn.isConnected) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('连接主机后浏览远程文件',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 路径条 + 完整视图入口
+        // 路径条 + 刷新
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -284,67 +307,101 @@ class _FilesPanel extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text('/var/www',
-                  style: TextStyle(
-                      fontFamily: kMonoFont,
-                      fontSize: 11,
-                      color: AppColors.subtext)),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.open_in_full, size: 12, color: AppColors.blue),
-                  SizedBox(width: 4),
-                  Text('完整视图',
-                      style: TextStyle(fontSize: 11, color: AppColors.blue)),
-                ],
+            children: [
+              Expanded(
+                child: Text(sftp.path,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontFamily: kMonoFont,
+                        fontSize: 11,
+                        color: AppColors.subtext)),
+              ),
+              InkWell(
+                onTap: () => ref.read(sftpProvider.notifier).load(),
+                child: const Icon(Icons.refresh,
+                    size: 13, color: AppColors.blue),
               ),
             ],
           ),
         ),
         const SizedBox(height: 8),
-        for (final f in _files) _fileRow(f.$1, f.$2, f.$3, f.$4),
-        // 拖拽上传区
-        Container(
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(
-                color: AppColors.surface1, style: BorderStyle.solid),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            children: const [
-              Icon(Icons.upload_outlined, size: 18, color: AppColors.overlay),
-              SizedBox(height: 6),
-              Text('拖文件到此处上传到 /var/www',
-                  textAlign: TextAlign.center,
+        if (sftp.loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.blue),
+              ),
+            ),
+          )
+        else if (sftp.error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('加载失败：${sftp.error}',
+                style: const TextStyle(fontSize: 11, color: AppColors.red)),
+          )
+        else ...[
+          // 顶部 .. 返回上级（非根目录时）
+          if (sftp.path != '/' && sftp.path.isNotEmpty)
+            InkWell(
+              onTap: () => ref.read(sftpProvider.notifier).goUp(),
+              child: _fileRow(Icons.folder_outlined, '..', null, true),
+            ),
+          for (final f in sftp.files)
+            InkWell(
+              onTap: f.isDir
+                  ? () => ref.read(sftpProvider.notifier).enter(f)
+                  : null,
+              child: _fileRow(
+                f.isDir
+                    ? Icons.folder_outlined
+                    : Icons.description_outlined,
+                f.name,
+                f.isDir ? f.perms : _fmtSize(f.size),
+                f.isDir,
+              ),
+            ),
+          if (sftp.files.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('（空目录）',
                   style: TextStyle(fontSize: 11, color: AppColors.overlay)),
-            ],
-          ),
-        ),
+            ),
+        ],
       ],
     );
   }
 
-  Widget _fileRow(IconData icon, String name, String? perm, bool isDir) =>
+  // 文件大小友好显示
+  static String _fmtSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}K';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)}M';
+    }
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)}G';
+  }
+
+  Widget _fileRow(IconData icon, String name, String? meta, bool isDir) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         child: Row(
           children: [
             Icon(icon,
-                size: 15,
-                color: isDir ? AppColors.blue : AppColors.subtext),
+                size: 15, color: isDir ? AppColors.blue : AppColors.subtext),
             const SizedBox(width: 9),
             Expanded(
               child: Text(name,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontSize: 12,
                       color: isDir ? AppColors.blue : AppColors.text)),
             ),
-            if (perm != null)
-              Text(perm,
+            if (meta != null)
+              Text(meta,
                   style: const TextStyle(
                       fontSize: 10, color: AppColors.overlay)),
           ],
