@@ -49,8 +49,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
     ref.listen(agentProvider, (prev, next) => _scrollToBottom());
 
     final children = <Widget>[];
-    for (final item in st.items) {
-      children.add(_renderItem(item));
+    for (var i = 0; i < st.items.length; i++) {
+      final item = st.items[i];
+      // reasoning 是否「真正在思考」：运行中 + 是最后一项（否则是已结束/历史块）
+      final live = st.running && i == st.items.length - 1;
+      children.add(_renderItem(item, live: live));
       children.add(const SizedBox(height: 12));
     }
     // 末尾插入待确认卡片（ASK 态）
@@ -100,12 +103,13 @@ class _AiPaneState extends ConsumerState<AiPane> {
   }
 
   // 按 ChatItem 类型分发渲染
-  Widget _renderItem(ChatItem it) {
+  Widget _renderItem(ChatItem it, {bool live = false}) {
     switch (it.kind) {
       case ChatItemKind.user:
         return _userBubble(it.text);
       case ChatItemKind.reasoning:
-        return _ReasoningTile(text: it.text, seconds: it.reasoningSec ?? 0);
+        return _ReasoningTile(
+            text: it.text, seconds: it.reasoningSec ?? 0, live: live);
       case ChatItemKind.assistant:
         return _assistantMsg(text: it.text);
       case ChatItemKind.tool:
@@ -373,7 +377,9 @@ class _AiPaneState extends ConsumerState<AiPane> {
 class _ReasoningTile extends StatefulWidget {
   final String text;
   final int seconds;
-  const _ReasoningTile({required this.text, required this.seconds});
+  final bool live; // 是否「真正在思考」（运行中且为最后一项），否则是已结束/历史块
+  const _ReasoningTile(
+      {required this.text, required this.seconds, this.live = false});
 
   @override
   State<_ReasoningTile> createState() => _ReasoningTileState();
@@ -384,7 +390,10 @@ class _ReasoningTileState extends State<_ReasoningTile> {
 
   @override
   Widget build(BuildContext context) {
-    final title = widget.seconds > 0 ? '思考 ${widget.seconds}s' : '思考中…';
+    // 有秒数 → 「思考 Xs」；无秒数：运行中显示「思考中…」，历史/已结束显示「思考过程」
+    final title = widget.seconds > 0
+        ? '思考 ${widget.seconds}s'
+        : (widget.live ? '思考中…' : '思考过程');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
