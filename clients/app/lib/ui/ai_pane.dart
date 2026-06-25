@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
@@ -108,11 +109,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
       case ChatItemKind.assistant:
         return _assistantMsg(text: it.text);
       case ChatItemKind.tool:
-        return _toolCard(
+        return _ToolTile(
           name: it.toolName ?? '',
-          status: it.toolResult == null ? 'run' : 'ok',
+          running: it.toolResult == null,
           cmd: it.toolArgs ?? '',
-          result: it.toolResult ?? '执行中…',
+          result: it.toolResult ?? '',
         );
       case ChatItemKind.blocked:
         return _blockedCard(cmd: it.command ?? '', why: it.reason ?? '');
@@ -169,80 +170,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
 
   // 思考过程块 → 改用 _ReasoningTile（行内可折叠，见文件末尾）
 
-  // 工具调用卡片（头部名称+状态 / 命令 / 结果）
-  Widget _toolCard({
-    required String name,
-    required String status,
-    required String cmd,
-    required String result,
-  }) {
-    final (Color sc, IconData si, String st) = switch (status) {
-      'run' => (AppColors.yellow, Icons.pending_outlined, '执行中'),
-      _ => (AppColors.green, Icons.check_circle_outline, '已执行'),
-    };
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.mantle,
-        border: Border.all(color: AppColors.surface0),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 头
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(
-              children: [
-                const Icon(Icons.terminal,
-                    size: 14, color: AppColors.sapphire),
-                const SizedBox(width: 7),
-                Text(name,
-                    style: const TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.sapphire)),
-                const Spacer(),
-                Icon(si, size: 12, color: sc),
-                const SizedBox(width: 4),
-                Text(st, style: TextStyle(fontSize: 10.5, color: sc)),
-              ],
-            ),
-          ),
-          // 命令
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: const BoxDecoration(
-              color: AppColors.crust,
-              border: Border(top: BorderSide(color: AppColors.surface0)),
-            ),
-            child: Text(cmd,
-                style: const TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 11.5,
-                    color: AppColors.peach)),
-          ),
-          // 结果（最高 80px 截断）
-          Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(maxHeight: 80),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.surface0)),
-            ),
-            child: Text(result,
-                overflow: TextOverflow.fade,
-                style: const TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 11.5,
-                    color: AppColors.subtext)),
-          ),
-        ],
-      ),
-    );
-  }
+  // 工具调用卡片 → 改用 _ToolTile（默认折叠的紧凑行，见文件末尾）
 
   // ASK 确认卡片（黄边，三按钮：允许/拒绝/总是允许）
   Widget _askCard({required String cmd, required String why}) => Container(
@@ -501,6 +429,119 @@ class _ReasoningTileState extends State<_ReasoningTile> {
                     color: AppColors.overlay)),
           ),
       ],
+    );
+  }
+}
+
+/// 工具调用紧凑折叠行（仿 Claude Code / Netcatty）。
+/// 默认折叠成一行：[图标] 命令 ✓；点击展开看完整输出。信息密度高，一屏可放多条。
+class _ToolTile extends StatefulWidget {
+  final String name;
+  final bool running; // 执行中（结果未回填）
+  final String cmd; // 工具参数 JSON，如 {"command":"df -h"}
+  final String result; // 命令输出
+  const _ToolTile({
+    required this.name,
+    required this.running,
+    required this.cmd,
+    required this.result,
+  });
+
+  @override
+  State<_ToolTile> createState() => _ToolTileState();
+}
+
+class _ToolTileState extends State<_ToolTile> {
+  bool _expanded = false;
+
+  /// 从参数 JSON 提取可读命令：execCommand 取 command，其它取 path/原样
+  String get _display {
+    try {
+      final obj = jsonDecode(widget.cmd) as Map<String, dynamic>;
+      return (obj['command'] ?? obj['path'] ?? widget.cmd).toString();
+    } catch (_) {
+      return widget.cmd;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.mantle,
+        border: Border.all(color: AppColors.surface0),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 折叠标题行：终端图标 + 命令 + 状态 + 展开箭头
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              child: Row(
+                children: [
+                  const Icon(Icons.terminal,
+                      size: 13, color: AppColors.sapphire),
+                  const SizedBox(width: 7),
+                  // 命令（单行省略），占满中间
+                  Expanded(
+                    child: Text(
+                      _display,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontFamily: kMonoFont,
+                          fontSize: 11.5,
+                          color: AppColors.peach),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // 状态：执行中转圈 / 已执行对勾
+                  if (widget.running)
+                    const SizedBox(
+                      width: 11,
+                      height: 11,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 1.5, color: AppColors.yellow),
+                    )
+                  else
+                    const Icon(Icons.check_circle_outline,
+                        size: 12, color: AppColors.green),
+                  const SizedBox(width: 4),
+                  Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      size: 14,
+                      color: AppColors.overlay),
+                ],
+              ),
+            ),
+          ),
+          // 展开态：完整输出（最高 200px，可选中复制）
+          if (_expanded && widget.result.isNotEmpty)
+            Container(
+              width: double.infinity,
+              constraints: const BoxConstraints(maxHeight: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: const BoxDecoration(
+                color: AppColors.crust,
+                border: Border(top: BorderSide(color: AppColors.surface0)),
+              ),
+              child: SingleChildScrollView(
+                child: SelectableText(widget.result,
+                    style: const TextStyle(
+                        fontFamily: kMonoFont,
+                        fontSize: 11.5,
+                        color: AppColors.subtext)),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
