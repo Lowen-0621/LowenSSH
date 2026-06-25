@@ -287,6 +287,18 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
     final conn = ref.watch(connectionProvider);
     final sftp = ref.watch(sftpProvider);
 
+    // 切到已连接的新主机时，若其 SFTP 还没加载过则自动列根目录
+    ref.listen(connectionProvider.select((s) => s.host?.id), (prev, next) {
+      if (next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final c = ref.read(connectionProvider);
+        final s = ref.read(sftpProvider);
+        if (c.isConnected && s.files.isEmpty && !s.loading) {
+          ref.read(sftpProvider.notifier).load('/');
+        }
+      });
+    });
+
     if (!conn.isConnected) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 20),

@@ -117,6 +117,9 @@ class AgentNotifier extends Notifier<AgentState> {
   _HostSession _session(String hostId) =>
       _sessions.putIfAbsent(hostId, () => _HostSession());
 
+  /// 某主机是否有 AI 任务正在运行（供连接池 LRU 判断「忙的不踢」）
+  bool isBusy(String hostId) => _sessions[hostId]?.running ?? false;
+
   /// 把某会话投影成对外 AgentState
   AgentState _snapshot(String? hostId) {
     final s = hostId == null ? null : _sessions[hostId];

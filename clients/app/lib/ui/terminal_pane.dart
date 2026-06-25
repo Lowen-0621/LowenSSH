@@ -4,10 +4,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
 import '../theme.dart';
+import '../core/ssh.dart';
 import '../state/connection_provider.dart';
 
+/// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell。
+/// 按主机保活，切主机切显示对应 Terminal，旧的 PTY 留在后台不断。
+class _TermSession {
+  final Terminal terminal = Terminal(maxLines: 5000);
+  SSHSession? shell;
+  bool starting = false;
+
+  void dispose() {
+    shell?.close();
+    shell = null;
+  }
+}
+
 /// 终端面板 —— 真交互终端（xterm 接 SSH shell channel）。
-/// 已连接时开一个 PTY shell，用户可手敲命令；未连接显示占位。
+/// 多主机各自保活一个 shell：切主机切显示对应终端，历史与会话不丢。
 /// 与 agent 的 exec 各走独立 channel，互不干扰。
 class TerminalPane extends ConsumerStatefulWidget {
   const TerminalPane({super.key});
@@ -17,80 +31,67 @@ class TerminalPane extends ConsumerStatefulWidget {
 }
 
 class _TerminalPaneState extends ConsumerState<TerminalPane> {
-  late final Terminal _terminal = Terminal(maxLines: 5000);
-  SSHSession? _session;
-  String? _boundHostId; // 当前已绑定 shell 的主机 id，避免重复开
-  bool _starting = false;
+  // 每台主机一个终端会话，按 hostId 保活
+  final Map<String, _TermSession> _sessions = {};
 
-  @override
-  void initState() {
-    super.initState();
-    // 用户键盘输入 → 写进 SSH shell 的 stdin
-    _terminal.onOutput = (data) {
-      _session?.write(utf8.encode(data));
-    };
-    // 终端尺寸变化 → 通知远端 PTY 重设窗口大小
-    _terminal.onResize = (w, h, pw, ph) {
-      _session?.resizeTerminal(w, h, pw, ph);
-    };
-  }
+  /// 取/建某主机的终端会话，并绑定键盘输入 → shell stdin
+  _TermSession _sessionFor(String hostId) =>
+      _sessions.putIfAbsent(hostId, () {
+        final s = _TermSession();
+        s.terminal.onOutput = (data) => s.shell?.write(utf8.encode(data));
+        s.terminal.onResize =
+            (w, h, pw, ph) => s.shell?.resizeTerminal(w, h, pw, ph);
+        return s;
+      });
 
-  /// 为当前连接开一个交互 shell，把 SSH stdout/stderr 灌进终端显示。
-  Future<void> _startShell(ConnState conn) async {
-    if (_starting) return;
-    _starting = true;
+  /// 为指定主机开交互 shell，把 SSH stdout/stderr 灌进它的终端
+  Future<void> _startShell(String hostId, SshClient client) async {
+    final s = _sessionFor(hostId);
+    if (s.starting || s.shell != null) return;
+    s.starting = true;
     try {
-      final client = conn.client!;
       final session = await client.shell(
-        width: _terminal.viewWidth,
-        height: _terminal.viewHeight,
+        width: s.terminal.viewWidth,
+        height: s.terminal.viewHeight,
       );
-      _session = session;
-      _boundHostId = conn.host?.id;
-      // 远端输出 → 终端
+      s.shell = session;
       session.stdout
           .cast<List<int>>()
           .transform(const Utf8Decoder(allowMalformed: true))
-          .listen(_terminal.write);
+          .listen(s.terminal.write);
       session.stderr
           .cast<List<int>>()
           .transform(const Utf8Decoder(allowMalformed: true))
-          .listen(_terminal.write);
+          .listen(s.terminal.write);
     } catch (e) {
-      _terminal.write('\r\n[终端启动失败: $e]\r\n');
+      s.terminal.write('\r\n[终端启动失败: $e]\r\n');
     } finally {
-      _starting = false;
+      s.starting = false;
     }
-  }
-
-  /// 断开时清掉 shell 会话
-  void _teardown() {
-    _session?.close();
-    _session = null;
-    _boundHostId = null;
   }
 
   @override
   void dispose() {
-    _session?.close();
+    for (final s in _sessions.values) {
+      s.dispose();
+    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
+    final hostId = conn.host?.id;
 
-    // 连接状态驱动 shell 生命周期：
-    // - 已连接且主机变了/未绑定 → 开新 shell
-    // - 断开/出错 → 拆掉
-    if (conn.isConnected && conn.host?.id != _boundHostId && !_starting) {
-      _teardown();
-      WidgetsBinding.instance.addPostFrameCallback((_) => _startShell(conn));
-    } else if (!conn.isConnected && _boundHostId != null) {
-      _teardown();
-    }
+    // 池里已不存在的主机（被 LRU 踢掉/断开），清理其终端会话
+    _sessions.keys
+        .where((id) => !conn.connectedIds.contains(id))
+        .toList()
+        .forEach((id) {
+      _sessions.remove(id)?.dispose();
+    });
 
-    if (!conn.isConnected) {
+    if (!conn.isConnected || hostId == null) {
       return Container(
         color: AppColors.crust,
         alignment: Alignment.center,
@@ -99,10 +100,17 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
       );
     }
 
+    // 当前主机：没 shell 就开一个（按主机隔离，互不影响）
+    final s = _sessionFor(hostId);
+    if (s.shell == null && !s.starting) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _startShell(hostId, conn.client!));
+    }
+
     return Container(
       color: AppColors.crust,
       child: TerminalView(
-        _terminal,
+        s.terminal,
         textStyle: const TerminalStyle(
           fontSize: 12.5,
           fontFamily: kMonoFont,

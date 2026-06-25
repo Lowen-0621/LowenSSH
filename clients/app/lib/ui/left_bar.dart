@@ -99,7 +99,8 @@ class LeftBar extends ConsumerWidget {
   Widget _hostItem(
       BuildContext context, WidgetRef ref, Host h, ConnState conn) {
     final isCurrent = conn.host?.id == h.id;
-    final connected = isCurrent && conn.phase == ConnPhase.connected;
+    // 多连接并存：已连接看整池 connectedIds，不只看当前主机
+    final connected = conn.connectedIds.contains(h.id);
     final connecting = isCurrent && conn.phase == ConnPhase.connecting;
     final failed = isCurrent && conn.phase == ConnPhase.error;
     final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
@@ -156,9 +157,13 @@ class LeftBar extends ConsumerWidget {
                               fontSize: 13, color: AppColors.text)),
                     ),
                     const SizedBox(width: 6),
-                    Text('${h.host}:${h.port}',
-                        style: const TextStyle(
-                            fontSize: 10.5, color: AppColors.overlay)),
+                    // IP:端口 也用 Flexible+省略，避免主机名+IP 过长时 Row 溢出
+                    Flexible(
+                      child: Text('${h.host}:${h.port}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 10.5, color: AppColors.overlay)),
+                    ),
                   ],
                 ),
               ),

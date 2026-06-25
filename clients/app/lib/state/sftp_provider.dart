@@ -30,26 +30,42 @@ class SftpState {
       );
 }
 
-/// SFTP 浏览 Notifier —— 列目录、进入子目录、返回上级。
-/// 依赖 connectionProvider 的活动 SshClient。
+/// SFTP 浏览 Notifier —— 按主机分桶隔离（每台主机各自的浏览路径/列表）。
+/// 当前展示哪台由 connectionProvider 的 host 决定，切主机自动切快照。
 class SftpNotifier extends Notifier<SftpState> {
+  final Map<String, SftpState> _byHost = {};
+  String? _currentId;
+
   @override
-  SftpState build() => const SftpState();
+  SftpState build() {
+    ref.listen(connectionProvider.select((s) => s.host?.id), (prev, next) {
+      _currentId = next;
+      state = next == null
+          ? const SftpState()
+          : (_byHost[next] ?? const SftpState());
+    });
+    _currentId = ref.read(connectionProvider).host?.id;
+    return _currentId == null
+        ? const SftpState()
+        : (_byHost[_currentId!] ?? const SftpState());
+  }
 
   /// 列出指定目录（默认当前路径）。未连接则报错。
   Future<void> load([String? path]) async {
     final conn = ref.read(connectionProvider);
-    if (!conn.isConnected) {
-      state = const SftpState(error: '未连接主机');
+    final hostId = conn.host?.id;
+    if (hostId == null || !conn.isConnected) {
+      _set(hostId, const SftpState(error: '未连接主机'));
       return;
     }
-    final target = path ?? state.path;
-    state = state.copyWith(loading: true, error: null, path: target);
+    final prev = _byHost[hostId] ?? const SftpState();
+    final target = path ?? prev.path;
+    _set(hostId, prev.copyWith(loading: true, error: null, path: target));
     try {
       final files = await conn.client!.listDir(target);
-      state = SftpState(path: target, files: files, loading: false);
+      _set(hostId, SftpState(path: target, files: files, loading: false));
     } catch (e) {
-      state = SftpState(path: target, loading: false, error: e.toString());
+      _set(hostId, SftpState(path: target, loading: false, error: e.toString()));
     }
   }
 
@@ -67,6 +83,16 @@ class SftpNotifier extends Notifier<SftpState> {
     final idx = trimmed.lastIndexOf('/');
     final parent = idx <= 0 ? '/' : trimmed.substring(0, idx);
     await load(parent);
+  }
+
+  /// 写入某主机的 SFTP 状态；若正是当前展示主机则同步刷新对外 state
+  void _set(String? hostId, SftpState s) {
+    if (hostId == null) {
+      state = s;
+      return;
+    }
+    _byHost[hostId] = s;
+    if (hostId == _currentId) state = s;
   }
 }
 
