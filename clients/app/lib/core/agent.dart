@@ -186,12 +186,11 @@ Stream<AgentEvent> runAgent(String task, AgentDeps deps) async* {
     }
     pending.clear();
 
-    // 没有 tool_call：模型给出最终结论，结束
+    // 没有 tool_call：模型给出最终结论，结束。
+    // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号 + 兜底文本，
+    // 由 UI 层去重（空文本或与已显示内容重复则不再追加）。
     if (result.toolCalls.isEmpty) {
-      final text = result.text.trim().isNotEmpty
-          ? result.text.trim()
-          : '模型暂时没有返回内容，请重试。';
-      yield DoneEvent(text);
+      yield DoneEvent(result.text.trim());
       return;
     }
 

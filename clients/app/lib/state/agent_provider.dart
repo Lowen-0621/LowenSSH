@@ -174,9 +174,16 @@ class AgentNotifier extends Notifier<AgentState> {
         _append(ChatItem(
             kind: ChatItemKind.blocked, command: command, reason: reason));
       case DoneEvent(:final finalText):
-        if (finalText.trim().isNotEmpty) {
-          _append(ChatItem(kind: ChatItemKind.assistant, text: finalText));
+        final t = finalText.trim();
+        if (t.isEmpty) break; // 空结论：正文已流式显示完，无需追加
+        // 去重：若最后一条 assistant 正文已是同样内容（流式已显示过），不再重复追加
+        final last = state.items.isNotEmpty ? state.items.last : null;
+        if (last != null &&
+            last.kind == ChatItemKind.assistant &&
+            last.text.trim() == t) {
+          break;
         }
+        _append(ChatItem(kind: ChatItemKind.assistant, text: t));
       case ErrorEvent(:final message):
         state = state.copyWith(error: message);
     }
