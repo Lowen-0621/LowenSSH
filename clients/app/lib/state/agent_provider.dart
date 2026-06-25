@@ -5,6 +5,7 @@ import '../core/events.dart';
 import '../core/glm.dart';
 import 'config_provider.dart';
 import 'connection_provider.dart';
+import 'guard_provider.dart';
 
 /// UI 对话项类型 —— 对应 ai_pane 的几种卡片
 enum ChatItemKind { user, assistant, reasoning, tool, blocked, ask }
@@ -130,6 +131,7 @@ class AgentNotifier extends Notifier<AgentState> {
 
   /// Confirmer：loop 遇到 ASK 命令时调用，挂起等 UI 决断
   Future<bool> _confirm(String command, String reason) {
+    ref.read(guardProvider.notifier).recordAsk(); // 记一次待确认
     final ask = PendingAsk(command, reason);
     state = state.copyWith(pendingAsk: ask);
     return ask.completer.future;
@@ -170,6 +172,9 @@ class AgentNotifier extends Notifier<AgentState> {
         _append(ChatItem(
             kind: ChatItemKind.tool, toolName: name, toolArgs: args));
       case ToolResultEvent(:final name, :final summary, :final executed):
+        if (executed) {
+          ref.read(guardProvider.notifier).recordAllow(); // 成功执行计入已放行
+        }
         // 回填最近一个同名 tool 卡
         final list = [...state.items];
         for (var i = list.length - 1; i >= 0; i--) {
@@ -183,6 +188,7 @@ class AgentNotifier extends Notifier<AgentState> {
         }
         state = state.copyWith(items: list);
       case BlockedEvent(:final command, :final reason):
+        ref.read(guardProvider.notifier).recordDeny(command); // 计入已阻止+历史
         _append(ChatItem(
             kind: ChatItemKind.blocked, command: command, reason: reason));
       case DoneEvent(:final finalText):

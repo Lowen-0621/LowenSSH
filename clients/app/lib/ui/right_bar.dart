@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../state/guard_provider.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
 /// 对应设计稿 .rightbar。安全面板是差异化核心，重点还原。
@@ -89,46 +91,64 @@ class _RightBarState extends State<RightBar> {
 
 // ============ 安全策略面板（差异化核心）============
 
-class _SecurityPanel extends StatelessWidget {
+class _SecurityPanel extends ConsumerWidget {
   const _SecurityPanel();
 
-  // 门禁规则占位 model（Step 4 接 core/guard.dart 统计）
+  // 门禁规则展示（规则本身固定，来自 core/guard.dart 的 deny/ask 名单）。
+  // 命中次数那列改为按三态聚合显示（guard 未按单条规则细分计数）。
   static const _rules = [
-    ('deny', 'rm -rf / · :(){:|:&};:', '2 次'),
-    ('ask', 'rm · kill · systemctl stop', '1 次'),
-    ('ask', '> 重定向 · chmod · chown', '0 次'),
-    ('allow', 'ls · cat · df · du · tail（只读）', '14 次'),
-  ];
-
-  // 拦截历史占位
-  static const _logs = [
-    ('rm -rf /var --no-preserve-root', '14:32:08 · DENY'),
-    ('dd if=/dev/zero of=/dev/sda', '14:30:51 · DENY'),
+    ('deny', 'rm -rf · dd · mkfs · shutdown · fork炸弹'),
+    ('ask', 'rm · kill · systemctl stop/restart'),
+    ('ask', '> 重定向 · chmod · chown · apt install'),
+    ('allow', 'ls · cat · df · du · tail（只读）'),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(guardProvider);
+    // 每条规则末尾显示对应三态的累计命中次数
+    String hitsFor(String level) => switch (level) {
+          'deny' => '${stats.denyCount} 次',
+          'ask' => '${stats.askCount} 次',
+          _ => '${stats.allowCount} 次',
+        };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 统计三卡：已拦截/待确认/已放行
+        // 统计三卡：已阻止/待确认/已放行（真实数据）
         Row(
           children: [
-            _stat('2', '已阻止', AppColors.red),
+            _stat('${stats.denyCount}', '已阻止', AppColors.red),
             const SizedBox(width: 8),
-            _stat('1', '待确认', AppColors.yellow),
+            _stat('${stats.askCount}', '待确认', AppColors.yellow),
             const SizedBox(width: 8),
-            _stat('14', '已放行', AppColors.green),
+            _stat('${stats.allowCount}', '已放行', AppColors.green),
           ],
         ),
         const SizedBox(height: 14),
         _panelTitle('门禁规则（按严格度）'),
-        for (final r in _rules) _ruleRow(r.$1, r.$2, r.$3),
+        for (final r in _rules) _ruleRow(r.$1, r.$2, hitsFor(r.$1)),
         const SizedBox(height: 14),
         _panelTitle('阻止历史'),
-        for (final l in _logs) _logItem(l.$1, l.$2),
+        if (stats.blocked.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text('暂无阻止记录',
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+          )
+        else
+          for (final b in stats.blocked)
+            _logItem(b.command,
+                '${_fmtTime(b.time)} · ${b.level.toUpperCase()}'),
       ],
     );
+  }
+
+  // 时间格式 HH:mm:ss
+  static String _fmtTime(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
   }
 
   // 统计卡
