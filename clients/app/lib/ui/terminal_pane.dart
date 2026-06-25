@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:xterm/xterm.dart';
 import 'package:dartssh2/dartssh2.dart';
@@ -7,14 +8,31 @@ import '../theme.dart';
 import '../core/ssh.dart';
 import '../state/connection_provider.dart';
 
-/// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell。
+/// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell + 选区控制器。
 /// 按主机保活，切主机切显示对应 Terminal，旧的 PTY 留在后台不断。
 class _TermSession {
   final Terminal terminal = Terminal(maxLines: 5000);
+  final TerminalController controller = TerminalController();
   SSHSession? shell;
   bool starting = false;
+  VoidCallback? _selListener;
+
+  /// 选中自动复制（Linux 终端风格）：选区变化且非空 → 写入系统剪贴板
+  void enableAutoCopy() {
+    _selListener = () {
+      final sel = controller.selection;
+      if (sel == null) return;
+      final text = terminal.buffer.getText(sel);
+      if (text.trim().isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+      }
+    };
+    controller.addListener(_selListener!);
+  }
 
   void dispose() {
+    if (_selListener != null) controller.removeListener(_selListener!);
+    controller.dispose();
     shell?.close();
     shell = null;
   }
@@ -41,8 +59,18 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
         s.terminal.onOutput = (data) => s.shell?.write(utf8.encode(data));
         s.terminal.onResize =
             (w, h, pw, ph) => s.shell?.resizeTerminal(w, h, pw, ph);
+        s.enableAutoCopy(); // 选中即复制
         return s;
       });
+
+  /// 右键：把剪贴板内容写进 shell（桌面终端常见的粘贴交互）
+  Future<void> _paste(_TermSession s) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text != null && text.isNotEmpty) {
+      s.shell?.write(utf8.encode(text));
+    }
+  }
 
   /// 为指定主机开交互 shell，把 SSH stdout/stderr 灌进它的终端
   Future<void> _startShell(String hostId, SshClient client) async {
@@ -111,6 +139,9 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
       color: AppColors.crust,
       child: TerminalView(
         s.terminal,
+        controller: s.controller,
+        // 右键粘贴：剪贴板内容写入 shell
+        onSecondaryTapDown: (details, offset) => _paste(s),
         textStyle: const TerminalStyle(
           fontSize: 12.5,
           fontFamily: kMonoFont,
@@ -123,12 +154,13 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
 }
 
 /// 终端配色（贴近 Catppuccin Mocha）
-const TerminalTheme _termTheme = TerminalTheme(
+final TerminalTheme _termTheme = TerminalTheme(
   cursor: AppColors.text,
-  selection: AppColors.surface1,
+  // 选区半透明，选中后文字仍可读（原来不透明的灰会盖住文字）
+  selection: AppColors.surface2.withValues(alpha: .45),
   foreground: AppColors.text,
   background: AppColors.crust,
-  black: Color(0xFF45475A),
+  black: const Color(0xFF45475A),
   red: AppColors.red,
   green: AppColors.green,
   yellow: AppColors.yellow,
