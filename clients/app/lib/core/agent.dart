@@ -157,15 +157,14 @@ class _ScreenResult {
   const _ScreenResult(this.content, this.rejected);
 }
 
-/// 跑一轮 agent 任务，返回事件流。
-/// 用 StreamController 驱动：GLM 流式 token 在回调里实时 add，
-/// 不再攒到整轮结束才发——保证 UI 真正逐字流式显示。
+/// 跑一轮 agent 任务，返回实时事件流。
+/// 用 StreamController 让 token/reasoning 在到达时立即推给 UI（真流式），
+/// 而非攒到整轮结束再一次性吐出。loop 跑完或抛错都会 close → 触发 onDone。
 Stream<AgentEvent> runAgent(String task, AgentDeps deps) {
-  final controller = StreamController<AgentEvent>();
-  // 异步跑 loop，事件实时推进 controller
-  _runLoop(task, deps, controller).whenComplete(() {
-    if (!controller.isClosed) controller.close();
-  });
+  late final StreamController<AgentEvent> controller;
+  controller = StreamController<AgentEvent>(
+    onListen: () => _runLoop(task, deps, controller),
+  );
   return controller.stream;
 }
 
@@ -190,14 +189,18 @@ Future<void> _runLoop(
       messages = ctx.truncateToolResponses(messages);
       messages = await ctx.compressIfNeeded(messages);
 
-      // 一次流式调用：token/reasoning 在回调里实时推给 UI
-      final result = await llm.stream(messages, tools, StreamHandlers(
-        onToken: (t) => out.add(TokenEvent(t)),
-        onReasoning: (t) => out.add(ReasoningEvent(t)),
-      ));
+      // 一次流式调用：token/reasoning 实时推给 UI
+      final result = await llm.stream(
+        messages,
+        tools,
+        StreamHandlers(
+          onToken: (t) => out.add(TokenEvent(t)),
+          onReasoning: (t) => out.add(ReasoningEvent(t)),
+        ),
+      );
 
       // 没有 tool_call：模型给出最终结论，结束。
-      // 正文已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
+      // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
       if (result.toolCalls.isEmpty) {
         out.add(DoneEvent(result.text.trim()));
         return;
@@ -213,7 +216,7 @@ Future<void> _runLoop(
         out.add(ToolCallEvent(call.name, call.arguments));
       }
 
-      // —— 门禁预检 + 执行 ——（事件实时 add 到 out）
+      // —— 门禁预检 + 执行（事件实时 add）——
       final toolResponses = <ChatMessage>[];
       for (final call in result.toolCalls) {
         final r = await _screenAndRun(call, ssh, deps.confirmer, out.add);
@@ -228,6 +231,8 @@ Future<void> _runLoop(
     out.add(DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。'));
   } catch (e) {
     out.add(ErrorEvent(e.toString()));
+  } finally {
+    await out.close();
   }
 }
 

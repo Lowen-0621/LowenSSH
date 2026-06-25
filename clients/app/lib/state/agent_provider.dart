@@ -81,6 +81,7 @@ class AgentNotifier extends Notifier<AgentState> {
   // core 多轮历史（loop 内部用），与 UI items 分离
   final List<ChatMessage> _history = [];
   StreamSubscription<AgentEvent>? _sub;
+  int _undoMark = 0; // 本轮发送前的 items 长度，中断时撤回到此
 
   @override
   AgentState build() {
@@ -102,6 +103,8 @@ class AgentNotifier extends Notifier<AgentState> {
     }
 
     final cfg = ref.read(configProvider);
+    // 记录撤回点（user 气泡之前），中断时回到这里
+    _undoMark = state.items.length;
     // 追加用户气泡
     _append(ChatItem(kind: ChatItemKind.user, text: task));
     state = state.copyWith(running: true, error: null);
@@ -140,7 +143,7 @@ class AgentNotifier extends Notifier<AgentState> {
     state = state.copyWith(clearPending: true);
   }
 
-  /// 中断当前任务
+  /// 中断当前任务：停止流，并撤回本轮的用户输入与 AI 输出（回到发送前）
   void abort() {
     _sub?.cancel();
     _sub = null;
@@ -149,7 +152,11 @@ class AgentNotifier extends Notifier<AgentState> {
     if (ask != null && !ask.completer.isCompleted) {
       ask.completer.complete(false);
     }
-    state = state.copyWith(running: false, clearPending: true);
+    // 撤回到本轮发送前的对话项
+    final kept = _undoMark <= state.items.length
+        ? state.items.sublist(0, _undoMark)
+        : state.items;
+    state = AgentState(items: kept, running: false);
   }
 
   // 把 core 事件映射成 UI 对话项
