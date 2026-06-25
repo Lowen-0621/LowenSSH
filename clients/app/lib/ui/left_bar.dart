@@ -4,6 +4,7 @@ import '../theme.dart';
 import '../core/config.dart';
 import '../state/config_provider.dart';
 import '../state/connection_provider.dart';
+import '../state/search_provider.dart';
 import 'dialogs.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
@@ -23,8 +24,17 @@ class LeftBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final hosts = ref.watch(hostsProvider);
+    final allHosts = ref.watch(hostsProvider);
     final conn = ref.watch(connectionProvider);
+    final query = ref.watch(hostSearchProvider).trim().toLowerCase();
+    // 按搜索词过滤：匹配别名或主机地址
+    final hosts = query.isEmpty
+        ? allHosts
+        : allHosts
+            .where((h) =>
+                (h.alias ?? '').toLowerCase().contains(query) ||
+                h.host.toLowerCase().contains(query))
+            .toList();
 
     return Container(
       color: AppColors.mantle,
@@ -35,10 +45,12 @@ class LeftBar extends ConsumerWidget {
             const SizedBox(height: 10),
             _navTitle(context, ref, '主机'),
             if (hosts.isEmpty)
-              const Padding(
-                padding: EdgeInsets.fromLTRB(14, 8, 14, 8),
-                child: Text('暂无主机，点 + 添加',
-                    style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                child: Text(
+                    query.isEmpty ? '暂无主机，点 + 添加' : '未找到匹配「$query」的主机',
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.overlay)),
               )
             else
               for (final h in hosts) _hostItem(context, ref, h, conn),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../state/search_provider.dart';
 import 'dialogs.dart';
 
 /// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
@@ -33,7 +34,7 @@ class TopBar extends ConsumerWidget {
           ),
           const SizedBox(width: 12),
           // 搜索框
-          _searchBox(),
+          _searchBox(ref),
           const Spacer(),
           // 操作按钮组
           _actions(context, ref),
@@ -42,7 +43,7 @@ class TopBar extends ConsumerWidget {
     );
   }
 
-  Widget _searchBox() {
+  Widget _searchBox(WidgetRef ref) {
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -50,13 +51,26 @@ class TopBar extends ConsumerWidget {
         border: Border.all(color: AppColors.surface0),
         borderRadius: BorderRadius.circular(6),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Row(
-        children: const [
-          Icon(Icons.search, size: 15, color: AppColors.overlay),
-          SizedBox(width: 6),
-          Text('搜索主机、命令片段…',
-              style: TextStyle(color: AppColors.overlay, fontSize: 13)),
+        children: [
+          const Icon(Icons.search, size: 15, color: AppColors.overlay),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              onChanged: (v) =>
+                  ref.read(hostSearchProvider.notifier).update(v),
+              style: const TextStyle(color: AppColors.text, fontSize: 13),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 6),
+                hintText: '搜索主机…',
+                hintStyle:
+                    TextStyle(color: AppColors.overlay, fontSize: 13),
+              ),
+            ),
+          ),
         ],
       ),
     );
