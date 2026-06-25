@@ -156,12 +156,14 @@ class GlmClient {
     final toolAcc = <int, _ToolAcc>{};
     Usage? usage;
 
-    // SSE 按行解析：data: {...}\n\n，可能跨 chunk，需缓冲
-    final stream = resp.data!.stream;
+    // SSE 按行解析：data: {...}\n\n，可能跨 chunk，需缓冲。
+    // 关键：用 utf8.decoder 流式解码，它会自动缓存跨 chunk 的多字节字符尾巴，
+    // 避免一个中文字（3 字节）被 chunk 边界切断后解成乱码 �。
+    final decoded = utf8.decoder.bind(resp.data!.stream);
     var buffer = '';
 
-    await for (final chunk in stream) {
-      buffer += utf8.decode(chunk, allowMalformed: true);
+    await for (final chunkText in decoded) {
+      buffer += chunkText;
       // 按 SSE 事件分隔（\n 行）逐行处理，保留最后不完整行到 buffer
       final lines = buffer.split('\n');
       buffer = lines.removeLast(); // 最后一段可能不完整，留待下个 chunk

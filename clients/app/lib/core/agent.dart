@@ -264,6 +264,8 @@ Future<_ScreenResult> _screenAndRun(
   if (verdict.decision == Decision.deny) {
     final reason = verdict.reason;
     emit(BlockedEvent(command, reason));
+    // 同时回填工具卡，停止其转圈并标记为未执行（已阻止）
+    emit(ToolResultEvent(name, '已被安全门禁阻止', false));
     return _ScreenResult('命令被安全门禁拒绝执行（$reason）。请改用更安全的方式。', true);
   }
 
@@ -271,6 +273,7 @@ Future<_ScreenResult> _screenAndRun(
     final ok = await confirmer(command, verdict.reason);
     if (!ok) {
       emit(BlockedEvent(command, '用户拒绝: ${verdict.reason}'));
+      emit(ToolResultEvent(name, '用户拒绝执行', false));
       return const _ScreenResult('用户拒绝执行该命令。请换一种方式或询问用户。', true);
     }
   }

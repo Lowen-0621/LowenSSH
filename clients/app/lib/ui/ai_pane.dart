@@ -112,6 +112,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
         return _ToolTile(
           name: it.toolName ?? '',
           running: it.toolResult == null,
+          executed: it.toolExecuted,
           cmd: it.toolArgs ?? '',
           result: it.toolResult ?? '',
         );
@@ -438,11 +439,13 @@ class _ReasoningTileState extends State<_ReasoningTile> {
 class _ToolTile extends StatefulWidget {
   final String name;
   final bool running; // 执行中（结果未回填）
+  final bool executed; // 是否真正执行（false=被阻止/拒绝）
   final String cmd; // 工具参数 JSON，如 {"command":"df -h"}
   final String result; // 命令输出
   const _ToolTile({
     required this.name,
     required this.running,
+    required this.executed,
     required this.cmd,
     required this.result,
   });
@@ -500,7 +503,7 @@ class _ToolTileState extends State<_ToolTile> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  // 状态：执行中转圈 / 已执行对勾
+                  // 状态：执行中转圈 / 已执行绿勾 / 被阻止红叉
                   if (widget.running)
                     const SizedBox(
                       width: 11,
@@ -508,9 +511,12 @@ class _ToolTileState extends State<_ToolTile> {
                       child: CircularProgressIndicator(
                           strokeWidth: 1.5, color: AppColors.yellow),
                     )
-                  else
+                  else if (widget.executed)
                     const Icon(Icons.check_circle_outline,
-                        size: 12, color: AppColors.green),
+                        size: 12, color: AppColors.green)
+                  else
+                    const Icon(Icons.block,
+                        size: 12, color: AppColors.red),
                   const SizedBox(width: 4),
                   Icon(
                       _expanded
