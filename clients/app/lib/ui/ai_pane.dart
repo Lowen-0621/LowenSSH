@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gpt_markdown/gpt_markdown.dart';
 import '../theme.dart';
 import '../state/agent_provider.dart';
 
@@ -136,12 +137,12 @@ class _AiPaneState extends ConsumerState<AiPane> {
               bottomRight: Radius.circular(2),
             ),
           ),
-          child: Text(text,
+          child: SelectableText(text,
               style: const TextStyle(fontSize: 13, color: AppColors.text)),
         ),
       );
 
-  // 智能体消息正文
+  // 智能体消息正文（Markdown 渲染：加粗/列表/表格/代码块）
   Widget _assistantMsg({required String text}) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -155,9 +156,14 @@ class _AiPaneState extends ConsumerState<AiPane> {
             ],
           ),
           const SizedBox(height: 4),
-          Text(text,
+          // 可选中复制；Markdown 语法渲染成富文本
+          SelectionArea(
+            child: GptMarkdown(
+              text,
               style: const TextStyle(
-                  fontSize: 13, height: 1.5, color: AppColors.text)),
+                  fontSize: 13, height: 1.5, color: AppColors.text),
+            ),
+          ),
         ],
       );
 
