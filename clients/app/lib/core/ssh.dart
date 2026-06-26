@@ -152,6 +152,16 @@ class SshClient {
     await sftp.rename(from, to);
   }
 
+  /// 开一条本地端口转发 channel：把数据转发到远端 remoteHost:remotePort。
+  /// 由 port_forward.dart 的隧道管理器调用，每个本地连接对应一条 channel。
+  Future<SSHForwardChannel> forwardLocal(String remoteHost, int remotePort) {
+    final client = _client;
+    if (client == null || !_connected) {
+      throw StateError('SSH 未连接，无法开端口转发');
+    }
+    return client.forwardLocal(remoteHost, remotePort);
+  }
+
   /// 关闭连接
   void close() {
     _sftp?.close();

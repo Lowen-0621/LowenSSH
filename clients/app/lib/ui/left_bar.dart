@@ -12,18 +12,15 @@ import 'snippets_dialog.dart';
 import 'audit_dialog.dart';
 import 'security_dialog.dart';
 import 'keys_dialog.dart';
+import 'forward_dialog.dart';
 import '../state/key_provider.dart';
+import '../state/forward_provider.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
 /// 主机数据来自 configProvider，点击触发连接。
 class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
-
-  // 导航链接：图标/标题/badge。命令片段、审计、安全策略、密钥库为真实功能，端口转发暂为装饰。
-  static const _decorLinks = [
-    (Icons.swap_horiz_outlined, '端口转发', null),
-  ];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -79,7 +76,10 @@ class LeftBar extends ConsumerWidget {
             _navLink(Icons.vpn_key_outlined, '密钥库',
                 _keyBadge(ref),
                 onTap: () => showKeysDialog(context)),
-            for (final l in _decorLinks) _navLink(l.$1, l.$2, l.$3),
+            // 端口转发：真实功能，点击弹隧道管理，badge 显示运行中隧道数
+            _navLink(Icons.swap_horiz_outlined, '端口转发',
+                _forwardBadge(ref),
+                onTap: () => showForwardDialog(context)),
             // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
             _navLink(Icons.shield_outlined, '安全策略',
                 _guardBadge(ref),
@@ -295,6 +295,12 @@ class LeftBar extends ConsumerWidget {
   // 密钥库 badge：密钥数量，为 0 时不显示
   String? _keyBadge(WidgetRef ref) {
     final n = ref.watch(keyProvider).length;
+    return n > 0 ? '$n' : null;
+  }
+
+  // 端口转发 badge：运行中的隧道数，为 0 时不显示
+  String? _forwardBadge(WidgetRef ref) {
+    final n = ref.watch(forwardProvider).where((e) => e.running).length;
     return n > 0 ? '$n' : null;
   }
 
