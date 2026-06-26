@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/agent.dart';
 import '../core/chat_store.dart';
@@ -160,6 +161,31 @@ class AgentNotifier extends Notifier<AgentState> {
   /// 某主机是否有 AI 任务正在运行（供连接池 LRU 判断「忙的不踢」）
   bool isBusy(String hostId) => _sessions[hostId]?.running ?? false;
 
+  /// 取主机显示名（别名优先），用于审计标注来源
+  String _hostName(String hostId) {
+    final cfg = ref.read(configProvider);
+    for (final h in cfg.hosts) {
+      if (h.id == hostId) {
+        return h.alias?.isNotEmpty == true ? h.alias! : h.host;
+      }
+    }
+    return hostId;
+  }
+
+  /// 从工具名 + 参数 JSON 提取可读命令，用于审计展示。
+  /// execCommand 取 command；只读工具取 path；解析失败退回工具名。
+  String _readableCmd(String tool, String? argsJson) {
+    if (argsJson == null) return tool;
+    try {
+      final obj = jsonDecode(argsJson) as Map<String, dynamic>;
+      final cmd = obj['command'] ?? obj['path'];
+      if (cmd != null) return tool == 'execCommand' ? '$cmd' : '$tool: $cmd';
+      return tool;
+    } catch (_) {
+      return tool;
+    }
+  }
+
   /// 把某会话投影成对外 AgentState（会触发懒加载，恢复落盘的对话）
   AgentState _snapshot(String? hostId) {
     if (hostId == null) return const AgentState();
@@ -296,22 +322,29 @@ class AgentNotifier extends Notifier<AgentState> {
             kind: ChatItemKind.tool, toolName: name, toolArgs: args));
         _refreshIfCurrent(hostId);
       case ToolResultEvent(:final name, :final summary, :final executed):
-        if (executed) {
-          ref.read(guardProvider.notifier).recordAllow(); // 成功执行计入已放行
-        }
-        // 回填最近一个同名 tool 卡
+        // 回填最近一个同名 tool 卡，并取出其命令文本用于审计
+        String? auditCmd;
         for (var i = s.items.length - 1; i >= 0; i--) {
           if (s.items[i].kind == ChatItemKind.tool &&
               s.items[i].toolName == name &&
               s.items[i].toolResult == null) {
             s.items[i].toolResult = summary;
             s.items[i].toolExecuted = executed;
+            auditCmd = _readableCmd(name, s.items[i].toolArgs);
             break;
           }
         }
+        if (executed) {
+          // 成功执行计入已放行 + 落审计（带具体命令）
+          ref.read(guardProvider.notifier).recordAllow(
+              auditCmd ?? name,
+              host: _hostName(hostId));
+        }
         _refreshIfCurrent(hostId);
       case BlockedEvent(:final command, :final reason):
-        ref.read(guardProvider.notifier).recordDeny(command); // 计入已阻止+历史
+        ref
+            .read(guardProvider.notifier)
+            .recordDeny(command, host: _hostName(hostId)); // 计入已阻止+历史+审计
         s.items.add(ChatItem(
             kind: ChatItemKind.blocked, command: command, reason: reason));
         _refreshIfCurrent(hostId);

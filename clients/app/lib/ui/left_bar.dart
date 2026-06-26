@@ -4,10 +4,12 @@ import '../theme.dart';
 import '../core/config.dart';
 import '../state/config_provider.dart';
 import '../state/connection_provider.dart';
+import '../state/guard_provider.dart';
 import '../state/search_provider.dart';
 import '../state/snippet_provider.dart';
 import 'dialogs.dart';
 import 'snippets_dialog.dart';
+import 'audit_dialog.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
@@ -15,12 +17,11 @@ import 'snippets_dialog.dart';
 class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
 
-  // 导航链接：图标/标题/badge。命令片段为真实功能，其余暂为装饰展示项。
+  // 导航链接：图标/标题/badge。命令片段、审计日志为真实功能，其余暂为装饰。
   static const _decorLinks = [
     (Icons.vpn_key_outlined, '密钥库', '3'),
     (Icons.swap_horiz_outlined, '端口转发', null),
     (Icons.shield_outlined, '安全策略', null),
-    (Icons.receipt_long_outlined, '审计日志', null),
   ];
 
   @override
@@ -74,6 +75,10 @@ class LeftBar extends ConsumerWidget {
                 '${ref.watch(snippetProvider).length}',
                 onTap: () => showSnippetsDialog(context)),
             for (final l in _decorLinks) _navLink(l.$1, l.$2, l.$3),
+            // 审计日志：真实功能，点击弹审计面板，badge 显示总条数
+            _navLink(Icons.receipt_long_outlined, '审计日志',
+                '${ref.watch(auditProvider).length}',
+                onTap: () => showAuditDialog(context)),
           ],
         ),
       ),
