@@ -116,12 +116,119 @@ class LlmConfig {
       );
 }
 
+/// 一家大模型供应商的配置。id 固定（glm/deepseek/qwen/gpt/claude），
+/// name/baseURL/model 有内置默认值，apiKey 由用户填。均走 OpenAI 兼容协议。
+class LlmProvider {
+  final String id;
+  final String name;
+  final String baseURL;
+  final String apiKey;
+  final String model;
+
+  const LlmProvider({
+    required this.id,
+    required this.name,
+    required this.baseURL,
+    this.apiKey = '',
+    required this.model,
+  });
+
+  /// 是否已配置（填了 apiKey）
+  bool get configured => apiKey.trim().isNotEmpty;
+
+  /// 转成 GlmClient 用的 LlmConfig
+  LlmConfig toLlmConfig() =>
+      LlmConfig(baseURL: baseURL, apiKey: apiKey, model: model);
+
+  factory LlmProvider.fromJson(Map<String, dynamic> j) => LlmProvider(
+        id: j['id'] as String,
+        name: j['name'] as String? ?? j['id'] as String,
+        baseURL: j['baseURL'] as String? ?? '',
+        apiKey: j['apiKey'] as String? ?? '',
+        model: j['model'] as String? ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'baseURL': baseURL,
+        'apiKey': apiKey,
+        'model': model,
+      };
+
+  LlmProvider copyWith({String? apiKey, String? model, String? baseURL}) =>
+      LlmProvider(
+        id: id,
+        name: name,
+        baseURL: baseURL ?? this.baseURL,
+        apiKey: apiKey ?? this.apiKey,
+        model: model ?? this.model,
+      );
+}
+
+/// 五家内置供应商预设（apiKey 留空待填）。baseURL 均为各家 OpenAI 兼容端点。
+const List<LlmProvider> defaultProviders = [
+  LlmProvider(
+      id: 'glm',
+      name: 'GLM（智谱）',
+      baseURL: 'https://open.bigmodel.cn/api/paas/v4',
+      model: 'glm-4.6'),
+  LlmProvider(
+      id: 'deepseek',
+      name: 'DeepSeek',
+      baseURL: 'https://api.deepseek.com',
+      model: 'deepseek-chat'),
+  LlmProvider(
+      id: 'qwen',
+      name: '通义千问',
+      baseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+      model: 'qwen-plus'),
+  LlmProvider(
+      id: 'gpt',
+      name: 'OpenAI GPT',
+      baseURL: 'https://api.openai.com/v1',
+      model: 'gpt-4o'),
+  LlmProvider(
+      id: 'claude',
+      name: 'Claude',
+      baseURL: 'https://api.anthropic.com/v1',
+      model: 'claude-sonnet-4-6'),
+];
+
 class AppConfig {
   final List<Host> hosts;
   final List<SshKey> keys;
-  final LlmConfig llm;
+  final List<LlmProvider> providers;
+  final String activeProviderId;
 
-  const AppConfig({required this.hosts, this.keys = const [], required this.llm});
+  const AppConfig({
+    required this.hosts,
+    this.keys = const [],
+    this.providers = defaultProviders,
+    this.activeProviderId = 'glm',
+  });
+
+  /// 当前激活的供应商（找不到回退第一个）
+  LlmProvider get activeProvider => providers.firstWhere(
+        (p) => p.id == activeProviderId,
+        orElse: () => providers.isNotEmpty ? providers.first : defaultProviders.first,
+      );
+
+  /// 当前激活供应商的 LlmConfig（给 GlmClient 用，调用方无需改）
+  LlmConfig get llm => activeProvider.toLlmConfig();
+
+  AppConfig copyWith({
+    List<Host>? hosts,
+    List<SshKey>? keys,
+    List<LlmProvider>? providers,
+    String? activeProviderId,
+  }) =>
+      AppConfig(
+        hosts: hosts ?? this.hosts,
+        keys: keys ?? this.keys,
+        providers: providers ?? this.providers,
+        activeProviderId: activeProviderId ?? this.activeProviderId,
+      );
 }
 
 /// 默认 LLM 设置：GLM。apiKey 留空，首次运行提示用户填或从环境变量读
@@ -137,9 +244,24 @@ String get configFile => '$_configDir/config.json';
 
 const _uuid = Uuid();
 
-AppConfig _emptyConfig() => const AppConfig(hosts: [], llm: _defaultLlm);
+AppConfig _emptyConfig() => const AppConfig(hosts: []);
 
-/// 读配置；不存在则返回空配置。环境变量 GLM_API_KEY 优先覆盖文件里的 apiKey。
+/// 合并供应商：以内置预设为基底，用文件里同 id 的配置覆盖（保留用户填的 key/model）。
+/// 保证即使老配置缺供应商，列表也始终是完整的五家。
+List<LlmProvider> _mergeProviders(List<LlmProvider> fromFile) {
+  return defaultProviders.map((preset) {
+    final saved = fromFile.where((p) => p.id == preset.id).firstOrNull;
+    if (saved == null) return preset;
+    // 用户填了什么就用什么，baseURL/model 为空时回退预设
+    return preset.copyWith(
+      apiKey: saved.apiKey,
+      model: saved.model.isNotEmpty ? saved.model : preset.model,
+      baseURL: saved.baseURL.isNotEmpty ? saved.baseURL : preset.baseURL,
+    );
+  }).toList();
+}
+
+/// 读配置；不存在则返回空配置。环境变量 GLM_API_KEY 优先覆盖 GLM 供应商的 apiKey。
 AppConfig loadConfig() {
   AppConfig cfg;
   final file = File(configFile);
@@ -155,22 +277,45 @@ AppConfig loadConfig() {
       final keys = (parsed['keys'] as List<dynamic>? ?? [])
           .map((e) => SshKey.fromJson(e as Map<String, dynamic>))
           .toList();
-      final llm = parsed['llm'] != null
-          ? LlmConfig.fromJson(parsed['llm'] as Map<String, dynamic>)
-          : _defaultLlm;
-      cfg = AppConfig(hosts: hosts, keys: keys, llm: llm);
+      // 新版：providers 列表 + activeProviderId
+      List<LlmProvider> providers;
+      String activeId;
+      if (parsed['providers'] != null) {
+        final fromFile = (parsed['providers'] as List<dynamic>)
+            .map((e) => LlmProvider.fromJson(e as Map<String, dynamic>))
+            .toList();
+        providers = _mergeProviders(fromFile);
+        activeId = parsed['activeProviderId'] as String? ?? 'glm';
+      } else if (parsed['llm'] != null) {
+        // 向后兼容：旧版单 llm 字段迁移成 glm 供应商
+        final old = LlmConfig.fromJson(parsed['llm'] as Map<String, dynamic>);
+        providers = defaultProviders
+            .map((p) => p.id == 'glm'
+                ? p.copyWith(apiKey: old.apiKey, model: old.model, baseURL: old.baseURL)
+                : p)
+            .toList();
+        activeId = 'glm';
+      } else {
+        providers = defaultProviders;
+        activeId = 'glm';
+      }
+      cfg = AppConfig(
+          hosts: hosts,
+          keys: keys,
+          providers: providers,
+          activeProviderId: activeId);
     } catch (_) {
       // 配置损坏不影响启动，退回空配置（用户可重新添加）
       cfg = _emptyConfig();
     }
   }
-  // 环境变量优先：方便临时覆盖，且不把 key 写进文件
+  // 环境变量优先：覆盖 GLM 供应商的 apiKey（不写回文件）
   final envKey = Platform.environment['GLM_API_KEY'];
   if (envKey != null && envKey.trim().isNotEmpty) {
-    cfg = AppConfig(
-        hosts: cfg.hosts,
-        keys: cfg.keys,
-        llm: cfg.llm.copyWith(apiKey: envKey));
+    final providers = cfg.providers
+        .map((p) => p.id == 'glm' ? p.copyWith(apiKey: envKey) : p)
+        .toList();
+    cfg = cfg.copyWith(providers: providers);
   }
   return cfg;
 }
@@ -184,7 +329,8 @@ void saveConfig(AppConfig cfg) {
   final json = const JsonEncoder.withIndent('  ').convert({
     'hosts': cfg.hosts.map((h) => h.toJson()).toList(),
     'keys': cfg.keys.map((k) => k.toJson()).toList(),
-    'llm': cfg.llm.toJson(),
+    'providers': cfg.providers.map((p) => p.toJson()).toList(),
+    'activeProviderId': cfg.activeProviderId,
   });
   final file = File(configFile);
   file.writeAsStringSync(json);
@@ -217,7 +363,7 @@ Host addHost({
     keyId: keyId,
   );
   final hosts = [...cfg.hosts, newHost];
-  saveConfig(AppConfig(hosts: hosts, keys: cfg.keys, llm: cfg.llm));
+  saveConfig(cfg.copyWith(hosts: hosts));
   return newHost;
 }
 
@@ -225,7 +371,7 @@ Host addHost({
 void removeHost(String id) {
   final cfg = loadConfig();
   final hosts = cfg.hosts.where((h) => h.id != id).toList();
-  saveConfig(AppConfig(hosts: hosts, keys: cfg.keys, llm: cfg.llm));
+  saveConfig(cfg.copyWith(hosts: hosts));
 }
 
 /// 取某主机的明文密码（解密）；未存返回 null
@@ -253,7 +399,7 @@ SshKey addKey({
         : null,
   );
   final keys = [...cfg.keys, newKey];
-  saveConfig(AppConfig(hosts: cfg.hosts, keys: keys, llm: cfg.llm));
+  saveConfig(cfg.copyWith(keys: keys));
   return newKey;
 }
 
@@ -275,7 +421,7 @@ void removeKey(String id) {
             )
           : h)
       .toList();
-  saveConfig(AppConfig(hosts: hosts, keys: keys, llm: cfg.llm));
+  saveConfig(cfg.copyWith(hosts: hosts, keys: keys));
 }
 
 /// 取某把密钥的明文 PEM + passphrase（解密）。找不到返回 null。

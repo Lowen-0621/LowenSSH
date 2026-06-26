@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
 import 'dialogs.dart';
+import 'settings_center.dart';
 
 /// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
 /// 对应设计稿 .topbar
@@ -92,7 +93,7 @@ class TopBar extends ConsumerWidget {
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,
-            onTap: () => showLlmSettingsDialog(context, ref)),
+            onTap: () => showSettingsCenter(context)),
       ],
     );
   }

@@ -5,6 +5,7 @@ import 'package:gpt_markdown/gpt_markdown.dart';
 import '../theme.dart';
 import '../state/agent_provider.dart';
 import '../state/snippet_provider.dart';
+import '../state/config_provider.dart';
 
 /// AI 对话面板 —— 对话流 + 工具卡片 + 门禁卡片 + 输入框
 /// 对应设计稿 .pane.ai。三种卡片(tool/ask/blocked)是门禁可视化核心。
@@ -82,6 +83,8 @@ class _AiPaneState extends ConsumerState<AiPane> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 顶部模型切换条
+          _modelBar(),
           // 对话流
           Expanded(
             child: st.items.isEmpty && st.pendingAsk == null
@@ -159,6 +162,91 @@ class _AiPaneState extends ConsumerState<AiPane> {
               style: const TextStyle(fontSize: 13, color: AppColors.text)),
         ),
       );
+
+  // 顶部模型切换条：显示当前模型，下拉切换已配置 key 的供应商
+  Widget _modelBar() {
+    final cfg = ref.watch(configProvider);
+    final active = cfg.activeProvider;
+    // 只列已配置 key 的供应商；当前激活的即使没 key 也显示
+    final selectable = cfg.providers
+        .where((p) => p.configured || p.id == active.id)
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: const BoxDecoration(
+        color: AppColors.mantle,
+        border: Border(bottom: BorderSide(color: AppColors.surface0)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.smart_toy_outlined,
+              size: 14, color: AppColors.subtext),
+          const SizedBox(width: 7),
+          const Text('智能体',
+              style: TextStyle(fontSize: 12, color: AppColors.subtext)),
+          const SizedBox(width: 8),
+          // 模型下拉
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: PopupMenuButton<String>(
+                initialValue: active.id,
+                tooltip: '切换模型',
+                color: AppColors.mantle,
+                onSelected: (id) =>
+                    ref.read(configProvider.notifier).setActiveProvider(id),
+                itemBuilder: (_) => [
+                  for (final p in selectable)
+                    PopupMenuItem(
+                      value: p.id,
+                      height: 38,
+                      child: Row(
+                        children: [
+                          Icon(
+                              p.id == active.id
+                                  ? Icons.check
+                                  : Icons.circle_outlined,
+                              size: 13,
+                              color: p.id == active.id
+                                  ? AppColors.green
+                                  : AppColors.overlay),
+                          const SizedBox(width: 8),
+                          Text('${p.name} · ${p.model}',
+                              style: const TextStyle(
+                                  fontSize: 12, color: AppColors.text)),
+                        ],
+                      ),
+                    ),
+                ],
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface0,
+                    borderRadius: BorderRadius.circular(5),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(active.model,
+                          style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.text)),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.expand_more,
+                          size: 14, color: AppColors.subtext),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // 智能体消息正文（Markdown 渲染：加粗/列表/表格/代码块）
   Widget _assistantMsg({required String text}) => Column(

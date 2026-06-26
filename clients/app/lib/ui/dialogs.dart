@@ -275,36 +275,4 @@ Widget _keyDropdown(
   );
 }
 
-/// LLM 设置对话框
-Future<void> showLlmSettingsDialog(BuildContext context, WidgetRef ref) {
-  final cfg = ref.read(configProvider).llm;
-  final baseURL = TextEditingController(text: cfg.baseURL);
-  final apiKey = TextEditingController(text: cfg.apiKey);
-  final model = TextEditingController(text: cfg.model);
-
-  return _showDark(
-    context,
-    Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _title(Icons.settings_outlined, 'LLM 设置'),
-        _field(baseURL, 'Base URL',
-            hint: 'https://open.bigmodel.cn/api/paas/v4'),
-        _field(apiKey, 'API Key', obscure: true),
-        _field(model, '模型', hint: 'glm-4.6'),
-        const SizedBox(height: 4),
-        Builder(
-          builder: (ctx) => _actions(ctx, onOk: () {
-            ref.read(configProvider.notifier).updateLlm(LlmConfig(
-                  baseURL: baseURL.text.trim(),
-                  apiKey: apiKey.text.trim(),
-                  model: model.text.trim(),
-                ));
-            Navigator.pop(ctx);
-          }),
-        ),
-      ],
-    ),
-  );
-}
+/// LLM 设置已迁移到设置中心（ui/settings_center.dart）。

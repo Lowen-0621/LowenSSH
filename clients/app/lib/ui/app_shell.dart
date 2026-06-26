@@ -52,7 +52,7 @@ class _AppShellState extends State<AppShell> {
         ], weight: 0.32),
         // 中右：智能体（独立面板，可拖动）
         DockingItem(
-          name: '智能体 · GLM-4.6',
+          name: '智能体',
           widget: const AiPane(),
           weight: 0.30,
           keepAlive: true,
