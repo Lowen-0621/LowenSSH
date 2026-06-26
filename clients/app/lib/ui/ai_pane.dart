@@ -6,6 +6,8 @@ import '../theme.dart';
 import '../state/agent_provider.dart';
 import '../state/snippet_provider.dart';
 import '../state/config_provider.dart';
+import '../state/settings_provider.dart';
+import '../core/i18n.dart';
 
 /// AI 对话面板 —— 对话流 + 工具卡片 + 门禁卡片 + 输入框
 /// 对应设计稿 .pane.ai。三种卡片(tool/ask/blocked)是门禁可视化核心。
@@ -49,6 +51,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
   @override
   Widget build(BuildContext context) {
     final st = ref.watch(agentProvider);
+    final l = ref.watch(l10nProvider);
     // 新消息进来自动滚到底
     ref.listen(agentProvider, (prev, next) => _scrollToBottom());
     // 命令片段等外部请求：把文本填进输入框并聚焦末尾
@@ -73,7 +76,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
     if (st.pendingAsk != null) {
       children.add(_askCard(
         cmd: st.pendingAsk!.command,
-        why: '门禁判定：ASK — ${st.pendingAsk!.reason}',
+        why: l.t('ai.gateVerdict', {'reason': st.pendingAsk!.reason}),
       ));
       children.add(const SizedBox(height: 12));
     }
@@ -88,10 +91,10 @@ class _AiPaneState extends ConsumerState<AiPane> {
           // 对话流
           Expanded(
             child: st.items.isEmpty && st.pendingAsk == null
-                ? const Center(
-                    child: Text('连接主机后，输入运维任务开始对话',
-                        style:
-                            TextStyle(fontSize: 12, color: AppColors.overlay)),
+                ? Center(
+                    child: Text(l.t('ai.empty'),
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.overlay)),
                   )
                 : SingleChildScrollView(
                     controller: _scrollCtrl,
@@ -108,10 +111,10 @@ class _AiPaneState extends ConsumerState<AiPane> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               color: AppColors.red.withValues(alpha: .12),
-              child: Text('错误：${st.error}',
+              child: Text(l.t('ai.error', {'err': '${st.error}'}),
                   style: const TextStyle(fontSize: 11, color: AppColors.red)),
             ),
-          _inputBox(st.running),
+          _inputBox(st.running, l),
         ],
       ),
     );
@@ -124,7 +127,10 @@ class _AiPaneState extends ConsumerState<AiPane> {
         return _userBubble(it.text);
       case ChatItemKind.reasoning:
         return _ReasoningTile(
-            text: it.text, seconds: it.reasoningSec ?? 0, live: live);
+            text: it.text,
+            seconds: it.reasoningSec ?? 0,
+            live: live,
+            l: ref.read(l10nProvider));
       case ChatItemKind.assistant:
         return _assistantMsg(text: it.text);
       case ChatItemKind.tool:
@@ -166,6 +172,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
   // 顶部模型切换条：显示当前模型，下拉切换已配置 key 的供应商
   Widget _modelBar() {
     final cfg = ref.watch(configProvider);
+    final l = ref.watch(l10nProvider);
     final active = cfg.activeProvider;
     // 只列已配置 key 的供应商；当前激活的即使没 key 也显示
     final selectable = cfg.providers
@@ -183,8 +190,8 @@ class _AiPaneState extends ConsumerState<AiPane> {
           const Icon(Icons.smart_toy_outlined,
               size: 14, color: AppColors.subtext),
           const SizedBox(width: 7),
-          const Text('智能体',
-              style: TextStyle(fontSize: 12, color: AppColors.subtext)),
+          Text(l.t('ai.agent'),
+              style: const TextStyle(fontSize: 12, color: AppColors.subtext)),
           const SizedBox(width: 8),
           // 模型下拉
           Expanded(
@@ -192,7 +199,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
               alignment: Alignment.centerLeft,
               child: PopupMenuButton<String>(
                 initialValue: active.id,
-                tooltip: '切换模型',
+                tooltip: l.t('ai.switchModel'),
                 color: AppColors.mantle,
                 onSelected: (id) =>
                     ref.read(configProvider.notifier).setActiveProvider(id),
@@ -253,12 +260,13 @@ class _AiPaneState extends ConsumerState<AiPane> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            children: const [
-              Icon(Icons.smart_toy_outlined,
+            children: [
+              const Icon(Icons.smart_toy_outlined,
                   size: 13, color: AppColors.overlay),
-              SizedBox(width: 5),
-              Text('智能体',
-                  style: TextStyle(fontSize: 10.5, color: AppColors.overlay)),
+              const SizedBox(width: 5),
+              Text(ref.read(l10nProvider).t('ai.agent'),
+                  style: const TextStyle(
+                      fontSize: 10.5, color: AppColors.overlay)),
             ],
           ),
           const SizedBox(height: 4),
@@ -289,12 +297,12 @@ class _AiPaneState extends ConsumerState<AiPane> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.warning_amber_rounded,
+              children: [
+                const Icon(Icons.warning_amber_rounded,
                     size: 14, color: AppColors.yellow),
-                SizedBox(width: 6),
-                Text('需要确认 · 该命令需人工放行',
-                    style: TextStyle(
+                const SizedBox(width: 6),
+                Text(ref.read(l10nProvider).t('ai.askTitle'),
+                    style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.yellow)),
@@ -313,11 +321,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
             const SizedBox(height: 8),
             Row(
               children: [
-                _cardBtn('允许执行', danger: true,
+                _cardBtn(ref.read(l10nProvider).t('ai.allow'), danger: true,
                     onTap: () =>
                         ref.read(agentProvider.notifier).resolveAsk(true)),
                 const SizedBox(width: 8),
-                _cardBtn('拒绝', ghost: true,
+                _cardBtn(ref.read(l10nProvider).t('ai.deny'), ghost: true,
                     onTap: () =>
                         ref.read(agentProvider.notifier).resolveAsk(false)),
               ],
@@ -338,11 +346,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              children: const [
-                Icon(Icons.block, size: 14, color: AppColors.red),
-                SizedBox(width: 6),
-                Text('已阻止 · 高危命令',
-                    style: TextStyle(
+              children: [
+                const Icon(Icons.block, size: 14, color: AppColors.red),
+                const SizedBox(width: 6),
+                Text(ref.read(l10nProvider).t('ai.blockedTitle'),
+                    style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.red)),
@@ -384,7 +392,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
       );
 
   // AI 输入框 + 快捷键提示。running 时禁用并显示中断。
-  Widget _inputBox(bool running) => Container(
+  Widget _inputBox(bool running, L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: const BoxDecoration(
           color: AppColors.mantle,
@@ -410,11 +418,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
                       onSubmitted: (_) => _send(),
                       style: const TextStyle(
                           fontSize: 13, color: AppColors.text),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
-                        hintText: '输入运维任务，或 @ 引用主机…',
-                        hintStyle: TextStyle(
+                        hintText: l.t('ai.inputHint'),
+                        hintStyle: const TextStyle(
                             fontSize: 13, color: AppColors.overlay),
                       ),
                     ),
@@ -425,27 +433,27 @@ class _AiPaneState extends ConsumerState<AiPane> {
                       ? InkWell(
                           onTap: () =>
                               ref.read(agentProvider.notifier).abort(),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              SizedBox(
+                              const SizedBox(
                                 width: 12,
                                 height: 12,
                                 child: CircularProgressIndicator(
                                     strokeWidth: 1.5,
                                     color: AppColors.yellow),
                               ),
-                              SizedBox(width: 6),
-                              Text('中断',
-                                  style: TextStyle(
+                              const SizedBox(width: 6),
+                              Text(l.t('ai.interrupt'),
+                                  style: const TextStyle(
                                       fontSize: 12, color: AppColors.yellow)),
                             ],
                           ),
                         )
                       : InkWell(
                           onTap: _send,
-                          child: const Text('↵ 发送',
-                              style: TextStyle(
+                          child: Text(l.t('ai.send'),
+                              style: const TextStyle(
                                   fontFamily: kMonoFont,
                                   fontSize: 12,
                                   color: AppColors.blue)),
@@ -460,11 +468,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
               child: Wrap(
                 spacing: 14,
                 runSpacing: 4,
-                children: const [
-                  Text('⏎ 发送'),
-                  Text('⇧⏎ 换行'),
-                  Text('Esc 中断'),
-                  Text('⌘K 命令面板'),
+                children: [
+                  Text(l.t('ai.sendKey')),
+                  Text(l.t('ai.newlineKey')),
+                  Text(l.t('ai.escKey')),
+                  Text(l.t('ai.cmdK')),
                 ],
               ),
             ),
@@ -479,8 +487,12 @@ class _ReasoningTile extends StatefulWidget {
   final String text;
   final int seconds;
   final bool live; // 是否「真正在思考」（运行中且为最后一项），否则是已结束/历史块
+  final L10n l;
   const _ReasoningTile(
-      {required this.text, required this.seconds, this.live = false});
+      {required this.text,
+      required this.seconds,
+      required this.l,
+      this.live = false});
 
   @override
   State<_ReasoningTile> createState() => _ReasoningTileState();
@@ -491,10 +503,11 @@ class _ReasoningTileState extends State<_ReasoningTile> {
 
   @override
   Widget build(BuildContext context) {
+    final l = widget.l;
     // 有秒数 → 「思考 Xs」；无秒数：运行中显示「思考中…」，历史/已结束显示「思考过程」
     final title = widget.seconds > 0
-        ? '思考 ${widget.seconds}s'
-        : (widget.live ? '思考中…' : '思考过程');
+        ? l.t('ai.thinkingDone', {'sec': '${widget.seconds}'})
+        : (widget.live ? l.t('ai.thinking') : l.t('ai.thinkProcess'));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

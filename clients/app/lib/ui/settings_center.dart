@@ -163,11 +163,11 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
     );
   }
 
-  Widget _placeholder(L10n l) => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Text('即将推出…',
+  Widget _placeholder(L10n l) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Text(l.t('settings.comingSoon'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.overlay)),
+            style: const TextStyle(fontSize: 13, color: AppColors.overlay)),
       );
 }
 

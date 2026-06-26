@@ -1,21 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../core/i18n.dart';
 import '../state/guard_provider.dart';
 import '../state/connection_provider.dart';
 import '../state/monitor_provider.dart';
 import '../state/sftp_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
 /// 对应设计稿 .rightbar。安全面板是差异化核心，重点还原。
-class RightBar extends StatefulWidget {
+class RightBar extends ConsumerStatefulWidget {
   const RightBar({super.key});
 
   @override
-  State<RightBar> createState() => _RightBarState();
+  ConsumerState<RightBar> createState() => _RightBarState();
 }
 
-class _RightBarState extends State<RightBar> {
+class _RightBarState extends ConsumerState<RightBar> {
   // 当前 tab：sec / files / mon
   String _tab = 'sec';
 
@@ -43,6 +45,7 @@ class _RightBarState extends State<RightBar> {
 
   // 顶部三 tab，底部蓝条标记 active
   Widget _tabs() {
+    final l = ref.watch(l10nProvider);
     Widget tab(String id, IconData icon, String label) {
       final active = _tab == id;
       return Expanded(
@@ -83,9 +86,9 @@ class _RightBarState extends State<RightBar> {
       ),
       child: Row(
         children: [
-          tab('sec', Icons.shield_outlined, '安全'),
-          tab('files', Icons.folder_outlined, '文件'),
-          tab('mon', Icons.monitor_heart_outlined, '监控'),
+          tab('sec', Icons.shield_outlined, l.t('right.tabSec')),
+          tab('files', Icons.folder_outlined, l.t('right.tabFiles')),
+          tab('mon', Icons.monitor_heart_outlined, l.t('right.tabMon')),
         ],
       ),
     );
@@ -109,11 +112,12 @@ class _SecurityPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(guardProvider);
+    final l = ref.watch(l10nProvider);
     // 每条规则末尾显示对应三态的累计命中次数
     String hitsFor(String level) => switch (level) {
-          'deny' => '${stats.denyCount} 次',
-          'ask' => '${stats.askCount} 次',
-          _ => '${stats.allowCount} 次',
+          'deny' => l.t('right.hits', {'n': '${stats.denyCount}'}),
+          'ask' => l.t('right.hits', {'n': '${stats.askCount}'}),
+          _ => l.t('right.hits', {'n': '${stats.allowCount}'}),
         };
 
     return Column(
@@ -122,28 +126,28 @@ class _SecurityPanel extends ConsumerWidget {
         // 统计三卡：已阻止/待确认/已放行（真实数据）
         Row(
           children: [
-            _stat('${stats.denyCount}', '已阻止', AppColors.red),
+            _stat('${stats.denyCount}', l.t('state.denied'), AppColors.red),
             const SizedBox(width: 8),
-            _stat('${stats.askCount}', '待确认', AppColors.yellow),
+            _stat('${stats.askCount}', l.t('state.ask'), AppColors.yellow),
             const SizedBox(width: 8),
-            _stat('${stats.allowCount}', '已放行', AppColors.green),
+            _stat('${stats.allowCount}', l.t('state.allowed'), AppColors.green),
           ],
         ),
         const SizedBox(height: 14),
-        _panelTitle('门禁规则（按严格度）'),
+        _panelTitle(l.t('right.rulesTitle')),
         for (final r in _rules) _ruleRow(r.$1, r.$2, hitsFor(r.$1)),
         const SizedBox(height: 14),
-        _panelTitle('阻止历史'),
+        _panelTitle(l.t('right.blockHistory')),
         if (stats.blocked.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 4),
-            child: Text('暂无阻止记录',
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Text(l.t('right.noBlock'),
+                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
           )
         else
           for (final b in stats.blocked)
             _logItem(b.command,
-                '${_fmtTime(b.time)} · ${b.level.toUpperCase()}'),
+                '${_fmtTime(b.time)} · ${b.level.toUpperCase()}', l),
       ],
     );
   }
@@ -228,7 +232,7 @@ class _SecurityPanel extends ConsumerWidget {
   }
 
   // 拦截历史项（左边红条 + 命令 + 时间/可临时放行）
-  Widget _logItem(String cmd, String meta) => Container(
+  Widget _logItem(String cmd, String meta, L10n l) => Container(
         margin: const EdgeInsets.only(bottom: 5),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
         decoration: const BoxDecoration(
@@ -251,8 +255,8 @@ class _SecurityPanel extends ConsumerWidget {
                 Text(meta,
                     style: const TextStyle(
                         fontSize: 10, color: AppColors.overlay)),
-                const Text('临时放行',
-                    style: TextStyle(fontSize: 10, color: AppColors.blue)),
+                Text(l.t('right.tempAllow'),
+                    style: const TextStyle(fontSize: 10, color: AppColors.blue)),
               ],
             ),
           ],
@@ -287,6 +291,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
     final sftp = ref.watch(sftpProvider);
+    final l = ref.watch(l10nProvider);
 
     // 切到已连接的新主机时，若其 SFTP 还没加载过则自动列根目录
     ref.listen(connectionProvider.select((s) => s.host?.id), (prev, next) {
@@ -301,11 +306,11 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
     });
 
     if (!conn.isConnected) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Text('连接主机后浏览远程文件',
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(l.t('right.filesEmpty'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
       );
     }
 
@@ -353,7 +358,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
         else if (sftp.error != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text('加载失败：${sftp.error}',
+            child: Text(l.t('right.loadFail', {'err': '${sftp.error}'}),
                 style: const TextStyle(fontSize: 11, color: AppColors.red)),
           )
         else ...[
@@ -378,10 +383,10 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
               ),
             ),
           if (sftp.files.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('（空目录）',
-                  style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(l.t('right.emptyDir'),
+                  style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
             ),
         ],
       ],
@@ -451,13 +456,14 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
     final m = ref.watch(monitorProvider);
+    final l = ref.watch(l10nProvider);
 
     if (!conn.isConnected) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Text('连接主机后查看实时监控',
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Text(l.t('right.monEmpty'),
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
       );
     }
 
@@ -467,20 +473,21 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _panelTitle('资源占用'),
+        _panelTitle(l.t('right.resUsage')),
         _metric('CPU', m.cpuPct, '${(m.cpuPct * 100).toStringAsFixed(0)}%',
             m.cpuPct > 0.9),
-        _metric('内存', m.memPct, m.memText, m.memPct > 0.9),
-        _metric('磁盘 /', m.diskPct,
+        _metric(l.t('right.mem'), m.memPct, m.memText, m.memPct > 0.9),
+        _metric(l.t('right.disk'), m.diskPct,
             '${(m.diskPct * 100).toStringAsFixed(0)}%', m.diskPct > 0.9),
-        _metric('负载', loadPct, m.load1.toStringAsFixed(2), loadPct > 0.9),
+        _metric(l.t('right.load'), loadPct, m.load1.toStringAsFixed(2),
+            loadPct > 0.9),
         const SizedBox(height: 6),
-        _panelTitle('网络'),
-        _netRow('↓ 入站', humanBps(m.netRxBps)),
-        _netRow('↑ 出站', humanBps(m.netTxBps)),
+        _panelTitle(l.t('right.network')),
+        _netRow(l.t('right.netIn'), humanBps(m.netRxBps)),
+        _netRow(l.t('right.netOut'), humanBps(m.netTxBps)),
         if (m.error != null) ...[
           const SizedBox(height: 8),
-          Text('采样失败：${m.error}',
+          Text(l.t('right.sampleFail', {'err': '${m.error}'}),
               style: const TextStyle(fontSize: 10, color: AppColors.red)),
         ],
       ],

@@ -99,7 +99,8 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
           .transform(const Utf8Decoder(allowMalformed: true))
           .listen(s.terminal.write);
     } catch (e) {
-      s.terminal.write('\r\n[终端启动失败: $e]\r\n');
+      final l = ref.read(l10nProvider);
+      s.terminal.write('\r\n${l.t('term.startFail', {'err': '$e'})}\r\n');
     } finally {
       s.starting = false;
     }
@@ -117,6 +118,7 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
     final cfg = ref.watch(settingsProvider); // 终端设置
+    final l = ref.watch(l10nProvider);
     final hostId = conn.host?.id;
 
     // 池里已不存在的主机（被 LRU 踢掉/断开），清理其终端会话
@@ -131,7 +133,7 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
       return Container(
         color: AppColors.crust,
         alignment: Alignment.center,
-        child: const Text('连接主机后可在此使用交互式终端',
+        child: Text(l.t('term.connectFirst'),
             style: TextStyle(fontSize: 12, color: AppColors.overlay)),
       );
     }

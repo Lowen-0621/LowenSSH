@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
+import '../state/settings_provider.dart';
 import 'dialogs.dart';
 import 'settings_center.dart';
 
@@ -45,6 +46,7 @@ class TopBar extends ConsumerWidget {
   }
 
   Widget _searchBox(WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -62,13 +64,13 @@ class TopBar extends ConsumerWidget {
               onChanged: (v) =>
                   ref.read(hostSearchProvider.notifier).update(v),
               style: const TextStyle(color: AppColors.text, fontSize: 13),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 6),
-                hintText: '搜索主机…',
-                hintStyle:
-                    TextStyle(color: AppColors.overlay, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                hintText: l.t('top.search'),
+                hintStyle: const TextStyle(
+                    color: AppColors.overlay, fontSize: 13),
               ),
             ),
           ),
@@ -78,18 +80,19 @@ class TopBar extends ConsumerWidget {
   }
 
   Widget _actions(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
     return Row(
       children: [
-        _btn(icon: Icons.bolt, label: '连接', primary: true),
+        _btn(icon: Icons.bolt, label: l.t('top.connect'), primary: true),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.add,
-            label: '新建主机',
+            label: l.t('top.newHost'),
             onTap: () => showAddHostDialog(context, ref)),
         const SizedBox(width: 6),
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
-        _btn(icon: Icons.splitscreen_outlined, label: '分屏'),
+        _btn(icon: Icons.splitscreen_outlined, label: l.t('top.split')),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,
