@@ -5,7 +5,9 @@ import '../core/config.dart';
 import '../state/config_provider.dart';
 import '../state/connection_provider.dart';
 import '../state/search_provider.dart';
+import '../state/snippet_provider.dart';
 import 'dialogs.dart';
+import 'snippets_dialog.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
@@ -13,10 +15,9 @@ import 'dialogs.dart';
 class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
 
-  // 导航链接：图标/标题/badge（暂为静态展示项）
-  static const _links = [
+  // 导航链接：图标/标题/badge。命令片段为真实功能，其余暂为装饰展示项。
+  static const _decorLinks = [
     (Icons.vpn_key_outlined, '密钥库', '3'),
-    (Icons.content_paste_outlined, '命令片段', '12'),
     (Icons.swap_horiz_outlined, '端口转发', null),
     (Icons.shield_outlined, '安全策略', null),
     (Icons.receipt_long_outlined, '审计日志', null),
@@ -68,7 +69,11 @@ class LeftBar extends ConsumerWidget {
                         fontSize: 10.5, color: AppColors.red)),
               ),
             _divider(),
-            for (final l in _links) _navLink(l.$1, l.$2, l.$3),
+            // 命令片段：真实功能，点击弹片段面板，badge 显示真实数量
+            _navLink(Icons.content_paste_outlined, '命令片段',
+                '${ref.watch(snippetProvider).length}',
+                onTap: () => showSnippetsDialog(context)),
+            for (final l in _decorLinks) _navLink(l.$1, l.$2, l.$3),
           ],
         ),
       ),
@@ -266,31 +271,36 @@ class LeftBar extends ConsumerWidget {
         color: AppColors.surface0,
       );
 
-  // 导航链接（图标 + 标题 + 可选 badge）。固定行高，间距统一。
-  Widget _navLink(IconData icon, String label, String? badge) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-        child: Row(
-          children: [
-            Icon(icon, size: 16, color: AppColors.subtext),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(label,
-                  style:
-                      const TextStyle(fontSize: 13, color: AppColors.subtext)),
-            ),
-            if (badge != null)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                decoration: BoxDecoration(
-                  color: AppColors.surface0,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(badge,
+  // 导航链接（图标 + 标题 + 可选 badge）。传 onTap 则可点击。
+  Widget _navLink(IconData icon, String label, String? badge,
+          {VoidCallback? onTap}) =>
+      InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: AppColors.subtext),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label,
                     style: const TextStyle(
-                        fontSize: 10, color: AppColors.subtext)),
+                        fontSize: 13, color: AppColors.subtext)),
               ),
-          ],
+              if (badge != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface0,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(badge,
+                      style: const TextStyle(
+                          fontSize: 10, color: AppColors.subtext)),
+                ),
+            ],
+          ),
         ),
       );
 }

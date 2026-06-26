@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import '../theme.dart';
 import '../state/agent_provider.dart';
+import '../state/snippet_provider.dart';
 
 /// AI 对话面板 —— 对话流 + 工具卡片 + 门禁卡片 + 输入框
 /// 对应设计稿 .pane.ai。三种卡片(tool/ask/blocked)是门禁可视化核心。
@@ -18,11 +19,13 @@ class AiPane extends ConsumerStatefulWidget {
 class _AiPaneState extends ConsumerState<AiPane> {
   final _controller = TextEditingController();
   final _scrollCtrl = ScrollController();
+  final _focusNode = FocusNode();
 
   @override
   void dispose() {
     _controller.dispose();
     _scrollCtrl.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -47,6 +50,15 @@ class _AiPaneState extends ConsumerState<AiPane> {
     final st = ref.watch(agentProvider);
     // 新消息进来自动滚到底
     ref.listen(agentProvider, (prev, next) => _scrollToBottom());
+    // 命令片段等外部请求：把文本填进输入框并聚焦末尾
+    ref.listen(composerProvider, (prev, next) {
+      if (next == null) return;
+      _controller.text = next.text;
+      _controller.selection = TextSelection.fromPosition(
+          TextPosition(offset: _controller.text.length));
+      _focusNode.requestFocus();
+      ref.read(composerProvider.notifier).clear();
+    });
 
     final children = <Widget>[];
     for (var i = 0; i < st.items.length; i++) {
@@ -305,6 +317,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      focusNode: _focusNode,
                       enabled: !running,
                       onSubmitted: (_) => _send(),
                       style: const TextStyle(
