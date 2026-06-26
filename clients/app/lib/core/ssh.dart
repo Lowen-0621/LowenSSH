@@ -38,21 +38,29 @@ class SshClient {
   SftpClient? _sftp;
   bool _connected = false;
 
-  /// 建立连接（密码认证）。10s 超时。
+  /// 建立连接。10s 超时。
+  /// 传 privateKeyPem 走密钥认证（可带 passphrase）；否则用 password 走密码认证。
   Future<void> connect(
     String host,
     int port,
     String username,
-    String password,
-  ) async {
+    String password, {
+    String? privateKeyPem,
+    String? passphrase,
+  }) async {
     _socket = await SSHSocket.connect(
       host,
       port == 0 ? 22 : port,
       timeout: const Duration(seconds: 10),
     );
+    // 有私钥则解析为 identities 走公钥认证，否则回调返回密码
+    final identities = (privateKeyPem != null && privateKeyPem.trim().isNotEmpty)
+        ? SSHKeyPair.fromPem(privateKeyPem, passphrase)
+        : null;
     _client = SSHClient(
       _socket!,
       username: username,
+      identities: identities,
       onPasswordRequest: () => password,
       // demo 方便：dartssh2 默认不强制 known_hosts 校验；生产应校验，否则有中间人风险
     );
@@ -61,6 +69,21 @@ class SshClient {
   }
 
   bool isConnected() => _connected && _client != null;
+
+  /// 开一个交互式 shell（PTY），供 xterm 双向绑定。
+  /// 与 exec 各走独立 channel：exec 给 agent 拿结构化结果，shell 给用户手敲。
+  Future<SSHSession> shell({
+    int width = 80,
+    int height = 24,
+  }) async {
+    final client = _client;
+    if (client == null || !_connected) {
+      throw StateError('SSH 未连接，先调用 connect()');
+    }
+    return client.shell(
+      pty: SSHPtyConfig(width: width, height: height),
+    );
+  }
 
   /// 执行一条命令，收集 stdout、stderr、exitCode。
   Future<ExecResult> exec(String command) async {
@@ -127,6 +150,16 @@ class SshClient {
   Future<void> rename(String from, String to) async {
     final sftp = await _sftpClient();
     await sftp.rename(from, to);
+  }
+
+  /// 开一条本地端口转发 channel：把数据转发到远端 remoteHost:remotePort。
+  /// 由 port_forward.dart 的隧道管理器调用，每个本地连接对应一条 channel。
+  Future<SSHForwardChannel> forwardLocal(String remoteHost, int remotePort) {
+    final client = _client;
+    if (client == null || !_connected) {
+      throw StateError('SSH 未连接，无法开端口转发');
+    }
+    return client.forwardLocal(remoteHost, remotePort);
   }
 
   /// 关闭连接

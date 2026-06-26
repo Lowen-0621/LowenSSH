@@ -3,7 +3,7 @@ import '../theme.dart';
 
 /// 文件项占位 model（Step 4 接 core/ssh.dart 的 SFTP listdir）
 class _FileItem {
-  final String icon;
+  final IconData icon;
   final String name;
   final String? meta; // 大小或权限
   final bool isDir;
@@ -13,47 +13,55 @@ class _FileItem {
 }
 
 /// SFTP 双栏文件管理器 —— 本地 | 传输控制 | 远程
-/// 对应设计稿 .sftp-view
+/// 对应设计稿 .sftp-view。图标统一 Material 线性。
 class SftpView extends StatelessWidget {
   const SftpView({super.key});
 
+  static const _folder = Icons.folder_outlined;
+  static const _file = Icons.description_outlined;
+  static const _archive = Icons.inventory_2_outlined;
+  static const _image = Icons.image_outlined;
+
   static const _local = [
-    _FileItem('📁', '..', null, isDir: true),
-    _FileItem('📁', 'project', 'drwxr-xr-x', isDir: true),
-    _FileItem('📄', 'app.conf', '2.1 KB'),
-    _FileItem('📦', 'release.tar.gz', '48 MB'),
-    _FileItem('🖼️', 'logo.png', '31 KB'),
+    _FileItem(_folder, '..', null, isDir: true),
+    _FileItem(_folder, 'project', 'drwxr-xr-x', isDir: true),
+    _FileItem(_file, 'app.conf', '2.1 KB'),
+    _FileItem(_archive, 'release.tar.gz', '48 MB'),
+    _FileItem(_image, 'logo.png', '31 KB'),
   ];
 
   static const _remote = [
-    _FileItem('📁', '..', null, isDir: true),
-    _FileItem('📁', 'html', 'drwxr-xr-x', isDir: true),
-    _FileItem('📁', 'logs', 'drwxr-xr-x', isDir: true),
-    _FileItem('📦', 'release.tar.gz', '⬆ 67%', uploading: true),
-    _FileItem('📄', 'nginx.conf', '-rw-r--r--'),
-    _FileItem('📄', 'index.html', '-rw-r--r--'),
+    _FileItem(_folder, '..', null, isDir: true),
+    _FileItem(_folder, 'html', 'drwxr-xr-x', isDir: true),
+    _FileItem(_folder, 'logs', 'drwxr-xr-x', isDir: true),
+    _FileItem(_archive, 'release.tar.gz', '67%', uploading: true),
+    _FileItem(_file, 'nginx.conf', '-rw-r--r--'),
+    _FileItem(_file, 'index.html', '-rw-r--r--'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _toolbar(),
-        Expanded(
-          child: Row(
-            children: [
-              Expanded(
-                child: _fsPane('📂 ~/Downloads', null, _local, rightBorder: true),
-              ),
-              Expanded(
-                child: _fsPane('📂 /var/www', 'web01', _remote),
-              ),
-            ],
+    return Container(
+      color: AppColors.base,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _toolbar(),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _fsPane('~/Downloads', null, _local, rightBorder: true),
+                ),
+                Expanded(
+                  child: _fsPane('/var/www', 'web01', _remote),
+                ),
+              ],
+            ),
           ),
-        ),
-        _status(),
-      ],
+          _status(),
+        ],
+      ),
     );
   }
 
@@ -71,9 +79,9 @@ class SftpView extends StatelessWidget {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _arrow('⬆ 上传'),
+                _arrow(Icons.arrow_upward, '上传'),
                 const SizedBox(height: 5),
-                _arrow('⬇ 下载'),
+                _arrow(Icons.arrow_downward, '下载'),
               ],
             ),
             const SizedBox(width: 12),
@@ -109,14 +117,21 @@ class SftpView extends StatelessWidget {
         ),
       );
 
-  Widget _arrow(String label) => Container(
+  Widget _arrow(IconData icon, String label) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
         decoration: BoxDecoration(
           color: AppColors.surface0,
           borderRadius: BorderRadius.circular(5),
         ),
-        child: Text(label,
-            style: const TextStyle(fontSize: 11, color: AppColors.text)),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: AppColors.text),
+            const SizedBox(width: 4),
+            Text(label,
+                style: const TextStyle(fontSize: 11, color: AppColors.text)),
+          ],
+        ),
       );
 
   // 单侧文件面板（头 + 列表）
@@ -141,6 +156,9 @@ class SftpView extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  const Icon(Icons.folder_open_outlined,
+                      size: 14, color: AppColors.subtext),
+                  const SizedBox(width: 7),
                   Text(head,
                       style: const TextStyle(
                           fontFamily: kMonoFont,
@@ -174,14 +192,22 @@ class SftpView extends StatelessWidget {
         ),
         child: Row(
           children: [
-            SizedBox(width: 16, child: Text(f.icon, textAlign: TextAlign.center)),
-            const SizedBox(width: 8),
+            Icon(f.icon,
+                size: 15,
+                color: f.isDir ? AppColors.blue : AppColors.subtext),
+            const SizedBox(width: 9),
             Expanded(
               child: Text(f.name,
                   style: TextStyle(
                       fontSize: 12,
                       color: f.isDir ? AppColors.blue : AppColors.text)),
             ),
+            // 上传中显示进度图标
+            if (f.uploading)
+              const Padding(
+                padding: EdgeInsets.only(right: 4),
+                child: Icon(Icons.upload, size: 12, color: AppColors.blue),
+              ),
             if (f.meta != null)
               Text(f.meta!,
                   style: TextStyle(
@@ -203,11 +229,18 @@ class SftpView extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Text('⬆ release.tar.gz · 32.1/48 MB · 8.4 MB/s · 剩 2s',
-                style: TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 10.5,
-                    color: AppColors.blue)),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.upload, size: 12, color: AppColors.blue),
+                SizedBox(width: 5),
+                Text('release.tar.gz · 32.1/48 MB · 8.4 MB/s · 剩 2s',
+                    style: TextStyle(
+                        fontFamily: kMonoFont,
+                        fontSize: 10.5,
+                        color: AppColors.blue)),
+              ],
+            ),
             Text('双击文件用内置编辑器打开 · 拖拽可跨栏传输',
                 style: TextStyle(
                     fontFamily: kMonoFont,

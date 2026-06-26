@@ -49,6 +49,19 @@ class ChatMessage {
         return {'role': role, 'content': content};
     }
   }
+
+  /// 从持久化 JSON 还原（toJson 的逆）。用于重启后恢复多轮历史。
+  factory ChatMessage.fromJson(Map<String, dynamic> j) {
+    final tc = (j['tool_calls'] as List<dynamic>?)
+        ?.map((e) => ToolCall.fromJson(e as Map<String, dynamic>))
+        .toList();
+    return ChatMessage._(
+      role: j['role'] as String,
+      content: j['content'] as String?,
+      toolCalls: tc,
+      toolCallId: j['tool_call_id'] as String?,
+    );
+  }
 }
 
 /// 一次工具调用
@@ -63,6 +76,16 @@ class ToolCall {
         'type': 'function',
         'function': {'name': name, 'arguments': arguments},
       };
+
+  /// 从持久化 JSON 还原（toJson 的逆）
+  factory ToolCall.fromJson(Map<String, dynamic> j) {
+    final fn = j['function'] as Map<String, dynamic>?;
+    return ToolCall(
+      id: j['id'] as String? ?? '',
+      name: fn?['name'] as String? ?? '',
+      arguments: fn?['arguments'] as String? ?? '',
+    );
+  }
 }
 
 /// 工具定义（function schema）
@@ -102,10 +125,16 @@ class Usage {
 
 /// 一次模型响应聚合结果
 class ChatResult {
-  final String text;
+  final String text; // 正文 content 聚合
+  final String reasoning; // 思考 reasoning_content 聚合（GLM 有时把结论放这里）
   final List<ToolCall> toolCalls;
   final Usage? usage;
-  const ChatResult({required this.text, required this.toolCalls, this.usage});
+  const ChatResult({
+    required this.text,
+    this.reasoning = '',
+    required this.toolCalls,
+    this.usage,
+  });
 }
 
 /// 流式回调：边收边推
@@ -152,16 +181,19 @@ class GlmClient {
     );
 
     var text = '';
+    var reasoningText = ''; // 聚合 reasoning_content（GLM 有时把结论放这里）
     // tool_calls 在流式下分片到达，按 index 累积
     final toolAcc = <int, _ToolAcc>{};
     Usage? usage;
 
-    // SSE 按行解析：data: {...}\n\n，可能跨 chunk，需缓冲
-    final stream = resp.data!.stream;
+    // SSE 按行解析：data: {...}\n\n，可能跨 chunk，需缓冲。
+    // 关键：用 utf8.decoder 流式解码，它会自动缓存跨 chunk 的多字节字符尾巴，
+    // 避免一个中文字（3 字节）被 chunk 边界切断后解成乱码 �。
+    final decoded = utf8.decoder.bind(resp.data!.stream);
     var buffer = '';
 
-    await for (final chunk in stream) {
-      buffer += utf8.decode(chunk, allowMalformed: true);
+    await for (final chunkText in decoded) {
+      buffer += chunkText;
       // 按 SSE 事件分隔（\n 行）逐行处理，保留最后不完整行到 buffer
       final lines = buffer.split('\n');
       buffer = lines.removeLast(); // 最后一段可能不完整，留待下个 chunk
@@ -185,9 +217,10 @@ class GlmClient {
                   as Map<String, dynamic>? ??
               {};
 
-          // GLM 思考阶段：reasoning_content 增量，单独推
+          // GLM 思考阶段：reasoning_content 增量，单独推 + 聚合（结论可能在此）
           final reasoning = delta['reasoning_content'] as String?;
           if (reasoning != null && reasoning.isNotEmpty) {
+            reasoningText += reasoning;
             handlers.onReasoning?.call(reasoning);
           }
           final content = delta['content'] as String?;
@@ -230,7 +263,8 @@ class GlmClient {
         .map((e) => ToolCall(id: e.value.id, name: e.value.name, arguments: e.value.args))
         .toList();
 
-    return ChatResult(text: text, toolCalls: toolCalls, usage: usage);
+    return ChatResult(
+        text: text, reasoning: reasoningText, toolCalls: toolCalls, usage: usage);
   }
 
   /// 非流式调用：用于上下文压缩的摘要请求（纯文本进出，不带工具）

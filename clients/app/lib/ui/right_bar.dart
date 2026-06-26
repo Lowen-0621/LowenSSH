@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../state/guard_provider.dart';
+import '../state/connection_provider.dart';
+import '../state/monitor_provider.dart';
+import '../state/sftp_provider.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
 /// 对应设计稿 .rightbar。安全面板是差异化核心，重点还原。
@@ -89,46 +94,64 @@ class _RightBarState extends State<RightBar> {
 
 // ============ 安全策略面板（差异化核心）============
 
-class _SecurityPanel extends StatelessWidget {
+class _SecurityPanel extends ConsumerWidget {
   const _SecurityPanel();
 
-  // 门禁规则占位 model（Step 4 接 core/guard.dart 统计）
+  // 门禁规则展示（规则本身固定，来自 core/guard.dart 的 deny/ask 名单）。
+  // 命中次数那列改为按三态聚合显示（guard 未按单条规则细分计数）。
   static const _rules = [
-    ('deny', 'rm -rf / · :(){:|:&};:', '2 次'),
-    ('ask', 'rm · kill · systemctl stop', '1 次'),
-    ('ask', '> 重定向 · chmod · chown', '0 次'),
-    ('allow', 'ls · cat · df · du · tail（只读）', '14 次'),
-  ];
-
-  // 拦截历史占位
-  static const _logs = [
-    ('rm -rf /var --no-preserve-root', '14:32:08 · DENY'),
-    ('dd if=/dev/zero of=/dev/sda', '14:30:51 · DENY'),
+    ('deny', 'rm -rf · dd · mkfs · shutdown · fork炸弹'),
+    ('ask', 'rm · kill · systemctl stop/restart'),
+    ('ask', '> 重定向 · chmod · chown · apt install'),
+    ('allow', 'ls · cat · df · du · tail（只读）'),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(guardProvider);
+    // 每条规则末尾显示对应三态的累计命中次数
+    String hitsFor(String level) => switch (level) {
+          'deny' => '${stats.denyCount} 次',
+          'ask' => '${stats.askCount} 次',
+          _ => '${stats.allowCount} 次',
+        };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 统计三卡：已拦截/待确认/已放行
+        // 统计三卡：已阻止/待确认/已放行（真实数据）
         Row(
           children: [
-            _stat('2', '已阻止', AppColors.red),
+            _stat('${stats.denyCount}', '已阻止', AppColors.red),
             const SizedBox(width: 8),
-            _stat('1', '待确认', AppColors.yellow),
+            _stat('${stats.askCount}', '待确认', AppColors.yellow),
             const SizedBox(width: 8),
-            _stat('14', '已放行', AppColors.green),
+            _stat('${stats.allowCount}', '已放行', AppColors.green),
           ],
         ),
         const SizedBox(height: 14),
         _panelTitle('门禁规则（按严格度）'),
-        for (final r in _rules) _ruleRow(r.$1, r.$2, r.$3),
+        for (final r in _rules) _ruleRow(r.$1, r.$2, hitsFor(r.$1)),
         const SizedBox(height: 14),
         _panelTitle('阻止历史'),
-        for (final l in _logs) _logItem(l.$1, l.$2),
+        if (stats.blocked.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: Text('暂无阻止记录',
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+          )
+        else
+          for (final b in stats.blocked)
+            _logItem(b.command,
+                '${_fmtTime(b.time)} · ${b.level.toUpperCase()}'),
       ],
     );
+  }
+
+  // 时间格式 HH:mm:ss
+  static String _fmtTime(DateTime t) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
   }
 
   // 统计卡
@@ -237,26 +260,59 @@ class _SecurityPanel extends StatelessWidget {
       );
 }
 
-// ============ 文件面板（轻量 SFTP）============
+// ============ 文件面板（轻量 SFTP，真实数据）============
 
-class _FilesPanel extends StatelessWidget {
+class _FilesPanel extends ConsumerStatefulWidget {
   const _FilesPanel();
 
-  static const _files = [
-    ('📁', '..', null, true),
-    ('📁', 'html', 'drwxr-xr-x', true),
-    ('📁', 'logs', 'drwxr-xr-x', true),
-    ('📄', 'nginx.conf', '1.2 KB', false),
-    ('📄', 'index.html', '4.5 KB', false),
-    ('📦', 'release.tar.gz', '48 MB', false),
-  ];
+  @override
+  ConsumerState<_FilesPanel> createState() => _FilesPanelState();
+}
+
+class _FilesPanelState extends ConsumerState<_FilesPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // 首次进入文件 tab 时，若已连接则加载当前目录
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final conn = ref.read(connectionProvider);
+      final sftp = ref.read(sftpProvider);
+      if (conn.isConnected && sftp.files.isEmpty && !sftp.loading) {
+        ref.read(sftpProvider.notifier).load('/');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    final conn = ref.watch(connectionProvider);
+    final sftp = ref.watch(sftpProvider);
+
+    // 切到已连接的新主机时，若其 SFTP 还没加载过则自动列根目录
+    ref.listen(connectionProvider.select((s) => s.host?.id), (prev, next) {
+      if (next == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final c = ref.read(connectionProvider);
+        final s = ref.read(sftpProvider);
+        if (c.isConnected && s.files.isEmpty && !s.loading) {
+          ref.read(sftpProvider.notifier).load('/');
+        }
+      });
+    });
+
+    if (!conn.isConnected) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('连接主机后浏览远程文件',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 路径条 + 完整视图入口
+        // 路径条 + 刷新
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -264,54 +320,101 @@ class _FilesPanel extends StatelessWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
-              Text('/var/www',
-                  style: TextStyle(
-                      fontFamily: kMonoFont,
-                      fontSize: 11,
-                      color: AppColors.subtext)),
-              Text('⛶ 完整视图',
-                  style: TextStyle(fontSize: 11, color: AppColors.blue)),
+            children: [
+              Expanded(
+                child: Text(sftp.path,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontFamily: kMonoFont,
+                        fontSize: 11,
+                        color: AppColors.subtext)),
+              ),
+              InkWell(
+                onTap: () => ref.read(sftpProvider.notifier).load(),
+                child: const Icon(Icons.refresh,
+                    size: 13, color: AppColors.blue),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 8),
-        for (final f in _files) _fileRow(f.$1, f.$2, f.$3, f.$4),
-        // 拖拽上传区
-        Container(
-          margin: const EdgeInsets.only(top: 10),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border.all(
-                color: AppColors.surface1, style: BorderStyle.solid),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Text('⬆ 拖文件到此处上传到 /var/www',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: AppColors.overlay)),
-        ),
+        if (sftp.loading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Center(
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: AppColors.blue),
+              ),
+            ),
+          )
+        else if (sftp.error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('加载失败：${sftp.error}',
+                style: const TextStyle(fontSize: 11, color: AppColors.red)),
+          )
+        else ...[
+          // 顶部 .. 返回上级（非根目录时）
+          if (sftp.path != '/' && sftp.path.isNotEmpty)
+            InkWell(
+              onTap: () => ref.read(sftpProvider.notifier).goUp(),
+              child: _fileRow(Icons.folder_outlined, '..', null, true),
+            ),
+          for (final f in sftp.files)
+            InkWell(
+              onTap: f.isDir
+                  ? () => ref.read(sftpProvider.notifier).enter(f)
+                  : null,
+              child: _fileRow(
+                f.isDir
+                    ? Icons.folder_outlined
+                    : Icons.description_outlined,
+                f.name,
+                f.isDir ? f.perms : _fmtSize(f.size),
+                f.isDir,
+              ),
+            ),
+          if (sftp.files.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Text('（空目录）',
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            ),
+        ],
       ],
     );
   }
 
-  Widget _fileRow(String icon, String name, String? perm, bool isDir) =>
+  // 文件大小友好显示
+  static String _fmtSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}K';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)}M';
+    }
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)}G';
+  }
+
+  Widget _fileRow(IconData icon, String name, String? meta, bool isDir) =>
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         child: Row(
           children: [
-            SizedBox(
-                width: 16,
-                child: Text(icon, textAlign: TextAlign.center)),
-            const SizedBox(width: 8),
+            Icon(icon,
+                size: 15, color: isDir ? AppColors.blue : AppColors.subtext),
+            const SizedBox(width: 9),
             Expanded(
               child: Text(name,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                       fontSize: 12,
                       color: isDir ? AppColors.blue : AppColors.text)),
             ),
-            if (perm != null)
-              Text(perm,
+            if (meta != null)
+              Text(meta,
                   style: const TextStyle(
                       fontSize: 10, color: AppColors.overlay)),
           ],
@@ -321,28 +424,65 @@ class _FilesPanel extends StatelessWidget {
 
 // ============ 监控面板 ============
 
-class _MonitorPanel extends StatelessWidget {
+class _MonitorPanel extends ConsumerStatefulWidget {
   const _MonitorPanel();
 
-  // (标签, 百分比0-1, 显示值, 是否warn)
-  static const _metrics = [
-    ('CPU', 0.34, '34%', false),
-    ('内存', 0.61, '61%', false),
-    ('磁盘 /', 0.92, '92%', true),
-    ('负载', 0.45, '1.8', false),
-  ];
+  @override
+  ConsumerState<_MonitorPanel> createState() => _MonitorPanelState();
+}
+
+class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // 面板可见即开始采样；销毁（切走其它 tab）即停止，避免后台空跑
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(monitorProvider.notifier).start();
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(monitorProvider.notifier).stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final conn = ref.watch(connectionProvider);
+    final m = ref.watch(monitorProvider);
+
+    if (!conn.isConnected) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('连接主机后查看实时监控',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+      );
+    }
+
+    // 负载占比：load1 / 核数（>1 视为满载），用于进度条
+    final loadPct = m.cores > 0 ? (m.load1 / m.cores).clamp(0.0, 1.0) : 0.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _panelTitle('资源占用'),
-        for (final m in _metrics) _metric(m.$1, m.$2, m.$3, m.$4),
+        _metric('CPU', m.cpuPct, '${(m.cpuPct * 100).toStringAsFixed(0)}%',
+            m.cpuPct > 0.9),
+        _metric('内存', m.memPct, m.memText, m.memPct > 0.9),
+        _metric('磁盘 /', m.diskPct,
+            '${(m.diskPct * 100).toStringAsFixed(0)}%', m.diskPct > 0.9),
+        _metric('负载', loadPct, m.load1.toStringAsFixed(2), loadPct > 0.9),
         const SizedBox(height: 6),
         _panelTitle('网络'),
-        _netRow('↓ 入站', '2.4 MB/s'),
-        _netRow('↑ 出站', '512 KB/s'),
+        _netRow('↓ 入站', humanBps(m.netRxBps)),
+        _netRow('↑ 出站', humanBps(m.netTxBps)),
+        if (m.error != null) ...[
+          const SizedBox(height: 8),
+          Text('采样失败：${m.error}',
+              style: const TextStyle(fontSize: 10, color: AppColors.red)),
+        ],
       ],
     );
   }
@@ -372,11 +512,12 @@ class _MonitorPanel extends StatelessWidget {
             ),
             const SizedBox(width: 9),
             SizedBox(
-                width: 38,
+                width: 64,
                 child: Text(val,
                     textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.text))),
+                        fontSize: 10.5, color: AppColors.text))),
           ],
         ),
       );

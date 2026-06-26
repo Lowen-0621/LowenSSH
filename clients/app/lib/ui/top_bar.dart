@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../state/search_provider.dart';
+import 'dialogs.dart';
 
-/// 顶栏 —— 红绿灯 + Logo + 搜索框 + 操作按钮（高 38px）
+/// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
 /// 对应设计稿 .topbar
-class TopBar extends StatelessWidget {
+class TopBar extends ConsumerWidget {
   const TopBar({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 38,
       decoration: const BoxDecoration(
@@ -31,16 +34,16 @@ class TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
           // 搜索框
-          _searchBox(),
+          _searchBox(ref),
           const Spacer(),
           // 操作按钮组
-          _actions(),
+          _actions(context, ref),
         ],
       ),
     );
   }
 
-  Widget _searchBox() {
+  Widget _searchBox(WidgetRef ref) {
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -48,55 +51,82 @@ class TopBar extends StatelessWidget {
         border: Border.all(color: AppColors.surface0),
         borderRadius: BorderRadius.circular(6),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Row(
-        children: const [
-          Icon(Icons.search, size: 15, color: AppColors.overlay),
-          SizedBox(width: 6),
-          Text('搜索主机、命令片段…',
-              style: TextStyle(color: AppColors.overlay, fontSize: 13)),
+        children: [
+          const Icon(Icons.search, size: 15, color: AppColors.overlay),
+          const SizedBox(width: 6),
+          Expanded(
+            child: TextField(
+              onChanged: (v) =>
+                  ref.read(hostSearchProvider.notifier).update(v),
+              style: const TextStyle(color: AppColors.text, fontSize: 13),
+              decoration: const InputDecoration(
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 6),
+                hintText: '搜索主机…',
+                hintStyle:
+                    TextStyle(color: AppColors.overlay, fontSize: 13),
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _actions() {
+  Widget _actions(BuildContext context, WidgetRef ref) {
     return Row(
       children: [
         _btn(icon: Icons.bolt, label: '连接', primary: true),
         const SizedBox(width: 6),
-        _btn(icon: Icons.add, label: '新建主机'),
+        _btn(
+            icon: Icons.add,
+            label: '新建主机',
+            onTap: () => showAddHostDialog(context, ref)),
         const SizedBox(width: 6),
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
         _btn(icon: Icons.splitscreen_outlined, label: '分屏'),
         const SizedBox(width: 6),
-        _btn(icon: Icons.settings_outlined),
+        _btn(
+            icon: Icons.settings_outlined,
+            onTap: () => showLlmSettingsDialog(context, ref)),
       ],
     );
   }
 
-  Widget _btn({required IconData icon, String? label, bool primary = false}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: primary ? AppColors.blue : AppColors.surface0,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon,
-              size: 15, color: primary ? AppColors.crust : AppColors.text),
-          if (label != null) ...[
-            const SizedBox(width: 5),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: primary ? FontWeight.w600 : FontWeight.normal,
-                    color: primary ? AppColors.crust : AppColors.text)),
+  Widget _btn(
+      {required IconData icon,
+      String? label,
+      bool primary = false,
+      VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        decoration: BoxDecoration(
+          color: primary ? AppColors.blue : AppColors.surface0,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 15, color: primary ? AppColors.crust : AppColors.text),
+            if (label != null) ...[
+              const SizedBox(width: 5),
+              Text(label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          primary ? FontWeight.w600 : FontWeight.normal,
+                      color: primary ? AppColors.crust : AppColors.text)),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

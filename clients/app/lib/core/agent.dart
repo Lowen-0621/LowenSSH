@@ -11,6 +11,7 @@
 /// 安全是独立代码路径：门禁不写进工具、不靠模型自觉，越狱也绕不过。
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'guard.dart';
 import 'ssh.dart';
@@ -156,74 +157,104 @@ class _ScreenResult {
   const _ScreenResult(this.content, this.rejected);
 }
 
-/// 跑一轮 agent 任务，以 async* 吐事件流。
-/// 调用方 await for 消费事件；事件语义见 events.dart。
-Stream<AgentEvent> runAgent(String task, AgentDeps deps) async* {
+/// 跑一轮 agent 任务，返回实时事件流。
+/// 用 StreamController 让 token/reasoning 在到达时立即推给 UI（真流式），
+/// 而非攒到整轮结束再一次性吐出。loop 跑完或抛错都会 close → 触发 onDone。
+Stream<AgentEvent> runAgent(String task, AgentDeps deps) {
+  late final StreamController<AgentEvent> controller;
+  controller = StreamController<AgentEvent>(
+    onListen: () => _runLoop(task, deps, controller),
+  );
+  return controller.stream;
+}
+
+Future<void> _runLoop(
+  String task,
+  AgentDeps deps,
+  StreamController<AgentEvent> out,
+) async {
   final llm = deps.llm;
   final ssh = deps.ssh;
   final ctx = ContextManager(llm);
 
+  // 本轮 user 输入，先暂存；本轮新增的 assistant/tool 消息累加到 newTurn，
+  // 结束时一次性回写 deps.history，供下一轮续聊（修复多轮历史从不落回的 bug）。
+  final userMsg = ChatMessage.user(task);
+  final newTurn = <ChatMessage>[userMsg];
+
   var messages = <ChatMessage>[
     ChatMessage.system(systemPrompt),
     ...(deps.history ?? const []),
-    ChatMessage.user(task),
+    userMsg,
   ];
 
-  for (var round = 1; round <= maxRounds; round++) {
-    // 进模型前整理上下文：Layer 0 截断 + Layer 4 压缩
-    messages = ctx.truncateToolResponses(messages);
-    messages = await ctx.compressIfNeeded(messages);
+  try {
+    for (var round = 1; round <= maxRounds; round++) {
+      // 进模型前整理上下文：Layer 0 截断 + Layer 4 压缩
+      messages = ctx.truncateToolResponses(messages);
+      messages = await ctx.compressIfNeeded(messages);
 
-    // 一次流式调用：边推 token/reasoning 边聚合
-    final pending = <AgentEvent>[];
-    final result = await llm.stream(messages, tools, StreamHandlers(
-      onToken: (t) => pending.add(TokenEvent(t)),
-      onReasoning: (t) => pending.add(ReasoningEvent(t)),
-    ));
-    // 把流式期间攒的增量事件吐出去
-    for (final ev in pending) {
-      yield ev;
-    }
-    pending.clear();
+      // 一次流式调用：token/reasoning 实时推给 UI
+      final result = await llm.stream(
+        messages,
+        tools,
+        StreamHandlers(
+          onToken: (t) => out.add(TokenEvent(t)),
+          onReasoning: (t) => out.add(ReasoningEvent(t)),
+        ),
+      );
 
-    // 没有 tool_call：模型给出最终结论，结束
-    if (result.toolCalls.isEmpty) {
-      final text = result.text.trim().isNotEmpty
-          ? result.text.trim()
-          : '模型暂时没有返回内容，请重试。';
-      yield DoneEvent(text);
-      return;
+      // 没有 tool_call：模型给出最终结论，结束。
+      // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
+      if (result.toolCalls.isEmpty) {
+        // GLM 有时把最终结论全放进 reasoning_content、正文 content 为空。
+        // 这种情况下用 reasoning 兜底作为结论，并补发 TokenEvent 让它显示成正文，
+        // 否则结论只会留在折叠的思考块里（用户看不到结果）。
+        var finalText = result.text.trim();
+        if (finalText.isEmpty && result.reasoning.trim().isNotEmpty) {
+          finalText = result.reasoning.trim();
+          out.add(TokenEvent(finalText));
+        }
+        if (finalText.isNotEmpty) {
+          newTurn.add(ChatMessage.assistant(finalText));
+        }
+        deps.history?.addAll(newTurn);
+        out.add(DoneEvent(finalText));
+        return;
+      }
+
+      // 落 assistant（文字 + tool_calls）
+      final assistant = ChatMessage.assistant(
+        result.text.isNotEmpty ? result.text : null,
+        toolCalls: result.toolCalls,
+      );
+      // 先把本轮要调的工具吐出去
+      for (final call in result.toolCalls) {
+        out.add(ToolCallEvent(call.name, call.arguments));
+      }
+
+      // —— 门禁预检 + 执行（事件实时 add）——
+      final toolResponses = <ChatMessage>[];
+      for (final call in result.toolCalls) {
+        final r = await _screenAndRun(call, ssh, deps.confirmer, out.add);
+        toolResponses.add(ChatMessage.tool(call.id, r.content));
+      }
+
+      // 回灌历史：assistant + 所有 tool 结果（被拒的也回灌"拒绝"文本，让模型换方案）
+      messages.add(assistant);
+      messages.addAll(toolResponses);
+      // 同步累加到本轮新增，供结束时回写 deps.history
+      newTurn.add(assistant);
+      newTurn.addAll(toolResponses);
     }
 
-    // 落 assistant（文字 + tool_calls）
-    final assistant = ChatMessage.assistant(
-      result.text.isNotEmpty ? result.text : null,
-      toolCalls: result.toolCalls,
-    );
-    // 先把本轮要调的工具吐出去
-    for (final call in result.toolCalls) {
-      yield ToolCallEvent(call.name, call.arguments);
-    }
-
-    // —— 门禁预检 + 执行 ——
-    final toolResponses = <ChatMessage>[];
-    for (final call in result.toolCalls) {
-      final r = await _screenAndRun(call, ssh, deps.confirmer, pending.add);
-      // _screenAndRun 把 blocked/tool_result 事件塞进 pending
-      toolResponses.add(ChatMessage.tool(call.id, r.content));
-    }
-    // 吐出执行阶段攒的事件（blocked / tool_result）
-    for (final ev in pending) {
-      yield ev;
-    }
-    pending.clear();
-
-    // 回灌历史：assistant + 所有 tool 结果（被拒的也回灌"拒绝"文本，让模型换方案）
-    messages.add(assistant);
-    messages.addAll(toolResponses);
+    deps.history?.addAll(newTurn);
+    out.add(DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。'));
+  } catch (e) {
+    out.add(ErrorEvent(e.toString()));
+  } finally {
+    await out.close();
   }
-
-  yield DoneEvent('已达到最大循环轮数（$maxRounds），任务可能未完成。请拆分任务后重试。');
 }
 
 /// 对单个 tool_call 过门禁并执行。通过 emit 推 blocked / tool_result 事件。
@@ -254,6 +285,8 @@ Future<_ScreenResult> _screenAndRun(
   if (verdict.decision == Decision.deny) {
     final reason = verdict.reason;
     emit(BlockedEvent(command, reason));
+    // 同时回填工具卡，停止其转圈并标记为未执行（已阻止）
+    emit(ToolResultEvent(name, '已被安全门禁阻止', false));
     return _ScreenResult('命令被安全门禁拒绝执行（$reason）。请改用更安全的方式。', true);
   }
 
@@ -261,6 +294,7 @@ Future<_ScreenResult> _screenAndRun(
     final ok = await confirmer(command, verdict.reason);
     if (!ok) {
       emit(BlockedEvent(command, '用户拒绝: ${verdict.reason}'));
+      emit(ToolResultEvent(name, '用户拒绝执行', false));
       return const _ScreenResult('用户拒绝执行该命令。请换一种方式或询问用户。', true);
     }
   }

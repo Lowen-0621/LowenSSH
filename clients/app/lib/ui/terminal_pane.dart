@@ -1,88 +1,182 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:xterm/xterm.dart';
+import 'package:dartssh2/dartssh2.dart';
 import '../theme.dart';
+import '../core/ssh.dart';
+import '../state/connection_provider.dart';
 
-/// 终端面板 —— 静态命令输出（Step 4 替换为 xterm TerminalView）
-/// 对应设计稿 .pane.terminal
-class TerminalPane extends StatelessWidget {
+/// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell + 选区控制器。
+/// 按主机保活，切主机切显示对应 Terminal，旧的 PTY 留在后台不断。
+class _TermSession {
+  final Terminal terminal = Terminal(maxLines: 5000);
+  final TerminalController controller = TerminalController();
+  SSHSession? shell;
+  bool starting = false;
+  VoidCallback? _selListener;
+
+  /// 选中自动复制（Linux 终端风格）：选区变化且非空 → 写入系统剪贴板
+  void enableAutoCopy() {
+    _selListener = () {
+      final sel = controller.selection;
+      if (sel == null) return;
+      final text = terminal.buffer.getText(sel);
+      if (text.trim().isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+      }
+    };
+    controller.addListener(_selListener!);
+  }
+
+  void dispose() {
+    if (_selListener != null) controller.removeListener(_selListener!);
+    controller.dispose();
+    shell?.close();
+    shell = null;
+  }
+}
+
+/// 终端面板 —— 真交互终端（xterm 接 SSH shell channel）。
+/// 多主机各自保活一个 shell：切主机切显示对应终端，历史与会话不丢。
+/// 与 agent 的 exec 各走独立 channel，互不干扰。
+class TerminalPane extends ConsumerStatefulWidget {
   const TerminalPane({super.key});
 
   @override
+  ConsumerState<TerminalPane> createState() => _TerminalPaneState();
+}
+
+class _TerminalPaneState extends ConsumerState<TerminalPane> {
+  // 每台主机一个终端会话，按 hostId 保活
+  final Map<String, _TermSession> _sessions = {};
+
+  /// 取/建某主机的终端会话，并绑定键盘输入 → shell stdin
+  _TermSession _sessionFor(String hostId) =>
+      _sessions.putIfAbsent(hostId, () {
+        final s = _TermSession();
+        s.terminal.onOutput = (data) => s.shell?.write(utf8.encode(data));
+        s.terminal.onResize =
+            (w, h, pw, ph) => s.shell?.resizeTerminal(w, h, pw, ph);
+        s.enableAutoCopy(); // 选中即复制
+        return s;
+      });
+
+  /// 右键：把剪贴板内容写进 shell（桌面终端常见的粘贴交互）
+  Future<void> _paste(_TermSession s) async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text;
+    if (text != null && text.isNotEmpty) {
+      s.shell?.write(utf8.encode(text));
+    }
+  }
+
+  /// 为指定主机开交互 shell，把 SSH stdout/stderr 灌进它的终端
+  Future<void> _startShell(String hostId, SshClient client) async {
+    final s = _sessionFor(hostId);
+    if (s.starting || s.shell != null) return;
+    s.starting = true;
+    try {
+      final session = await client.shell(
+        width: s.terminal.viewWidth,
+        height: s.terminal.viewHeight,
+      );
+      s.shell = session;
+      session.stdout
+          .cast<List<int>>()
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .listen(s.terminal.write);
+      session.stderr
+          .cast<List<int>>()
+          .transform(const Utf8Decoder(allowMalformed: true))
+          .listen(s.terminal.write);
+    } catch (e) {
+      s.terminal.write('\r\n[终端启动失败: $e]\r\n');
+    } finally {
+      s.starting = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final s in _sessions.values) {
+      s.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final conn = ref.watch(connectionProvider);
+    final hostId = conn.host?.id;
+
+    // 池里已不存在的主机（被 LRU 踢掉/断开），清理其终端会话
+    _sessions.keys
+        .where((id) => !conn.connectedIds.contains(id))
+        .toList()
+        .forEach((id) {
+      _sessions.remove(id)?.dispose();
+    });
+
+    if (!conn.isConnected || hostId == null) {
+      return Container(
+        color: AppColors.crust,
+        alignment: Alignment.center,
+        child: const Text('连接主机后可在此使用交互式终端',
+            style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+      );
+    }
+
+    // 当前主机：没 shell 就开一个（按主机隔离，互不影响）
+    final s = _sessionFor(hostId);
+    if (s.shell == null && !s.starting) {
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _startShell(hostId, conn.client!));
+    }
+
     return Container(
       color: AppColors.crust,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      child: SingleChildScrollView(
-        child: DefaultTextStyle(
-          style: const TextStyle(
-              fontFamily: kMonoFont, fontSize: 12, height: 1.55),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _promptLine('df -h'),
-              _out('Filesystem      Size  Used Avail Use% Mounted on'),
-              _outWithWarn('/dev/sda1        50G   46G  1.5G  ', '92%', ' /'),
-              _out('tmpfs           3.9G     0  3.9G   0% /dev/shm'),
-              _promptLine('du -sh /var/log/*'),
-              _out('2.1G  /var/log/nginx'),
-              _out('1.8G  /var/log/app'),
-              _out('512M  /var/log/syslog'),
-              // 光标行
-              Row(
-                children: [
-                  _prompt(),
-                  const SizedBox(width: 4),
-                  Container(width: 7, height: 14, color: AppColors.text),
-                ],
-              ),
-            ],
-          ),
+      child: TerminalView(
+        s.terminal,
+        controller: s.controller,
+        // 右键粘贴：剪贴板内容写入 shell
+        onSecondaryTapDown: (details, offset) => _paste(s),
+        textStyle: const TerminalStyle(
+          fontSize: 12.5,
+          fontFamily: kMonoFont,
         ),
+        theme: _termTheme,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
     );
   }
-
-  // 提示符 root@web01:~#
-  Widget _prompt() => RichText(
-        text: const TextSpan(
-          style: TextStyle(fontFamily: kMonoFont, fontSize: 12),
-          children: [
-            TextSpan(text: 'root@web01', style: TextStyle(color: AppColors.green)),
-            TextSpan(text: ':', style: TextStyle(color: AppColors.text)),
-            TextSpan(text: '~', style: TextStyle(color: AppColors.blue)),
-            TextSpan(text: '# ', style: TextStyle(color: AppColors.text)),
-          ],
-        ),
-      );
-
-  // 提示符 + 已输入命令
-  Widget _promptLine(String cmd) => Padding(
-        padding: const EdgeInsets.only(top: 2, bottom: 2),
-        child: Row(
-          children: [
-            _prompt(),
-            Text(cmd,
-                style: const TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 12,
-                    color: AppColors.text)),
-          ],
-        ),
-      );
-
-  Widget _out(String text) => Text(text,
-      style: const TextStyle(
-          fontFamily: kMonoFont, fontSize: 12, color: AppColors.subtext));
-
-  // 输出行中高亮某段（如 92% 用黄色警告）
-  Widget _outWithWarn(String pre, String warn, String post) => RichText(
-        text: TextSpan(
-          style: const TextStyle(
-              fontFamily: kMonoFont, fontSize: 12, color: AppColors.subtext),
-          children: [
-            TextSpan(text: pre),
-            TextSpan(text: warn, style: const TextStyle(color: AppColors.yellow)),
-            TextSpan(text: post),
-          ],
-        ),
-      );
 }
+
+/// 终端配色（贴近 Catppuccin Mocha）
+final TerminalTheme _termTheme = TerminalTheme(
+  cursor: AppColors.text,
+  // 选区半透明，选中后文字仍可读（原来不透明的灰会盖住文字）
+  selection: AppColors.surface2.withValues(alpha: .45),
+  foreground: AppColors.text,
+  background: AppColors.crust,
+  black: const Color(0xFF45475A),
+  red: AppColors.red,
+  green: AppColors.green,
+  yellow: AppColors.yellow,
+  blue: AppColors.blue,
+  magenta: Color(0xFFF5C2E7),
+  cyan: AppColors.sapphire,
+  white: AppColors.text,
+  brightBlack: AppColors.overlay,
+  brightRed: AppColors.red,
+  brightGreen: AppColors.green,
+  brightYellow: AppColors.yellow,
+  brightBlue: AppColors.blue,
+  brightMagenta: Color(0xFFF5C2E7),
+  brightCyan: AppColors.sapphire,
+  brightWhite: Colors.white,
+  searchHitBackground: AppColors.yellow,
+  searchHitBackgroundCurrent: AppColors.peach,
+  searchHitForeground: AppColors.crust,
+);
