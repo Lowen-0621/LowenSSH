@@ -22,6 +22,9 @@ class Host {
   /// AES-GCM 加密后的密码；未存密码则为 null
   final String? passwordEnc;
 
+  /// 指定用哪把密钥认证（SshKey.id）；为 null 走密码认证
+  final String? keyId;
+
   const Host({
     required this.id,
     this.alias,
@@ -29,6 +32,7 @@ class Host {
     this.port = 22,
     this.user = 'root',
     this.passwordEnc,
+    this.keyId,
   });
 
   factory Host.fromJson(Map<String, dynamic> j) => Host(
@@ -38,6 +42,7 @@ class Host {
         port: (j['port'] as num?)?.toInt() ?? 22,
         user: j['user'] as String? ?? 'root',
         passwordEnc: j['passwordEnc'] as String?,
+        keyId: j['keyId'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -47,6 +52,36 @@ class Host {
         'port': port,
         'user': user,
         if (passwordEnc != null) 'passwordEnc': passwordEnc,
+        if (keyId != null) 'keyId': keyId,
+      };
+}
+
+/// 一把 SSH 私钥。私钥 PEM 与可选 passphrase 均经 AES-GCM 加密落盘，绝不存明文。
+class SshKey {
+  final String id;
+  final String name; //          展示名
+  final String privateKeyEnc; // 加密后的 PEM 私钥
+  final String? passphraseEnc; // 加密后的 passphrase（私钥无加密则为 null）
+
+  const SshKey({
+    required this.id,
+    required this.name,
+    required this.privateKeyEnc,
+    this.passphraseEnc,
+  });
+
+  factory SshKey.fromJson(Map<String, dynamic> j) => SshKey(
+        id: j['id'] as String,
+        name: j['name'] as String? ?? '未命名密钥',
+        privateKeyEnc: j['privateKeyEnc'] as String,
+        passphraseEnc: j['passphraseEnc'] as String?,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'privateKeyEnc': privateKeyEnc,
+        if (passphraseEnc != null) 'passphraseEnc': passphraseEnc,
       };
 }
 
@@ -83,9 +118,10 @@ class LlmConfig {
 
 class AppConfig {
   final List<Host> hosts;
+  final List<SshKey> keys;
   final LlmConfig llm;
 
-  const AppConfig({required this.hosts, required this.llm});
+  const AppConfig({required this.hosts, this.keys = const [], required this.llm});
 }
 
 /// 默认 LLM 设置：GLM。apiKey 留空，首次运行提示用户填或从环境变量读
@@ -116,10 +152,13 @@ AppConfig loadConfig() {
       final hosts = (parsed['hosts'] as List<dynamic>? ?? [])
           .map((e) => Host.fromJson(e as Map<String, dynamic>))
           .toList();
+      final keys = (parsed['keys'] as List<dynamic>? ?? [])
+          .map((e) => SshKey.fromJson(e as Map<String, dynamic>))
+          .toList();
       final llm = parsed['llm'] != null
           ? LlmConfig.fromJson(parsed['llm'] as Map<String, dynamic>)
           : _defaultLlm;
-      cfg = AppConfig(hosts: hosts, llm: llm);
+      cfg = AppConfig(hosts: hosts, keys: keys, llm: llm);
     } catch (_) {
       // 配置损坏不影响启动，退回空配置（用户可重新添加）
       cfg = _emptyConfig();
@@ -128,7 +167,10 @@ AppConfig loadConfig() {
   // 环境变量优先：方便临时覆盖，且不把 key 写进文件
   final envKey = Platform.environment['GLM_API_KEY'];
   if (envKey != null && envKey.trim().isNotEmpty) {
-    cfg = AppConfig(hosts: cfg.hosts, llm: cfg.llm.copyWith(apiKey: envKey));
+    cfg = AppConfig(
+        hosts: cfg.hosts,
+        keys: cfg.keys,
+        llm: cfg.llm.copyWith(apiKey: envKey));
   }
   return cfg;
 }
@@ -141,6 +183,7 @@ void saveConfig(AppConfig cfg) {
   }
   final json = const JsonEncoder.withIndent('  ').convert({
     'hosts': cfg.hosts.map((h) => h.toJson()).toList(),
+    'keys': cfg.keys.map((k) => k.toJson()).toList(),
     'llm': cfg.llm.toJson(),
   });
   final file = File(configFile);
@@ -153,13 +196,15 @@ void saveConfig(AppConfig cfg) {
   } catch (_) {}
 }
 
-/// 新增主机：密码加密后落库，返回带 id 的 Host
+/// 新增主机：密码加密后落库，返回带 id 的 Host。
+/// keyId 非空表示用密钥认证（此时通常不存密码）。
 Host addHost({
   String? alias,
   required String host,
   int port = 22,
   String user = 'root',
   String? password,
+  String? keyId,
 }) {
   final cfg = loadConfig();
   final newHost = Host(
@@ -169,9 +214,10 @@ Host addHost({
     port: port,
     user: user,
     passwordEnc: (password != null && password.isNotEmpty) ? encrypt(password) : null,
+    keyId: keyId,
   );
   final hosts = [...cfg.hosts, newHost];
-  saveConfig(AppConfig(hosts: hosts, llm: cfg.llm));
+  saveConfig(AppConfig(hosts: hosts, keys: cfg.keys, llm: cfg.llm));
   return newHost;
 }
 
@@ -179,7 +225,7 @@ Host addHost({
 void removeHost(String id) {
   final cfg = loadConfig();
   final hosts = cfg.hosts.where((h) => h.id != id).toList();
-  saveConfig(AppConfig(hosts: hosts, llm: cfg.llm));
+  saveConfig(AppConfig(hosts: hosts, keys: cfg.keys, llm: cfg.llm));
 }
 
 /// 取某主机的明文密码（解密）；未存返回 null
@@ -190,3 +236,57 @@ String? getHostPassword(Host host) {
 
 /// 主机是否已存密码
 bool hasPassword(Host host) => host.passwordEnc != null;
+
+/// 新增密钥：私钥 PEM 与 passphrase 加密后落库，返回带 id 的 SshKey
+SshKey addKey({
+  required String name,
+  required String privateKeyPem,
+  String? passphrase,
+}) {
+  final cfg = loadConfig();
+  final newKey = SshKey(
+    id: _uuid.v4(),
+    name: name,
+    privateKeyEnc: encrypt(privateKeyPem)!,
+    passphraseEnc: (passphrase != null && passphrase.isNotEmpty)
+        ? encrypt(passphrase)
+        : null,
+  );
+  final keys = [...cfg.keys, newKey];
+  saveConfig(AppConfig(hosts: cfg.hosts, keys: keys, llm: cfg.llm));
+  return newKey;
+}
+
+/// 删除密钥。引用了该密钥的主机回退为「无认证」（keyId 置空），由用户重新配置。
+void removeKey(String id) {
+  final cfg = loadConfig();
+  final keys = cfg.keys.where((k) => k.id != id).toList();
+  // 解除引用：把 keyId 指向被删密钥的主机清掉 keyId
+  final hosts = cfg.hosts
+      .map((h) => h.keyId == id
+          ? Host(
+              id: h.id,
+              alias: h.alias,
+              host: h.host,
+              port: h.port,
+              user: h.user,
+              passwordEnc: h.passwordEnc,
+              keyId: null,
+            )
+          : h)
+      .toList();
+  saveConfig(AppConfig(hosts: hosts, keys: keys, llm: cfg.llm));
+}
+
+/// 取某把密钥的明文 PEM + passphrase（解密）。找不到返回 null。
+({String pem, String? passphrase})? getKeyMaterial(String keyId) {
+  final cfg = loadConfig();
+  final key = cfg.keys.where((k) => k.id == keyId).firstOrNull;
+  if (key == null) return null;
+  final pem = decrypt(key.privateKeyEnc);
+  if (pem == null) return null;
+  return (
+    pem: pem,
+    passphrase: key.passphraseEnc != null ? decrypt(key.passphraseEnc) : null,
+  );
+}

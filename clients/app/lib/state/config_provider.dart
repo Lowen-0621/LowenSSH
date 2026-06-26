@@ -14,13 +14,15 @@ class ConfigNotifier extends Notifier<AppConfig> {
     int port = 22,
     String user = 'root',
     String? password,
+    String? keyId,
   }) {
     final h = addHost(
         alias: alias,
         host: host,
         port: port,
         user: user,
-        password: password);
+        password: password,
+        keyId: keyId);
     state = loadConfig(); // 刷新
     return h;
   }
@@ -35,9 +37,12 @@ class ConfigNotifier extends Notifier<AppConfig> {
   /// 更新 LLM 配置
   void updateLlm(LlmConfig llm) {
     final cfg = loadConfig();
-    saveConfig(AppConfig(hosts: cfg.hosts, llm: llm));
+    saveConfig(AppConfig(hosts: cfg.hosts, keys: cfg.keys, llm: llm));
     state = loadConfig();
   }
+
+  /// 重新从盘加载（密钥库变更后，主机的 keyId 引用可能被清，需同步刷新）
+  void reload() => state = loadConfig();
 }
 
 final configProvider =

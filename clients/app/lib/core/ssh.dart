@@ -38,21 +38,29 @@ class SshClient {
   SftpClient? _sftp;
   bool _connected = false;
 
-  /// 建立连接（密码认证）。10s 超时。
+  /// 建立连接。10s 超时。
+  /// 传 privateKeyPem 走密钥认证（可带 passphrase）；否则用 password 走密码认证。
   Future<void> connect(
     String host,
     int port,
     String username,
-    String password,
-  ) async {
+    String password, {
+    String? privateKeyPem,
+    String? passphrase,
+  }) async {
     _socket = await SSHSocket.connect(
       host,
       port == 0 ? 22 : port,
       timeout: const Duration(seconds: 10),
     );
+    // 有私钥则解析为 identities 走公钥认证，否则回调返回密码
+    final identities = (privateKeyPem != null && privateKeyPem.trim().isNotEmpty)
+        ? SSHKeyPair.fromPem(privateKeyPem, passphrase)
+        : null;
     _client = SSHClient(
       _socket!,
       username: username,
+      identities: identities,
       onPasswordRequest: () => password,
       // demo 方便：dartssh2 默认不强制 known_hosts 校验；生产应校验，否则有中间人风险
     );

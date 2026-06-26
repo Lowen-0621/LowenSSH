@@ -110,8 +110,21 @@ class ConnectionNotifier extends Notifier<ConnState> {
 
     try {
       final client = SshClient();
-      final password = decrypt(host.passwordEnc) ?? '';
-      await client.connect(host.host, host.port, host.user, password);
+      // 优先密钥认证：主机指定了 keyId 且密钥仍存在则取私钥材料，否则回退密码
+      String password = '';
+      String? pem;
+      String? passphrase;
+      if (host.keyId != null) {
+        final mat = getKeyMaterial(host.keyId!);
+        if (mat != null) {
+          pem = mat.pem;
+          passphrase = mat.passphrase;
+        }
+      }
+      // 没有可用私钥时才解密密码（密钥认证失败也保留密码兜底）
+      password = decrypt(host.passwordEnc) ?? '';
+      await client.connect(host.host, host.port, host.user, password,
+          privateKeyPem: pem, passphrase: passphrase);
       entry
         ..client = client
         ..phase = ConnPhase.connected

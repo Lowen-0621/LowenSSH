@@ -11,6 +11,8 @@ import 'dialogs.dart';
 import 'snippets_dialog.dart';
 import 'audit_dialog.dart';
 import 'security_dialog.dart';
+import 'keys_dialog.dart';
+import '../state/key_provider.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
@@ -18,9 +20,8 @@ import 'security_dialog.dart';
 class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
 
-  // 导航链接：图标/标题/badge。命令片段、审计日志、安全策略为真实功能，其余暂为装饰。
+  // 导航链接：图标/标题/badge。命令片段、审计、安全策略、密钥库为真实功能，端口转发暂为装饰。
   static const _decorLinks = [
-    (Icons.vpn_key_outlined, '密钥库', '3'),
     (Icons.swap_horiz_outlined, '端口转发', null),
   ];
 
@@ -74,6 +75,10 @@ class LeftBar extends ConsumerWidget {
             _navLink(Icons.content_paste_outlined, '命令片段',
                 '${ref.watch(snippetProvider).length}',
                 onTap: () => showSnippetsDialog(context)),
+            // 密钥库：真实功能，点击弹密钥管理，badge 显示真实数量
+            _navLink(Icons.vpn_key_outlined, '密钥库',
+                _keyBadge(ref),
+                onTap: () => showKeysDialog(context)),
             for (final l in _decorLinks) _navLink(l.$1, l.$2, l.$3),
             // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
             _navLink(Icons.shield_outlined, '安全策略',
@@ -284,6 +289,12 @@ class LeftBar extends ConsumerWidget {
   String? _guardBadge(WidgetRef ref) {
     final s = ref.watch(guardProvider);
     final n = s.denyCount + s.askCount;
+    return n > 0 ? '$n' : null;
+  }
+
+  // 密钥库 badge：密钥数量，为 0 时不显示
+  String? _keyBadge(WidgetRef ref) {
+    final n = ref.watch(keyProvider).length;
     return n > 0 ? '$n' : null;
   }
 

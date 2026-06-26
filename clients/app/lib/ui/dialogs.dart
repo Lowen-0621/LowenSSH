@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/config.dart';
 import '../state/config_provider.dart';
+import '../state/key_provider.dart';
 
 /// 暗色对话框统一外壳
 Future<T?> _showDark<T>(BuildContext context, Widget child) {
@@ -139,6 +140,10 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
   final port = TextEditingController(text: '22');
   final user = TextEditingController(text: 'root');
   final pwd = TextEditingController();
+  // 认证方式：password / key
+  String authMode = 'password';
+  String? selectedKeyId;
+  final keys = ref.read(keyProvider);
 
   return _showDark(
     context,
@@ -152,22 +157,121 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
           _field(host, '主机地址', hint: '10.0.1.21 或 example.com'),
           _field(port, '端口', hint: '22'),
           _field(user, '用户名', hint: 'root'),
-          _field(pwd, '密码', obscure: true),
+          // 认证方式切换
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('认证方式',
+                style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+          ),
+          Row(
+            children: [
+              _authTab('password', '密码', authMode,
+                  () => setState(() => authMode = 'password')),
+              const SizedBox(width: 8),
+              _authTab('key', '密钥', authMode,
+                  () => setState(() => authMode = 'key')),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 密码模式：密码框；密钥模式：密钥下拉
+          if (authMode == 'password')
+            _field(pwd, '密码', obscure: true)
+          else
+            _keyDropdown(keys, selectedKeyId,
+                (id) => setState(() => selectedKeyId = id)),
           const SizedBox(height: 4),
           _actions(ctx, okLabel: '添加', onOk: () {
             if (host.text.trim().isEmpty) return;
+            // 密钥模式必须选中一把密钥
+            if (authMode == 'key' && selectedKeyId == null) return;
             ref.read(configProvider.notifier).addHostEntry(
                   alias: alias.text.trim().isEmpty ? null : alias.text.trim(),
                   host: host.text.trim(),
                   port: int.tryParse(port.text.trim()) ?? 22,
                   user: user.text.trim().isEmpty ? 'root' : user.text.trim(),
-                  password: pwd.text.isEmpty ? null : pwd.text,
+                  password: authMode == 'password' && pwd.text.isNotEmpty
+                      ? pwd.text
+                      : null,
+                  keyId: authMode == 'key' ? selectedKeyId : null,
                 );
             Navigator.pop(ctx);
           }),
         ],
       ),
     ),
+  );
+}
+
+// 认证方式切换标签
+Widget _authTab(String id, String label, String current, VoidCallback onTap) =>
+    Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: current == id ? AppColors.surface1 : AppColors.base,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: current == id ? AppColors.blue : AppColors.surface0),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 12.5,
+                  color:
+                      current == id ? AppColors.text : AppColors.subtext)),
+        ),
+      ),
+    );
+
+// 密钥下拉选择
+Widget _keyDropdown(
+    List<SshKey> keys, String? selectedId, ValueChanged<String?> onChanged) {
+  if (keys.isEmpty) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.base,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.surface0),
+      ),
+      child: const Text('密钥库为空，请先到「密钥库」添加密钥',
+          style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+    );
+  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Padding(
+        padding: EdgeInsets.only(bottom: 4),
+        child: Text('选择密钥',
+            style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+      ),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        decoration: BoxDecoration(
+          color: AppColors.base,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.surface0),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: selectedId,
+            isExpanded: true,
+            dropdownColor: AppColors.mantle,
+            hint: const Text('请选择…',
+                style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+            style: const TextStyle(fontSize: 13, color: AppColors.text),
+            items: [
+              for (final k in keys)
+                DropdownMenuItem(value: k.id, child: Text(k.name)),
+            ],
+            onChanged: onChanged,
+          ),
+        ),
+      ),
+    ],
   );
 }
 
