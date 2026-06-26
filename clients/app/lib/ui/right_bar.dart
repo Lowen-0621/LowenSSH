@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/guard_provider.dart';
 import '../state/connection_provider.dart';
+import '../state/monitor_provider.dart';
 import '../state/sftp_provider.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
@@ -423,28 +424,65 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
 
 // ============ 监控面板 ============
 
-class _MonitorPanel extends StatelessWidget {
+class _MonitorPanel extends ConsumerStatefulWidget {
   const _MonitorPanel();
 
-  // (标签, 百分比0-1, 显示值, 是否warn)
-  static const _metrics = [
-    ('CPU', 0.34, '34%', false),
-    ('内存', 0.61, '61%', false),
-    ('磁盘 /', 0.92, '92%', true),
-    ('负载', 0.45, '1.8', false),
-  ];
+  @override
+  ConsumerState<_MonitorPanel> createState() => _MonitorPanelState();
+}
+
+class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // 面板可见即开始采样；销毁（切走其它 tab）即停止，避免后台空跑
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(monitorProvider.notifier).start();
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(monitorProvider.notifier).stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final conn = ref.watch(connectionProvider);
+    final m = ref.watch(monitorProvider);
+
+    if (!conn.isConnected) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('连接主机后查看实时监控',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+      );
+    }
+
+    // 负载占比：load1 / 核数（>1 视为满载），用于进度条
+    final loadPct = m.cores > 0 ? (m.load1 / m.cores).clamp(0.0, 1.0) : 0.0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _panelTitle('资源占用'),
-        for (final m in _metrics) _metric(m.$1, m.$2, m.$3, m.$4),
+        _metric('CPU', m.cpuPct, '${(m.cpuPct * 100).toStringAsFixed(0)}%',
+            m.cpuPct > 0.9),
+        _metric('内存', m.memPct, m.memText, m.memPct > 0.9),
+        _metric('磁盘 /', m.diskPct,
+            '${(m.diskPct * 100).toStringAsFixed(0)}%', m.diskPct > 0.9),
+        _metric('负载', loadPct, m.load1.toStringAsFixed(2), loadPct > 0.9),
         const SizedBox(height: 6),
         _panelTitle('网络'),
-        _netRow('↓ 入站', '2.4 MB/s'),
-        _netRow('↑ 出站', '512 KB/s'),
+        _netRow('↓ 入站', humanBps(m.netRxBps)),
+        _netRow('↑ 出站', humanBps(m.netTxBps)),
+        if (m.error != null) ...[
+          const SizedBox(height: 8),
+          Text('采样失败：${m.error}',
+              style: const TextStyle(fontSize: 10, color: AppColors.red)),
+        ],
       ],
     );
   }
@@ -474,11 +512,12 @@ class _MonitorPanel extends StatelessWidget {
             ),
             const SizedBox(width: 9),
             SizedBox(
-                width: 38,
+                width: 64,
                 child: Text(val,
                     textAlign: TextAlign.right,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 11, color: AppColors.text))),
+                        fontSize: 10.5, color: AppColors.text))),
           ],
         ),
       );
