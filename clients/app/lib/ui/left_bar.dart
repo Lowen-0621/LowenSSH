@@ -10,6 +10,7 @@ import '../state/snippet_provider.dart';
 import 'dialogs.dart';
 import 'snippets_dialog.dart';
 import 'audit_dialog.dart';
+import 'security_dialog.dart';
 
 /// 左栏 —— 主机列表 + 导航链接
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
@@ -17,11 +18,10 @@ import 'audit_dialog.dart';
 class LeftBar extends ConsumerWidget {
   const LeftBar({super.key});
 
-  // 导航链接：图标/标题/badge。命令片段、审计日志为真实功能，其余暂为装饰。
+  // 导航链接：图标/标题/badge。命令片段、审计日志、安全策略为真实功能，其余暂为装饰。
   static const _decorLinks = [
     (Icons.vpn_key_outlined, '密钥库', '3'),
     (Icons.swap_horiz_outlined, '端口转发', null),
-    (Icons.shield_outlined, '安全策略', null),
   ];
 
   @override
@@ -75,6 +75,10 @@ class LeftBar extends ConsumerWidget {
                 '${ref.watch(snippetProvider).length}',
                 onTap: () => showSnippetsDialog(context)),
             for (final l in _decorLinks) _navLink(l.$1, l.$2, l.$3),
+            // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
+            _navLink(Icons.shield_outlined, '安全策略',
+                _guardBadge(ref),
+                onTap: () => showSecurityDialog(context)),
             // 审计日志：真实功能，点击弹审计面板，badge 显示总条数
             _navLink(Icons.receipt_long_outlined, '审计日志',
                 '${ref.watch(auditProvider).length}',
@@ -275,6 +279,13 @@ class LeftBar extends ConsumerWidget {
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         color: AppColors.surface0,
       );
+
+  // 安全策略 badge：累计拦截数（deny+ask），为 0 时不显示
+  String? _guardBadge(WidgetRef ref) {
+    final s = ref.watch(guardProvider);
+    final n = s.denyCount + s.askCount;
+    return n > 0 ? '$n' : null;
+  }
 
   // 导航链接（图标 + 标题 + 可选 badge）。传 onTap 则可点击。
   Widget _navLink(IconData icon, String label, String? badge,

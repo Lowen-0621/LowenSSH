@@ -108,3 +108,38 @@ Verdict _evaluateSingle(String seg) {
 List<String> _splitSegments(String command) {
   return command.split(RegExp(r'&&|\|\||[|;\n]'));
 }
+
+/// 一条门禁规则的只读说明（供 UI 展示，不参与判定）
+class GuardRule {
+  final Decision level;
+  final String pattern; // 正则源串
+  final String desc; //    中文说明
+  const GuardRule(this.level, this.pattern, this.desc);
+}
+
+/// DENY 规则清单（与 _deny 一一对应，仅供 UI 展示）
+const List<GuardRule> denyRules = [
+  GuardRule(Decision.deny, r'\brm\s+...-[rf]', 'rm -rf / rm -fr 递归强删'),
+  GuardRule(Decision.deny, r'\bmkfs\b', '格式化文件系统'),
+  GuardRule(Decision.deny, r'\bdd\b', '块设备读写，易毁盘'),
+  GuardRule(Decision.deny, r'\bshutdown\b', '关机'),
+  GuardRule(Decision.deny, r'\breboot\b', '重启'),
+  GuardRule(Decision.deny, r'\bhalt\b', '停机'),
+  GuardRule(Decision.deny, r'>\s*/dev/sd', '直接写裸盘'),
+  GuardRule(Decision.deny, r':(){ :|:& };:', 'fork 炸弹'),
+  GuardRule(Decision.deny, r'\bmv\s+...\s+/dev/null', 'mv 到 /dev/null 销毁数据'),
+  GuardRule(Decision.deny, r'\bfind\b...-delete', 'find 批量删除'),
+  GuardRule(Decision.deny, r'\bfind\b...-exec rm', 'find -exec rm 批量删除'),
+];
+
+/// ASK 规则清单（与 _ask 一一对应，仅供 UI 展示）
+const List<GuardRule> askRules = [
+  GuardRule(Decision.ask, r'\brm\b', '普通 rm（非 -rf）'),
+  GuardRule(Decision.ask, r'\bkill\b', '杀进程'),
+  GuardRule(Decision.ask, r'\bsystemctl stop|restart|disable', '停/重启/禁用服务'),
+  GuardRule(Decision.ask, r'\bservice ... stop|restart', '停/重启服务'),
+  GuardRule(Decision.ask, r'\b(chmod|chown)\b', '改权限/属主'),
+  GuardRule(Decision.ask, r'\b(apt|yum|dnf) install|remove', '装/卸软件'),
+  GuardRule(Decision.ask, r'\btruncate\b', '清空文件'),
+  GuardRule(Decision.ask, r'>\s*/', '重定向覆盖写绝对路径文件'),
+];
