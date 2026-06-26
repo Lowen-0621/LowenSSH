@@ -207,12 +207,19 @@ Future<void> _runLoop(
       // 没有 tool_call：模型给出最终结论，结束。
       // 正文通常已通过 TokenEvent 流式显示，DoneEvent 仅作结束信号，UI 层去重。
       if (result.toolCalls.isEmpty) {
-        // 最终结论也要进历史，否则下一轮模型看不到自己上次说了什么
-        if (result.text.trim().isNotEmpty) {
-          newTurn.add(ChatMessage.assistant(result.text));
+        // GLM 有时把最终结论全放进 reasoning_content、正文 content 为空。
+        // 这种情况下用 reasoning 兜底作为结论，并补发 TokenEvent 让它显示成正文，
+        // 否则结论只会留在折叠的思考块里（用户看不到结果）。
+        var finalText = result.text.trim();
+        if (finalText.isEmpty && result.reasoning.trim().isNotEmpty) {
+          finalText = result.reasoning.trim();
+          out.add(TokenEvent(finalText));
+        }
+        if (finalText.isNotEmpty) {
+          newTurn.add(ChatMessage.assistant(finalText));
         }
         deps.history?.addAll(newTurn);
-        out.add(DoneEvent(result.text.trim()));
+        out.add(DoneEvent(finalText));
         return;
       }
 

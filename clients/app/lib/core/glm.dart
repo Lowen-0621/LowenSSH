@@ -125,10 +125,16 @@ class Usage {
 
 /// 一次模型响应聚合结果
 class ChatResult {
-  final String text;
+  final String text; // 正文 content 聚合
+  final String reasoning; // 思考 reasoning_content 聚合（GLM 有时把结论放这里）
   final List<ToolCall> toolCalls;
   final Usage? usage;
-  const ChatResult({required this.text, required this.toolCalls, this.usage});
+  const ChatResult({
+    required this.text,
+    this.reasoning = '',
+    required this.toolCalls,
+    this.usage,
+  });
 }
 
 /// 流式回调：边收边推
@@ -175,6 +181,7 @@ class GlmClient {
     );
 
     var text = '';
+    var reasoningText = ''; // 聚合 reasoning_content（GLM 有时把结论放这里）
     // tool_calls 在流式下分片到达，按 index 累积
     final toolAcc = <int, _ToolAcc>{};
     Usage? usage;
@@ -210,9 +217,10 @@ class GlmClient {
                   as Map<String, dynamic>? ??
               {};
 
-          // GLM 思考阶段：reasoning_content 增量，单独推
+          // GLM 思考阶段：reasoning_content 增量，单独推 + 聚合（结论可能在此）
           final reasoning = delta['reasoning_content'] as String?;
           if (reasoning != null && reasoning.isNotEmpty) {
+            reasoningText += reasoning;
             handlers.onReasoning?.call(reasoning);
           }
           final content = delta['content'] as String?;
@@ -255,7 +263,8 @@ class GlmClient {
         .map((e) => ToolCall(id: e.value.id, name: e.value.name, arguments: e.value.args))
         .toList();
 
-    return ChatResult(text: text, toolCalls: toolCalls, usage: usage);
+    return ChatResult(
+        text: text, reasoning: reasoningText, toolCalls: toolCalls, usage: usage);
   }
 
   /// 非流式调用：用于上下文压缩的摘要请求（纯文本进出，不带工具）

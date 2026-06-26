@@ -335,10 +335,15 @@ class AgentNotifier extends Notifier<AgentState> {
 
   /// 定格最后一个 reasoning 块的耗时（思考结束、转入工具/正文时调用）。
   /// 避免「思考中…」不消失：用 reasoningStart 算最终秒数，不足 1 秒按 1 秒计。
+  /// 顺便丢弃纯空白的思考块（GLM 偶尔吐单个换行的空 reasoning，会显示成空白块）。
   void _sealReasoning(_HostSession s) {
     if (s.items.isEmpty) return;
     final last = s.items.last;
     if (last.kind != ChatItemKind.reasoning) return;
+    if (last.text.trim().isEmpty) {
+      s.items.removeLast(); // 空思考块，丢弃
+      return;
+    }
     if (last.reasoningStart != null) {
       final sec = DateTime.now().difference(last.reasoningStart!).inSeconds;
       last.reasoningSec = sec < 1 ? 1 : sec;
