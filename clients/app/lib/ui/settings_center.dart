@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/i18n.dart';
 import '../core/config.dart';
+import '../core/settings_store.dart';
 import '../state/config_provider.dart';
 import '../state/settings_provider.dart';
 
@@ -85,6 +86,7 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
                   child: switch (_active) {
                     _Nav.aiModel => const _AiModelPage(),
                     _Nav.common => const _CommonPage(),
+                    _Nav.terminal => const _TerminalPage(),
                     _ => _placeholder(l),
                   },
                 ),
@@ -464,6 +466,168 @@ class _CommonPage extends ConsumerWidget {
               style: TextStyle(
                   fontSize: 12.5,
                   color: active ? AppColors.text : AppColors.subtext)),
+        ),
+      );
+}
+
+// ============ 终端设置页 ============
+
+class _TerminalPage extends ConsumerWidget {
+  const _TerminalPage();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+    final s = ref.watch(settingsProvider);
+    final notifier = ref.read(settingsProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(l.t('settings.term.title'),
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text)),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.mantle,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.surface0),
+          ),
+          child: Column(
+            children: [
+              // 选中即复制 / 右键粘贴
+              _switchRow(l.t('settings.term.selectToCopy'), s.selectToCopy,
+                  (v) {
+                notifier.updateTerminal(selectToCopy: v, rightClickPaste: v);
+              }),
+              const Divider(height: 1, color: AppColors.surface0),
+              // 光标闪烁
+              _switchRow(l.t('settings.term.cursorBlink'), s.cursorBlink,
+                  (v) => notifier.updateTerminal(cursorBlink: v)),
+              const Divider(height: 1, color: AppColors.surface0),
+              // 光标样式（三选）
+              _rowWrap(
+                l.t('settings.term.cursorStyle'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _seg(l.t('settings.term.cursorBlock'),
+                        s.cursorStyle == CursorStyle.block,
+                        () => notifier.updateTerminal(
+                            cursorStyle: CursorStyle.block)),
+                    const SizedBox(width: 6),
+                    _seg(l.t('settings.term.cursorUnderline'),
+                        s.cursorStyle == CursorStyle.underline,
+                        () => notifier.updateTerminal(
+                            cursorStyle: CursorStyle.underline)),
+                    const SizedBox(width: 6),
+                    _seg(l.t('settings.term.cursorBar'),
+                        s.cursorStyle == CursorStyle.bar,
+                        () => notifier.updateTerminal(
+                            cursorStyle: CursorStyle.bar)),
+                  ],
+                ),
+              ),
+              const Divider(height: 1, color: AppColors.surface0),
+              // 字号（± 步进）
+              _rowWrap(
+                l.t('settings.term.fontSize'),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _stepBtn(Icons.remove, () {
+                      final n = (s.termFontSize - 1).clamp(8.0, 28.0);
+                      notifier.updateTerminal(termFontSize: n);
+                    }),
+                    Container(
+                      width: 44,
+                      alignment: Alignment.center,
+                      child: Text(s.termFontSize.toStringAsFixed(0),
+                          style: const TextStyle(
+                              fontSize: 13, color: AppColors.text)),
+                    ),
+                    _stepBtn(Icons.add, () {
+                      final n = (s.termFontSize + 1).clamp(8.0, 28.0);
+                      notifier.updateTerminal(termFontSize: n);
+                    }),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 开关行
+  Widget _switchRow(String label, bool value, ValueChanged<bool> onChanged) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeThumbColor: AppColors.crust,
+              activeTrackColor: AppColors.blue,
+            ),
+          ],
+        ),
+      );
+
+  // 标签 + 右侧自定义控件行
+  Widget _rowWrap(String label, Widget trailing) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(label,
+                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+            ),
+            trailing,
+          ],
+        ),
+      );
+
+  // 分段选择按钮
+  Widget _seg(String label, bool active, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? AppColors.surface1 : AppColors.base,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+                color: active ? AppColors.blue : AppColors.surface0),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: active ? AppColors.text : AppColors.subtext)),
+        ),
+      );
+
+  // 步进按钮
+  Widget _stepBtn(IconData icon, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: AppColors.surface0,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Icon(icon, size: 16, color: AppColors.text),
         ),
       );
 }

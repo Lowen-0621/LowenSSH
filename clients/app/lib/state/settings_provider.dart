@@ -13,6 +13,25 @@ class SettingsNotifier extends Notifier<AppSettings> {
     saveSettings(next);
     state = next;
   }
+
+  /// 更新终端设置（任一字段，落盘 + 刷新）
+  void updateTerminal({
+    double? termFontSize,
+    bool? selectToCopy,
+    bool? rightClickPaste,
+    CursorStyle? cursorStyle,
+    bool? cursorBlink,
+  }) {
+    final next = state.copyWith(
+      termFontSize: termFontSize,
+      selectToCopy: selectToCopy,
+      rightClickPaste: rightClickPaste,
+      cursorStyle: cursorStyle,
+      cursorBlink: cursorBlink,
+    );
+    saveSettings(next);
+    state = next;
+  }
 }
 
 final settingsProvider =

@@ -45,6 +45,23 @@ const Map<String, Map<AppLang, String>> _dict = {
     AppLang.zh: '填入对应供应商的 API Key 即可启用。均走 OpenAI 兼容协议。',
     AppLang.en: 'Enter the API Key to enable. All use the OpenAI-compatible protocol.'
   },
+
+  // 终端设置页
+  'settings.term.title': {AppLang.zh: '终端设置', AppLang.en: 'Terminal Settings'},
+  'settings.term.fontSize': {AppLang.zh: '字号', AppLang.en: 'Font Size'},
+  'settings.term.selectToCopy': {
+    AppLang.zh: '选中即复制 / 右键粘贴',
+    AppLang.en: 'Select to copy & Right click to paste'
+  },
+  'settings.term.rightClickPaste': {
+    AppLang.zh: '右键粘贴',
+    AppLang.en: 'Right click to paste'
+  },
+  'settings.term.cursorStyle': {AppLang.zh: '光标样式', AppLang.en: 'Cursor Style'},
+  'settings.term.cursorBlink': {AppLang.zh: '光标闪烁', AppLang.en: 'Cursor Blink'},
+  'settings.term.cursorBlock': {AppLang.zh: '方块', AppLang.en: 'Block'},
+  'settings.term.cursorUnderline': {AppLang.zh: '下划线', AppLang.en: 'Underline'},
+  'settings.term.cursorBar': {AppLang.zh: '竖线', AppLang.en: 'Bar'},
 };
 
 /// 当前语言下取文案

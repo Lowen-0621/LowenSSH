@@ -7,22 +7,67 @@ import 'dart:convert';
 import 'dart:io';
 import 'i18n.dart';
 
+/// 终端光标样式
+enum CursorStyle { block, underline, bar }
+
 /// 应用级通用设置
 class AppSettings {
   final AppLang lang;
 
-  const AppSettings({this.lang = AppLang.zh});
+  // 终端设置（xterm 真实支持项）
+  final double termFontSize; //   字号
+  final bool selectToCopy; //     选中即复制
+  final bool rightClickPaste; //  右键粘贴
+  final CursorStyle cursorStyle; //光标样式
+  final bool cursorBlink; //       光标闪烁
+
+  const AppSettings({
+    this.lang = AppLang.zh,
+    this.termFontSize = 12.5,
+    this.selectToCopy = true,
+    this.rightClickPaste = true,
+    this.cursorStyle = CursorStyle.block,
+    this.cursorBlink = true,
+  });
 
   factory AppSettings.fromJson(Map<String, dynamic> j) => AppSettings(
         lang: (j['lang'] as String?) == 'en' ? AppLang.en : AppLang.zh,
+        termFontSize: (j['termFontSize'] as num?)?.toDouble() ?? 12.5,
+        selectToCopy: j['selectToCopy'] as bool? ?? true,
+        rightClickPaste: j['rightClickPaste'] as bool? ?? true,
+        cursorStyle: switch (j['cursorStyle'] as String?) {
+          'underline' => CursorStyle.underline,
+          'bar' => CursorStyle.bar,
+          _ => CursorStyle.block,
+        },
+        cursorBlink: j['cursorBlink'] as bool? ?? true,
       );
 
   Map<String, dynamic> toJson() => {
         'lang': lang == AppLang.en ? 'en' : 'zh',
+        'termFontSize': termFontSize,
+        'selectToCopy': selectToCopy,
+        'rightClickPaste': rightClickPaste,
+        'cursorStyle': cursorStyle.name,
+        'cursorBlink': cursorBlink,
       };
 
-  AppSettings copyWith({AppLang? lang}) =>
-      AppSettings(lang: lang ?? this.lang);
+  AppSettings copyWith({
+    AppLang? lang,
+    double? termFontSize,
+    bool? selectToCopy,
+    bool? rightClickPaste,
+    CursorStyle? cursorStyle,
+    bool? cursorBlink,
+  }) =>
+      AppSettings(
+        lang: lang ?? this.lang,
+        termFontSize: termFontSize ?? this.termFontSize,
+        selectToCopy: selectToCopy ?? this.selectToCopy,
+        rightClickPaste: rightClickPaste ?? this.rightClickPaste,
+        cursorStyle: cursorStyle ?? this.cursorStyle,
+        cursorBlink: cursorBlink ?? this.cursorBlink,
+      );
 }
 
 String get _settingsFile =>

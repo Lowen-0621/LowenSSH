@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:xterm/xterm.dart';
+import 'package:xterm/xterm.dart' hide CursorStyle;
 import 'package:dartssh2/dartssh2.dart';
 import '../theme.dart';
 import '../core/ssh.dart';
+import '../core/settings_store.dart';
 import '../state/connection_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell + 选区控制器。
 /// 按主机保活，切主机切显示对应 Terminal，旧的 PTY 留在后台不断。
@@ -17,17 +19,23 @@ class _TermSession {
   bool starting = false;
   VoidCallback? _selListener;
 
-  /// 选中自动复制（Linux 终端风格）：选区变化且非空 → 写入系统剪贴板
-  void enableAutoCopy() {
-    _selListener = () {
-      final sel = controller.selection;
-      if (sel == null) return;
-      final text = terminal.buffer.getText(sel);
-      if (text.trim().isNotEmpty) {
-        Clipboard.setData(ClipboardData(text: text));
-      }
-    };
-    controller.addListener(_selListener!);
+  /// 选中自动复制（Linux 终端风格）：选区变化且非空 → 写入系统剪贴板。
+  /// 受设置控制，可动态开关。
+  void setAutoCopy(bool on) {
+    if (on && _selListener == null) {
+      _selListener = () {
+        final sel = controller.selection;
+        if (sel == null) return;
+        final text = terminal.buffer.getText(sel);
+        if (text.trim().isNotEmpty) {
+          Clipboard.setData(ClipboardData(text: text));
+        }
+      };
+      controller.addListener(_selListener!);
+    } else if (!on && _selListener != null) {
+      controller.removeListener(_selListener!);
+      _selListener = null;
+    }
   }
 
   void dispose() {
@@ -59,7 +67,6 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
         s.terminal.onOutput = (data) => s.shell?.write(utf8.encode(data));
         s.terminal.onResize =
             (w, h, pw, ph) => s.shell?.resizeTerminal(w, h, pw, ph);
-        s.enableAutoCopy(); // 选中即复制
         return s;
       });
 
@@ -109,6 +116,7 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
   @override
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
+    final cfg = ref.watch(settingsProvider); // 终端设置
     final hostId = conn.host?.id;
 
     // 池里已不存在的主机（被 LRU 踢掉/断开），清理其终端会话
@@ -134,16 +142,29 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _startShell(hostId, conn.client!));
     }
+    // 按设置同步「选中即复制」开关
+    s.setAutoCopy(cfg.selectToCopy);
+
+    // 光标样式映射
+    final cursorType = switch (cfg.cursorStyle) {
+      CursorStyle.underline => TerminalCursorType.underline,
+      CursorStyle.bar => TerminalCursorType.verticalBar,
+      _ => TerminalCursorType.block,
+    };
 
     return Container(
       color: AppColors.crust,
       child: TerminalView(
         s.terminal,
         controller: s.controller,
-        // 右键粘贴：剪贴板内容写入 shell
-        onSecondaryTapDown: (details, offset) => _paste(s),
-        textStyle: const TerminalStyle(
-          fontSize: 12.5,
+        // 右键粘贴：按设置开关
+        onSecondaryTapDown:
+            cfg.rightClickPaste ? (details, offset) => _paste(s) : null,
+        cursorType: cursorType,
+        // alwaysShowCursor=true 即不闪烁；闪烁则 false
+        alwaysShowCursor: !cfg.cursorBlink,
+        textStyle: TerminalStyle(
+          fontSize: cfg.termFontSize,
           fontFamily: kMonoFont,
         ),
         theme: _termTheme,
