@@ -24,7 +24,8 @@ class ConnState {
     this.connectedIds = const {},
   });
 
-  bool get isConnected => phase == ConnPhase.connected && client != null;
+  bool get isConnected =>
+      phase == ConnPhase.connected && client?.isConnected() == true;
 
   ConnState copyWith({
     ConnPhase? phase,
@@ -75,12 +76,33 @@ class ConnectionNotifier extends Notifier<ConnState> {
 
   /// 池里所有已连接主机的 id（供 UI 给每台标绿点）
   Set<String> get connectedIds => _pool.entries
-      .where((e) => e.value.phase == ConnPhase.connected)
+      .where((e) => _isEntryConnected(e.value))
       .map((e) => e.key)
       .toSet();
 
+  bool _isEntryConnected(_ConnEntry entry) =>
+      entry.phase == ConnPhase.connected && entry.client?.isConnected() == true;
+
+  String _closedMessage(Object? error) {
+    final text = error?.toString().trim() ?? '';
+    return text.isEmpty ? 'SSH 连接已断开' : 'SSH 连接已断开: $text';
+  }
+
+  void _markEntryDisconnected(_ConnEntry entry, Object? error) {
+    final client = entry.client;
+    entry
+      ..client = null
+      ..phase = ConnPhase.error
+      ..error = _closedMessage(error);
+    client?.close();
+  }
+
   /// 把某条目投影成对外 state，并带上整池的 connectedIds
   void _publish(_ConnEntry entry) {
+    if (entry.phase == ConnPhase.connected &&
+        entry.client?.isConnected() != true) {
+      _markEntryDisconnected(entry, null);
+    }
     state = ConnState(
       phase: entry.phase,
       host: entry.host,
@@ -95,9 +117,13 @@ class ConnectionNotifier extends Notifier<ConnState> {
   /// - 否则新建连接，必要时按 LRU 踢掉最久未用的一台
   Future<void> connect(Host host) async {
     final existing = _pool[host.id];
-    if (existing != null && existing.phase == ConnPhase.connected) {
+    if (existing != null && _isEntryConnected(existing)) {
       _select(host.id);
       return;
+    }
+    if (existing != null) {
+      _pool.remove(host.id);
+      existing.client?.close();
     }
 
     // 新连接前先腾位置（不含正在连/将要连的这台）
@@ -109,7 +135,12 @@ class ConnectionNotifier extends Notifier<ConnState> {
     _publish(entry); // connecting
 
     try {
-      final client = SshClient();
+      late final SshClient client;
+      client = SshClient(
+        onClosed: (error, stackTrace) =>
+            _handleClientClosed(host.id, client, error),
+      );
+      entry.client = client;
       // 优先密钥认证：主机指定了 keyId 且密钥仍存在则取私钥材料，否则回退密码
       String password = '';
       String? pem;
@@ -131,12 +162,54 @@ class ConnectionNotifier extends Notifier<ConnState> {
         ..error = null
         ..lastUsed = DateTime.now();
     } catch (e) {
+      entry.client?.close();
       entry
+        ..client = null
         ..phase = ConnPhase.error
         ..error = e.toString();
     }
     // 连接期间用户可能已切到别的主机，只在仍停留此主机时刷新对外 state
-    if (_currentId == host.id) _publish(entry);
+    if (_currentId == host.id && identical(_pool[host.id], entry)) {
+      _publish(entry);
+    }
+  }
+
+  void _handleClientClosed(String hostId, SshClient client, Object? error) {
+    final entry = _pool[hostId];
+    if (entry == null || !identical(entry.client, client)) return;
+    entry
+      ..client = null
+      ..phase = ConnPhase.error
+      ..error = _closedMessage(error);
+    if (_currentId == hostId) {
+      _publish(entry);
+    } else {
+      state = ConnState(
+        phase: state.phase,
+        host: state.host,
+        error: state.error,
+        client: state.client,
+        connectedIds: connectedIds,
+      );
+    }
+  }
+
+  /// 外层操作（终端/SFTP/监控）发现 transport 已关闭时，主动同步连接池状态。
+  void markConnectionLost(String hostId, Object? error) {
+    final entry = _pool[hostId];
+    if (entry == null) return;
+    _markEntryDisconnected(entry, error);
+    if (_currentId == hostId) {
+      _publish(entry);
+    } else {
+      state = ConnState(
+        phase: state.phase,
+        host: state.host,
+        error: state.error,
+        client: state.client,
+        connectedIds: connectedIds,
+      );
+    }
   }
 
   /// 切换当前展示主机（点击左栏已连接的主机时）
@@ -169,8 +242,8 @@ class ConnectionNotifier extends Notifier<ConnState> {
         ..sort((a, b) => a.value.lastUsed.compareTo(b.value.lastUsed));
       if (candidates.isEmpty) break; // 没有可踢的（都在忙或就剩当前），放弃腾位
       final victim = candidates.first;
-      victim.value.client?.close();
       _pool.remove(victim.key);
+      victim.value.client?.close();
     }
   }
 
@@ -178,8 +251,8 @@ class ConnectionNotifier extends Notifier<ConnState> {
   void disconnect() {
     final id = _currentId;
     if (id == null) return;
-    _pool[id]?.client?.close();
-    _pool.remove(id);
+    final entry = _pool.remove(id);
+    entry?.client?.close();
     // 切到剩下里最近用过的一台，没有则回到空态
     if (_pool.isEmpty) {
       _currentId = null;

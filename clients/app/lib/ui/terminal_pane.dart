@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -95,6 +96,7 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
         height: s.terminal.viewHeight,
       );
       s.shell = session;
+      unawaited(_clearShellWhenDone(s, session));
       session.stdout
           .cast<List<int>>()
           .transform(const Utf8Decoder(allowMalformed: true))
@@ -104,10 +106,27 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
           .transform(const Utf8Decoder(allowMalformed: true))
           .listen(s.terminal.write);
     } catch (e) {
+      s.shell = null;
+      final err = e.toString();
+      if (!client.isConnected() || err.contains('Transport is closed')) {
+        ref.read(connectionProvider.notifier).markConnectionLost(hostId, e);
+      }
       final l = ref.read(l10nProvider);
       s.terminal.write('\r\n${l.t('term.startFail', {'err': '$e'})}\r\n');
     } finally {
       s.starting = false;
+    }
+  }
+
+  Future<void> _clearShellWhenDone(
+      _TermSession s, SSHSession session) async {
+    try {
+      await session.done;
+    } catch (_) {
+      // Transport errors are reflected through connectionProvider.
+    }
+    if (mounted && identical(s.shell, session)) {
+      s.shell = null;
     }
   }
 

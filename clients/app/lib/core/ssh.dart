@@ -5,8 +5,12 @@
 /// 非线程安全：一个实例对应一台机器一个会话，由上层串行使用。
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'package:dartssh2/dartssh2.dart';
+
+typedef SshClosedCallback = void Function(
+    Object? error, StackTrace? stackTrace);
 
 /// 命令执行结果三件套
 class ExecResult {
@@ -33,6 +37,10 @@ class RemoteFile {
 }
 
 class SshClient {
+  SshClient({this.onClosed});
+
+  final SshClosedCallback? onClosed;
+
   SSHClient? _client;
   SSHSocket? _socket;
   SftpClient? _sftp;
@@ -48,27 +56,78 @@ class SshClient {
     String? privateKeyPem,
     String? passphrase,
   }) async {
-    _socket = await SSHSocket.connect(
-      host,
-      port == 0 ? 22 : port,
-      timeout: const Duration(seconds: 10),
-    );
-    // 有私钥则解析为 identities 走公钥认证，否则回调返回密码
-    final identities = (privateKeyPem != null && privateKeyPem.trim().isNotEmpty)
-        ? SSHKeyPair.fromPem(privateKeyPem, passphrase)
-        : null;
-    _client = SSHClient(
-      _socket!,
-      username: username,
-      identities: identities,
-      onPasswordRequest: () => password,
-      // demo 方便：dartssh2 默认不强制 known_hosts 校验；生产应校验，否则有中间人风险
-    );
-    await _client!.authenticated;
-    _connected = true;
+    close();
+    SSHSocket? socket;
+    SSHClient? client;
+    try {
+      socket = await SSHSocket.connect(
+        host,
+        port == 0 ? 22 : port,
+        timeout: const Duration(seconds: 10),
+      );
+      _socket = socket;
+
+      // 有私钥则解析为 identities 走公钥认证，否则回调返回密码
+      final identities =
+          (privateKeyPem != null && privateKeyPem.trim().isNotEmpty)
+              ? SSHKeyPair.fromPem(privateKeyPem, passphrase)
+              : null;
+      client = SSHClient(
+        socket,
+        username: username,
+        identities: identities,
+        onPasswordRequest: () => password,
+        // demo 方便：dartssh2 默认不强制 known_hosts 校验；生产应校验，否则有中间人风险
+      );
+      _client = client;
+      unawaited(_watchClosed(client));
+
+      await client.authenticated;
+      if (client.isClosed) {
+        throw StateError('SSH 连接已断开，请重新连接主机');
+      }
+      _connected = true;
+    } catch (_) {
+      if (identical(_client, client)) {
+        close();
+      } else {
+        client?.close();
+        socket?.close();
+      }
+      rethrow;
+    }
   }
 
-  bool isConnected() => _connected && _client != null;
+  bool isConnected() {
+    final client = _client;
+    final ok = _connected && client != null && !client.isClosed;
+    if (!ok) _connected = false;
+    return ok;
+  }
+
+  Future<void> _watchClosed(SSHClient client) async {
+    Object? error;
+    StackTrace? stackTrace;
+    try {
+      await client.done;
+    } catch (e, st) {
+      error = e;
+      stackTrace = st;
+    }
+    if (!identical(_client, client)) return;
+    _sftp = null;
+    _connected = false;
+    onClosed?.call(error, stackTrace);
+  }
+
+  SSHClient _requireClient(String message) {
+    final client = _client;
+    if (client == null || !_connected || client.isClosed) {
+      _connected = false;
+      throw StateError(message);
+    }
+    return client;
+  }
 
   /// 开一个交互式 shell（PTY），供 xterm 双向绑定。
   /// 与 exec 各走独立 channel：exec 给 agent 拿结构化结果，shell 给用户手敲。
@@ -76,10 +135,7 @@ class SshClient {
     int width = 80,
     int height = 24,
   }) async {
-    final client = _client;
-    if (client == null || !_connected) {
-      throw StateError('SSH 未连接，先调用 connect()');
-    }
+    final client = _requireClient('SSH 连接已断开，请重新连接主机');
     return client.shell(
       pty: SSHPtyConfig(width: width, height: height),
     );
@@ -87,10 +143,7 @@ class SshClient {
 
   /// 执行一条命令，收集 stdout、stderr、exitCode。
   Future<ExecResult> exec(String command) async {
-    final client = _client;
-    if (client == null || !_connected) {
-      throw StateError('SSH 未连接，先调用 connect()');
-    }
+    final client = _requireClient('SSH 连接已断开，请重新连接主机');
     final session = await client.execute(command);
     // 并发收集 stdout / stderr，等命令结束
     final outFut = session.stdout.cast<List<int>>().transform(utf8.decoder).join();
@@ -103,10 +156,7 @@ class SshClient {
 
   /// 懒开 SFTP 通道
   Future<SftpClient> _sftpClient() async {
-    final client = _client;
-    if (client == null || !_connected) {
-      throw StateError('SSH 未连接');
-    }
+    final client = _requireClient('SSH 连接已断开，请重新连接主机');
     return _sftp ??= await client.sftp();
   }
 
@@ -155,21 +205,21 @@ class SshClient {
   /// 开一条本地端口转发 channel：把数据转发到远端 remoteHost:remotePort。
   /// 由 port_forward.dart 的隧道管理器调用，每个本地连接对应一条 channel。
   Future<SSHForwardChannel> forwardLocal(String remoteHost, int remotePort) {
-    final client = _client;
-    if (client == null || !_connected) {
-      throw StateError('SSH 未连接，无法开端口转发');
-    }
+    final client = _requireClient('SSH 连接已断开，无法开端口转发');
     return client.forwardLocal(remoteHost, remotePort);
   }
 
   /// 关闭连接
   void close() {
-    _sftp?.close();
-    _client?.close();
-    _socket?.close();
+    final sftp = _sftp;
     _sftp = null;
+    final client = _client;
+    final socket = _socket;
     _client = null;
     _socket = null;
     _connected = false;
+    sftp?.close();
+    client?.close();
+    socket?.close();
   }
 }
