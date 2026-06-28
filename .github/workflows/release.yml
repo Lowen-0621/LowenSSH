@@ -1,0 +1,61 @@
+name: Release
+
+# 推送 v* tag 时触发：构建 macOS / Windows 桌面端安装包并上传到对应 Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # 需要写权限以创建/更新 Release 并上传产物
+
+jobs:
+  build-macos:
+    name: 构建 macOS 包
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: clients/app
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: 拉依赖
+        run: flutter pub get
+      - name: 构建 macOS Release
+        run: flutter build macos --release
+      - name: 打包 .app 为 zip
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent lowenssh.app LowenSSH-macos.zip
+      - name: 上传到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: clients/app/build/macos/Build/Products/Release/LowenSSH-macos.zip
+
+  build-windows:
+    name: 构建 Windows 包
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: clients/app
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: 拉依赖
+        run: flutter pub get
+      - name: 构建 Windows Release
+        run: flutter build windows --release
+      - name: 打包 runner 产物为 zip
+        run: |
+          cd build/windows/x64/runner/Release
+          Compress-Archive -Path * -DestinationPath LowenSSH-windows.zip
+      - name: 上传到 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: clients/app/build/windows/x64/runner/Release/LowenSSH-windows.zip
