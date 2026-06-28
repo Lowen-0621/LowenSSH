@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/audit_store.dart';
 import '../state/guard_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 审计日志对话框 —— 全局命令审计列表，支持按决策筛选 + 清空。
 Future<void> showAuditDialog(BuildContext context) {
@@ -38,6 +39,7 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
   @override
   Widget build(BuildContext context) {
     final all = ref.watch(auditProvider);
+    final l = ref.watch(l10nProvider);
     final list = _filter == 'all'
         ? all
         : all.where((e) => e.decision == _filter).toList();
@@ -52,20 +54,20 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
             const Icon(Icons.receipt_long_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            const Text('审计日志',
-                style: TextStyle(
+            Text(l.t('audit.title'),
+                style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
-            Text('共 ${all.length} 条',
+            Text(l.t('audit.count', {'n': '${all.length}'}),
                 style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             if (all.isNotEmpty)
               TextButton(
                 onPressed: () => ref.read(auditProvider.notifier).clear(),
-                child: const Text('清空',
-                    style: TextStyle(fontSize: 12, color: AppColors.red)),
+                child: Text(l.t('common.clear'),
+                    style: const TextStyle(fontSize: 12, color: AppColors.red)),
               ),
           ],
         ),
@@ -73,22 +75,22 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
         // 筛选标签
         Row(
           children: [
-            _chip('all', '全部'),
-            _chip('deny', '已阻止'),
-            _chip('ask', '待确认'),
-            _chip('allow', '已放行'),
+            _chip('all', l.t('common.all')),
+            _chip('deny', l.t('state.denied')),
+            _chip('ask', l.t('state.ask')),
+            _chip('allow', l.t('state.allowed')),
           ],
         ),
         const SizedBox(height: 12),
         // 列表
         Flexible(
           child: list.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 30),
-                  child: Text('暂无审计记录',
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 30),
+                  child: Text(l.t('audit.empty'),
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.overlay)),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -137,7 +139,9 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
         _ => 'ALLOW',
       };
 
-  Widget _row(AuditEntry e) => Container(
+  Widget _row(AuditEntry e) {
+    final l = ref.watch(l10nProvider);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
           color: AppColors.base,
@@ -171,7 +175,7 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
                           fontSize: 11.5,
                           color: AppColors.text)),
                   const SizedBox(height: 2),
-                  Text('${e.host} · ${_fmtTime(e.time)}${e.executed ? '' : ' · 未执行'}',
+                  Text('${e.host} · ${_fmtTime(e.time)}${e.executed ? '' : l.t('audit.notExecuted')}',
                       style: const TextStyle(
                           fontSize: 10, color: AppColors.overlay)),
                 ],
@@ -180,6 +184,7 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
           ],
         ),
       );
+  }
 
   static String _fmtTime(DateTime t) {
     String two(int n) => n.toString().padLeft(2, '0');

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/snippet_store.dart';
 import '../state/snippet_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 命令片段对话框 —— 列出预置/自定义片段，点击填进 AI 输入框，支持增删。
 Future<void> showSnippetsDialog(BuildContext context) {
@@ -57,6 +58,7 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
   @override
   Widget build(BuildContext context) {
     final snippets = ref.watch(snippetProvider);
+    final l = ref.watch(l10nProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -68,25 +70,26 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
             const Icon(Icons.content_paste_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            const Text('命令片段',
-                style: TextStyle(
+            Text(l.t('snip.title'),
+                style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const Spacer(),
-            const Text('点击填入输入框',
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            Text(l.t('snip.clickToFill'),
+                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
           ],
         ),
         const SizedBox(height: 12),
         // 片段列表
         Flexible(
           child: snippets.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 24),
-                  child: Text('暂无片段，点下方新增',
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text(l.t('snip.empty'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -106,8 +109,8 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
             child: TextButton.icon(
               onPressed: () => setState(() => _adding = true),
               icon: const Icon(Icons.add, size: 16, color: AppColors.blue),
-              label: const Text('新增片段',
-                  style: TextStyle(fontSize: 12, color: AppColors.blue)),
+              label: Text(l.t('snip.addNew'),
+                  style: const TextStyle(fontSize: 12, color: AppColors.blue)),
             ),
           ),
       ],
@@ -163,7 +166,9 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
       );
 
   // 新增表单：名称 + 命令
-  Widget _addForm() => Container(
+  Widget _addForm() {
+    final l = ref.watch(l10nProvider);
+    return Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: AppColors.base,
@@ -172,17 +177,18 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
         ),
         child: Column(
           children: [
-            _miniField(_labelCtrl, '名称（可选）'),
+            _miniField(_labelCtrl, l.t('snip.nameOpt')),
             const SizedBox(height: 6),
-            _miniField(_cmdCtrl, '命令，如 df -h', mono: true),
+            _miniField(_cmdCtrl, l.t('snip.cmdHint'), mono: true),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
                   onPressed: () => setState(() => _adding = false),
-                  child: const Text('取消',
-                      style: TextStyle(fontSize: 12, color: AppColors.subtext)),
+                  child: Text(l.t('common.cancel'),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.subtext)),
                 ),
                 const SizedBox(width: 4),
                 FilledButton(
@@ -192,13 +198,15 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8)),
                   onPressed: _submitNew,
-                  child: const Text('添加', style: TextStyle(fontSize: 12)),
+                  child: Text(l.t('common.add'),
+                      style: const TextStyle(fontSize: 12)),
                 ),
               ],
             ),
           ],
         ),
       );
+  }
 
   Widget _miniField(TextEditingController c, String hint, {bool mono = false}) =>
       TextField(

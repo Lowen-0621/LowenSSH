@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
+import '../state/settings_provider.dart';
 import 'dialogs.dart';
+import 'settings_center.dart';
 
 /// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
 /// 对应设计稿 .topbar
@@ -33,9 +35,9 @@ class TopBar extends ConsumerWidget {
             ],
           ),
           const SizedBox(width: 12),
-          // 搜索框
-          _searchBox(ref),
-          const Spacer(),
+          // 搜索框（弹性占据中间剩余空间，窄窗口下自动收缩，避免溢出）
+          Expanded(child: _searchBox(ref)),
+          const SizedBox(width: 12),
           // 操作按钮组
           _actions(context, ref),
         ],
@@ -44,8 +46,8 @@ class TopBar extends ConsumerWidget {
   }
 
   Widget _searchBox(WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
     return Container(
-      width: 280,
       decoration: BoxDecoration(
         color: AppColors.base,
         border: Border.all(color: AppColors.surface0),
@@ -61,13 +63,13 @@ class TopBar extends ConsumerWidget {
               onChanged: (v) =>
                   ref.read(hostSearchProvider.notifier).update(v),
               style: const TextStyle(color: AppColors.text, fontSize: 13),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(vertical: 6),
-                hintText: '搜索主机…',
-                hintStyle:
-                    TextStyle(color: AppColors.overlay, fontSize: 13),
+                contentPadding: const EdgeInsets.symmetric(vertical: 6),
+                hintText: l.t('top.search'),
+                hintStyle: const TextStyle(
+                    color: AppColors.overlay, fontSize: 13),
               ),
             ),
           ),
@@ -77,22 +79,23 @@ class TopBar extends ConsumerWidget {
   }
 
   Widget _actions(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
     return Row(
       children: [
-        _btn(icon: Icons.bolt, label: '连接', primary: true),
+        _btn(icon: Icons.bolt, label: l.t('top.connect'), primary: true),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.add,
-            label: '新建主机',
+            label: l.t('top.newHost'),
             onTap: () => showAddHostDialog(context, ref)),
         const SizedBox(width: 6),
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
-        _btn(icon: Icons.splitscreen_outlined, label: '分屏'),
+        _btn(icon: Icons.splitscreen_outlined, label: l.t('top.split')),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,
-            onTap: () => showLlmSettingsDialog(context, ref)),
+            onTap: () => showSettingsCenter(context)),
       ],
     );
   }

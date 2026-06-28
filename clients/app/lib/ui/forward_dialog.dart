@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/forward_provider.dart';
 import '../state/connection_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 端口转发对话框 —— 管理本地端口转发隧道（增删 + 启停）。
 /// 隧道依附当前 SSH 连接（等价 ssh -L），绑定 127.0.0.1 仅本机可访问。
@@ -33,6 +34,7 @@ class _ForwardBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final list = ref.watch(forwardProvider);
     final conn = ref.watch(connectionProvider);
+    final l = ref.watch(l10nProvider);
     final hostName = conn.host?.alias?.isNotEmpty == true
         ? conn.host!.alias!
         : (conn.host?.host ?? '-');
@@ -47,13 +49,13 @@ class _ForwardBody extends ConsumerWidget {
             const Icon(Icons.swap_horiz_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            const Text('端口转发',
-                style: TextStyle(
+            Text(l.t('fwd.title'),
+                style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
-            Text('共 ${list.length} 条',
+            Text(l.t('fwd.count', {'n': '${list.length}'}),
                 style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             TextButton.icon(
@@ -65,7 +67,7 @@ class _ForwardBody extends ConsumerWidget {
                   color: conn.isConnected
                       ? AppColors.blue
                       : AppColors.overlay),
-              label: Text('添加隧道',
+              label: Text(l.t('fwd.addTunnel'),
                   style: TextStyle(
                       fontSize: 12,
                       color: conn.isConnected
@@ -92,8 +94,8 @@ class _ForwardBody extends ConsumerWidget {
               Expanded(
                 child: Text(
                     conn.isConnected
-                        ? '隧道依附当前连接：$hostName。等价 ssh -L 本地→远程，仅本机可访问。'
-                        : '未连接主机。连接后才能启动隧道。',
+                        ? l.t('fwd.boundHint', {'host': hostName})
+                        : l.t('fwd.notConnected'),
                     style: const TextStyle(
                         fontSize: 10.5, height: 1.4, color: AppColors.subtext)),
               ),
@@ -103,12 +105,12 @@ class _ForwardBody extends ConsumerWidget {
         const SizedBox(height: 12),
         Flexible(
           child: list.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Text('暂无隧道，点「添加隧道」新建',
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Text(l.t('fwd.empty'),
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.overlay)),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -121,7 +123,9 @@ class _ForwardBody extends ConsumerWidget {
     );
   }
 
-  Widget _row(WidgetRef ref, ForwardEntry e) => Container(
+  Widget _row(WidgetRef ref, ForwardEntry e) {
+    final l = ref.watch(l10nProvider);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
         decoration: BoxDecoration(
           color: AppColors.base,
@@ -161,7 +165,7 @@ class _ForwardBody extends ConsumerWidget {
                   Text(
                       e.error != null
                           ? e.error!
-                          : (e.running ? '运行中' : '已停止'),
+                          : (e.running ? l.t('fwd.running') : l.t('fwd.stopped')),
                       style: TextStyle(
                           fontSize: 10,
                           color: e.error != null
@@ -179,7 +183,7 @@ class _ForwardBody extends ConsumerWidget {
                   size: 18,
                   color: e.running ? AppColors.yellow : AppColors.green),
               splashRadius: 16,
-              tooltip: e.running ? '停止' : '启动',
+              tooltip: e.running ? l.t('fwd.stop') : l.t('fwd.start'),
               onPressed: () => ref.read(forwardProvider.notifier).toggle(e.id),
             ),
             // 删除
@@ -187,12 +191,13 @@ class _ForwardBody extends ConsumerWidget {
               icon: const Icon(Icons.delete_outline,
                   size: 16, color: AppColors.red),
               splashRadius: 16,
-              tooltip: '删除',
+              tooltip: l.t('common.delete'),
               onPressed: () => ref.read(forwardProvider.notifier).remove(e.id),
             ),
           ],
         ),
       );
+  }
 }
 
 // 添加隧道子对话框：本地端口 + 远程地址 + 远程端口
@@ -201,6 +206,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
   final remoteHost = TextEditingController(text: '127.0.0.1');
   final remotePort = TextEditingController();
   String? errorText;
+  final l = ref.watch(l10nProvider);
 
   showDialog<void>(
     context: context,
@@ -220,30 +226,30 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
-                  children: const [
-                    Icon(Icons.swap_horiz_outlined,
+                  children: [
+                    const Icon(Icons.swap_horiz_outlined,
                         size: 18, color: AppColors.blue),
-                    SizedBox(width: 8),
-                    Text('添加隧道',
-                        style: TextStyle(
+                    const SizedBox(width: 8),
+                    Text(l.t('fwd.addTunnel'),
+                        style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppColors.text)),
                   ],
                 ),
                 const SizedBox(height: 6),
-                const Text('本地端口的连接经 SSH 转发到远程地址。常用于访问远端内网服务（如数据库）。',
-                    style: TextStyle(
+                Text(l.t('fwd.addDesc'),
+                    style: const TextStyle(
                         fontSize: 10.5, height: 1.4, color: AppColors.overlay)),
                 const SizedBox(height: 14),
-                _label('本地端口'),
-                _input(localPort, hint: '如 13306'),
+                _label(l.t('fwd.localPort')),
+                _input(localPort, hint: l.t('fwd.localPortHint')),
                 const SizedBox(height: 12),
-                _label('远程地址（从远端主机视角）'),
-                _input(remoteHost, hint: '127.0.0.1 或内网 IP'),
+                _label(l.t('fwd.remoteHost')),
+                _input(remoteHost, hint: l.t('fwd.remoteHostHint')),
                 const SizedBox(height: 12),
-                _label('远程端口'),
-                _input(remotePort, hint: '如 3306'),
+                _label(l.t('fwd.remotePort')),
+                _input(remotePort, hint: l.t('fwd.remotePortHint')),
                 if (errorText != null) ...[
                   const SizedBox(height: 8),
                   Text(errorText!,
@@ -256,8 +262,8 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('取消',
-                          style: TextStyle(color: AppColors.subtext)),
+                      child: Text(l.t('common.cancel'),
+                          style: const TextStyle(color: AppColors.subtext)),
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
@@ -269,15 +275,15 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                         final rp = int.tryParse(remotePort.text.trim());
                         final rh = remoteHost.text.trim();
                         if (lp == null || lp < 1 || lp > 65535) {
-                          setState(() => errorText = '本地端口不合法（1-65535）');
+                          setState(() => errorText = l.t('fwd.errLocalPort'));
                           return;
                         }
                         if (rp == null || rp < 1 || rp > 65535) {
-                          setState(() => errorText = '远程端口不合法（1-65535）');
+                          setState(() => errorText = l.t('fwd.errRemotePort'));
                           return;
                         }
                         if (rh.isEmpty) {
-                          setState(() => errorText = '远程地址不能为空');
+                          setState(() => errorText = l.t('fwd.errRemoteHost'));
                           return;
                         }
                         ref.read(forwardProvider.notifier).add(
@@ -287,7 +293,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                             );
                         Navigator.pop(ctx);
                       },
-                      child: const Text('添加并启动'),
+                      child: Text(l.t('fwd.addStart')),
                     ),
                   ],
                 ),

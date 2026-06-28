@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/config.dart';
+import '../core/i18n.dart';
 import '../state/config_provider.dart';
 import '../state/key_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 暗色对话框统一外壳
 Future<T?> _showDark<T>(BuildContext context, Widget child) {
@@ -112,15 +114,15 @@ Widget _title(IconData icon, String text) => Padding(
       ),
     );
 
-Widget _actions(BuildContext context,
-        {required VoidCallback onOk, String okLabel = '保存'}) =>
+Widget _actions(BuildContext context, L10n l,
+        {required VoidCallback onOk, String? okLabel}) =>
     Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('取消',
-              style: TextStyle(color: AppColors.subtext)),
+          child: Text(l.t('common.cancel'),
+              style: const TextStyle(color: AppColors.subtext)),
         ),
         const SizedBox(width: 8),
         FilledButton(
@@ -128,7 +130,7 @@ Widget _actions(BuildContext context,
           style: FilledButton.styleFrom(
               backgroundColor: AppColors.blue,
               foregroundColor: AppColors.crust),
-          child: Text(okLabel),
+          child: Text(okLabel ?? l.t('common.save')),
         ),
       ],
     );
@@ -144,6 +146,7 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
   String authMode = 'password';
   String? selectedKeyId;
   final keys = ref.read(keyProvider);
+  final l = ref.watch(l10nProvider);
 
   return _showDark(
     context,
@@ -152,35 +155,35 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _title(Icons.dns_outlined, '新建主机'),
-          _field(alias, '别名（可选）', hint: 'web01'),
-          _field(host, '主机地址', hint: '10.0.1.21 或 example.com'),
-          _field(port, '端口', hint: '22'),
-          _field(user, '用户名', hint: 'root'),
+          _title(Icons.dns_outlined, l.t('host.new')),
+          _field(alias, l.t('host.alias'), hint: 'web01'),
+          _field(host, l.t('host.address'), hint: l.t('host.addressHint')),
+          _field(port, l.t('host.port'), hint: '22'),
+          _field(user, l.t('host.user'), hint: 'root'),
           // 认证方式切换
-          const Padding(
-            padding: EdgeInsets.only(bottom: 4),
-            child: Text('认证方式',
-                style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(l.t('host.authMode'),
+                style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
           ),
           Row(
             children: [
-              _authTab('password', '密码', authMode,
+              _authTab('password', l.t('host.password'), authMode,
                   () => setState(() => authMode = 'password')),
               const SizedBox(width: 8),
-              _authTab('key', '密钥', authMode,
+              _authTab('key', l.t('host.key'), authMode,
                   () => setState(() => authMode = 'key')),
             ],
           ),
           const SizedBox(height: 12),
           // 密码模式：密码框；密钥模式：密钥下拉
           if (authMode == 'password')
-            _field(pwd, '密码', obscure: true)
+            _field(pwd, l.t('host.password'), obscure: true)
           else
-            _keyDropdown(keys, selectedKeyId,
+            _keyDropdown(l, keys, selectedKeyId,
                 (id) => setState(() => selectedKeyId = id)),
           const SizedBox(height: 4),
-          _actions(ctx, okLabel: '添加', onOk: () {
+          _actions(ctx, l, okLabel: l.t('common.add'), onOk: () {
             if (host.text.trim().isEmpty) return;
             // 密钥模式必须选中一把密钥
             if (authMode == 'key' && selectedKeyId == null) return;
@@ -226,7 +229,7 @@ Widget _authTab(String id, String label, String current, VoidCallback onTap) =>
     );
 
 // 密钥下拉选择
-Widget _keyDropdown(
+Widget _keyDropdown(L10n l,
     List<SshKey> keys, String? selectedId, ValueChanged<String?> onChanged) {
   if (keys.isEmpty) {
     return Container(
@@ -236,17 +239,17 @@ Widget _keyDropdown(
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.surface0),
       ),
-      child: const Text('密钥库为空，请先到「密钥库」添加密钥',
-          style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+      child: Text(l.t('host.keyEmpty'),
+          style: const TextStyle(fontSize: 11.5, color: AppColors.overlay)),
     );
   }
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      const Padding(
-        padding: EdgeInsets.only(bottom: 4),
-        child: Text('选择密钥',
-            style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+      Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Text(l.t('host.selectKey'),
+            style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -260,8 +263,8 @@ Widget _keyDropdown(
             value: selectedId,
             isExpanded: true,
             dropdownColor: AppColors.mantle,
-            hint: const Text('请选择…',
-                style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+            hint: Text(l.t('host.pleaseSelect'),
+                style: const TextStyle(fontSize: 12, color: AppColors.overlay)),
             style: const TextStyle(fontSize: 13, color: AppColors.text),
             items: [
               for (final k in keys)
@@ -275,36 +278,4 @@ Widget _keyDropdown(
   );
 }
 
-/// LLM 设置对话框
-Future<void> showLlmSettingsDialog(BuildContext context, WidgetRef ref) {
-  final cfg = ref.read(configProvider).llm;
-  final baseURL = TextEditingController(text: cfg.baseURL);
-  final apiKey = TextEditingController(text: cfg.apiKey);
-  final model = TextEditingController(text: cfg.model);
-
-  return _showDark(
-    context,
-    Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _title(Icons.settings_outlined, 'LLM 设置'),
-        _field(baseURL, 'Base URL',
-            hint: 'https://open.bigmodel.cn/api/paas/v4'),
-        _field(apiKey, 'API Key', obscure: true),
-        _field(model, '模型', hint: 'glm-4.6'),
-        const SizedBox(height: 4),
-        Builder(
-          builder: (ctx) => _actions(ctx, onOk: () {
-            ref.read(configProvider.notifier).updateLlm(LlmConfig(
-                  baseURL: baseURL.text.trim(),
-                  apiKey: apiKey.text.trim(),
-                  model: model.text.trim(),
-                ));
-            Navigator.pop(ctx);
-          }),
-        ),
-      ],
-    ),
-  );
-}
+/// LLM 设置已迁移到设置中心（ui/settings_center.dart）。

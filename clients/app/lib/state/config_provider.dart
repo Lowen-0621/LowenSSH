@@ -34,10 +34,23 @@ class ConfigNotifier extends Notifier<AppConfig> {
     state = loadConfig();
   }
 
-  /// 更新 LLM 配置
-  void updateLlm(LlmConfig llm) {
+  /// 更新某供应商的配置（apiKey/model/baseURL）
+  void updateProvider(String id,
+      {String? apiKey, String? model, String? baseURL}) {
     final cfg = loadConfig();
-    saveConfig(AppConfig(hosts: cfg.hosts, keys: cfg.keys, llm: llm));
+    final providers = cfg.providers
+        .map((p) => p.id == id
+            ? p.copyWith(apiKey: apiKey, model: model, baseURL: baseURL)
+            : p)
+        .toList();
+    saveConfig(cfg.copyWith(providers: providers));
+    state = loadConfig();
+  }
+
+  /// 切换当前激活的供应商
+  void setActiveProvider(String id) {
+    final cfg = loadConfig();
+    saveConfig(cfg.copyWith(activeProviderId: id));
     state = loadConfig();
   }
 

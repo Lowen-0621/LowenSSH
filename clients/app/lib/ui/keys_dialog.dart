@@ -4,6 +4,7 @@ import '../theme.dart';
 import '../core/config.dart';
 import '../state/key_provider.dart';
 import '../state/config_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 密钥库对话框 —— 管理 SSH 私钥（列表 + 粘贴 PEM 添加 + 删除）。
 /// 私钥与 passphrase 加密落盘（复用 crypto.dart），绝不存明文。
@@ -34,6 +35,7 @@ class _KeysBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final keys = ref.watch(keyProvider);
     final hosts = ref.watch(configProvider).hosts;
+    final l = ref.watch(l10nProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -44,32 +46,32 @@ class _KeysBody extends ConsumerWidget {
           children: [
             const Icon(Icons.vpn_key_outlined, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            const Text('密钥库',
-                style: TextStyle(
+            Text(l.t('keys.title'),
+                style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
-            Text('共 ${keys.length} 把',
+            Text(l.t('keys.count', {'n': '${keys.length}'}),
                 style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             TextButton.icon(
               onPressed: () => _showAddKeyDialog(context, ref),
               icon: const Icon(Icons.add, size: 15, color: AppColors.blue),
-              label: const Text('添加密钥',
-                  style: TextStyle(fontSize: 12, color: AppColors.blue)),
+              label: Text(l.t('keys.add'),
+                  style: const TextStyle(fontSize: 12, color: AppColors.blue)),
             ),
           ],
         ),
         const SizedBox(height: 8),
         Flexible(
           child: keys.isEmpty
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 40),
-                  child: Text('暂无密钥，点「添加密钥」粘贴私钥 PEM',
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: Text(l.t('keys.empty'),
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 12, color: AppColors.overlay)),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -89,8 +91,9 @@ class _KeysBody extends ConsumerWidget {
   }
 
   Widget _keyRow(
-          BuildContext context, WidgetRef ref, SshKey k, int usedBy) =>
-      Container(
+          BuildContext context, WidgetRef ref, SshKey k, int usedBy) {
+    final l = ref.watch(l10nProvider);
+    return Container(
         padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
         decoration: BoxDecoration(
           color: AppColors.base,
@@ -110,8 +113,8 @@ class _KeysBody extends ConsumerWidget {
                           fontSize: 13, color: AppColors.text)),
                   const SizedBox(height: 2),
                   Text(
-                      '${k.passphraseEnc != null ? '🔒 带 passphrase · ' : ''}'
-                      '${usedBy > 0 ? '$usedBy 台主机使用' : '未被使用'}',
+                      '${k.passphraseEnc != null ? l.t('keys.withPassphrase') : ''}'
+                      '${usedBy > 0 ? l.t('keys.usedBy', {'n': '$usedBy'}) : l.t('keys.unused')}',
                       style: const TextStyle(
                           fontSize: 10, color: AppColors.overlay)),
                 ],
@@ -121,15 +124,17 @@ class _KeysBody extends ConsumerWidget {
               icon: const Icon(Icons.delete_outline,
                   size: 16, color: AppColors.red),
               splashRadius: 16,
-              tooltip: '删除',
+              tooltip: l.t('common.delete'),
               onPressed: () => _confirmDelete(context, ref, k, usedBy),
             ),
           ],
         ),
       );
+  }
 
   void _confirmDelete(
       BuildContext context, WidgetRef ref, SshKey k, int usedBy) {
+    final l = ref.watch(l10nProvider);
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -138,18 +143,18 @@ class _KeysBody extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
           side: const BorderSide(color: AppColors.surface0),
         ),
-        title: const Text('删除密钥',
-            style: TextStyle(fontSize: 15, color: AppColors.text)),
+        title: Text(l.t('keys.deleteKey'),
+            style: const TextStyle(fontSize: 15, color: AppColors.text)),
         content: Text(
             usedBy > 0
-                ? '密钥「${k.name}」正被 $usedBy 台主机使用，删除后这些主机将解除密钥绑定（需重新配置认证）。确定删除？'
-                : '确定删除密钥「${k.name}」？此操作不可撤销。',
+                ? l.t('keys.deleteUsed', {'name': k.name, 'n': '$usedBy'})
+                : l.t('keys.deleteConfirm', {'name': k.name}),
             style: const TextStyle(fontSize: 13, color: AppColors.subtext)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
-                style: TextStyle(color: AppColors.subtext)),
+            child: Text(l.t('common.cancel'),
+                style: const TextStyle(color: AppColors.subtext)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -159,7 +164,7 @@ class _KeysBody extends ConsumerWidget {
               ref.read(keyProvider.notifier).remove(k.id);
               Navigator.pop(ctx);
             },
-            child: const Text('删除'),
+            child: Text(l.t('common.delete')),
           ),
         ],
       ),
@@ -173,6 +178,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
   final pem = TextEditingController();
   final passphrase = TextEditingController();
   String? errorText;
+  final l = ref.watch(l10nProvider);
 
   showDialog<void>(
     context: context,
@@ -192,27 +198,27 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Row(
-                  children: const [
-                    Icon(Icons.vpn_key_outlined,
+                  children: [
+                    const Icon(Icons.vpn_key_outlined,
                         size: 18, color: AppColors.blue),
-                    SizedBox(width: 8),
-                    Text('添加密钥',
-                        style: TextStyle(
+                    const SizedBox(width: 8),
+                    Text(l.t('keys.add'),
+                        style: const TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppColors.text)),
                   ],
                 ),
                 const SizedBox(height: 16),
-                _label('名称'),
+                _label(l.t('keys.name')),
                 _input(name, hint: 'id_ed25519'),
                 const SizedBox(height: 12),
-                _label('私钥（PEM，粘贴 -----BEGIN ... 全文）'),
+                _label(l.t('keys.pem')),
                 _input(pem,
                     hint: '-----BEGIN OPENSSH PRIVATE KEY-----\n...',
                     maxLines: 6, mono: true),
                 const SizedBox(height: 12),
-                _label('passphrase（私钥无加密则留空）'),
+                _label(l.t('keys.passphrase')),
                 _input(passphrase, obscure: true),
                 if (errorText != null) ...[
                   const SizedBox(height: 8),
@@ -226,8 +232,8 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
-                      child: const Text('取消',
-                          style: TextStyle(color: AppColors.subtext)),
+                      child: Text(l.t('common.cancel'),
+                          style: const TextStyle(color: AppColors.subtext)),
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
@@ -239,11 +245,11 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
                         // 基本校验：必须像 PEM
                         if (!pemText.contains('-----BEGIN')) {
                           setState(() =>
-                              errorText = '私钥格式不对，应以 -----BEGIN 开头');
+                              errorText = l.t('keys.errPem'));
                           return;
                         }
                         final nm = name.text.trim().isEmpty
-                            ? '未命名密钥'
+                            ? l.t('keys.unnamed')
                             : name.text.trim();
                         ref.read(keyProvider.notifier).add(
                               name: nm,
@@ -254,7 +260,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
                             );
                         Navigator.pop(ctx);
                       },
-                      child: const Text('保存'),
+                      child: Text(l.t('common.save')),
                     ),
                   ],
                 ),

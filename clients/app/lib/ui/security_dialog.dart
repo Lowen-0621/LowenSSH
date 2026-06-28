@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/guard.dart';
 import '../state/guard_provider.dart';
+import '../state/settings_provider.dart';
 
 /// 安全策略对话框 —— 完整列出门禁规则（deny/ask）+ 实时三态统计。
 /// 纯展示，规则来自 core/guard.dart，与实际判定同源。
@@ -32,6 +33,7 @@ class _SecurityBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stats = ref.watch(guardProvider);
+    final l = ref.watch(l10nProvider);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -42,25 +44,25 @@ class _SecurityBody extends ConsumerWidget {
           children: [
             const Icon(Icons.shield_outlined, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            const Text('安全策略',
-                style: TextStyle(
+            Text(l.t('sec.title'),
+                style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
-            const Text('命令门禁规则',
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            Text(l.t('sec.subtitle'),
+                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
           ],
         ),
         const SizedBox(height: 12),
         // 三态统计卡（真实数据）
         Row(
           children: [
-            _stat('${stats.denyCount}', '已阻止', AppColors.red),
+            _stat('${stats.denyCount}', l.t('state.denied'), AppColors.red),
             const SizedBox(width: 8),
-            _stat('${stats.askCount}', '待确认', AppColors.yellow),
+            _stat('${stats.askCount}', l.t('state.ask'), AppColors.yellow),
             const SizedBox(width: 8),
-            _stat('${stats.allowCount}', '已放行', AppColors.green),
+            _stat('${stats.allowCount}', l.t('state.allowed'), AppColors.green),
           ],
         ),
         const SizedBox(height: 8),
@@ -71,10 +73,9 @@ class _SecurityBody extends ConsumerWidget {
             color: AppColors.base,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: const Text(
-              '判定顺序：先查 DENY（命中即拒）→ 再看 ASK（执行前确认）→ 默认 ALLOW。'
-              '复合命令拆段逐查，取最严结果。安全检查是独立代码路径，模型越狱也绕不过。',
-              style: TextStyle(
+          child: Text(
+              '${l.t('sec.principle1')}${l.t('sec.principle2')}',
+              style: const TextStyle(
                   fontSize: 10.5, height: 1.5, color: AppColors.subtext)),
         ),
         const SizedBox(height: 12),
@@ -83,19 +84,23 @@ class _SecurityBody extends ConsumerWidget {
           child: ListView(
             shrinkWrap: true,
             children: [
-              _sectionTitle('DENY · 直接拒绝（${denyRules.length} 条）',
+              _sectionTitle(
+                  l.t('sec.denySection', {'n': '${denyRules.length}'}),
                   AppColors.red),
               for (final r in denyRules) _ruleRow(r),
               const SizedBox(height: 10),
-              _sectionTitle('ASK · 执行前确认（${askRules.length} 条）',
+              _sectionTitle(
+                  l.t('sec.askSection', {'n': '${askRules.length}'}),
                   AppColors.yellow),
               for (final r in askRules) _ruleRow(r),
               const SizedBox(height: 10),
-              _sectionTitle('ALLOW · 默认放行', AppColors.green),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: Text('未命中以上规则的只读/安全命令（ls · cat · df · tail 等）',
-                    style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+              _sectionTitle(l.t('sec.allowSection'), AppColors.green),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: Text(l.t('sec.allowDesc'),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.overlay)),
               ),
             ],
           ),

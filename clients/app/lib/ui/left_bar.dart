@@ -7,6 +7,7 @@ import '../state/connection_provider.dart';
 import '../state/guard_provider.dart';
 import '../state/search_provider.dart';
 import '../state/snippet_provider.dart';
+import '../state/settings_provider.dart';
 import 'dialogs.dart';
 import 'snippets_dialog.dart';
 import 'audit_dialog.dart';
@@ -27,6 +28,7 @@ class LeftBar extends ConsumerWidget {
     final allHosts = ref.watch(hostsProvider);
     final conn = ref.watch(connectionProvider);
     final query = ref.watch(hostSearchProvider).trim().toLowerCase();
+    final l = ref.watch(l10nProvider);
     // 按搜索词过滤：匹配别名或主机地址
     final hosts = query.isEmpty
         ? allHosts
@@ -43,12 +45,14 @@ class LeftBar extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const SizedBox(height: 10),
-            _navTitle(context, ref, '主机'),
+            _navTitle(context, ref, l.t('panel.hosts')),
             if (hosts.isEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
                 child: Text(
-                    query.isEmpty ? '暂无主机，点 + 添加' : '未找到匹配「$query」的主机',
+                    query.isEmpty
+                        ? l.t('left.noHosts')
+                        : l.t('left.noMatch', {'q': query}),
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
               )
@@ -63,29 +67,29 @@ class LeftBar extends ConsumerWidget {
                   color: AppColors.red.withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Text('连接失败：${conn.error}',
+                child: Text(l.t('left.connectFail', {'err': '${conn.error}'}),
                     style: const TextStyle(
                         fontSize: 10.5, color: AppColors.red)),
               ),
             _divider(),
             // 命令片段：真实功能，点击弹片段面板，badge 显示真实数量
-            _navLink(Icons.content_paste_outlined, '命令片段',
+            _navLink(Icons.content_paste_outlined, l.t('left.snippets'),
                 '${ref.watch(snippetProvider).length}',
                 onTap: () => showSnippetsDialog(context)),
             // 密钥库：真实功能，点击弹密钥管理，badge 显示真实数量
-            _navLink(Icons.vpn_key_outlined, '密钥库',
+            _navLink(Icons.vpn_key_outlined, l.t('left.keys'),
                 _keyBadge(ref),
                 onTap: () => showKeysDialog(context)),
             // 端口转发：真实功能，点击弹隧道管理，badge 显示运行中隧道数
-            _navLink(Icons.swap_horiz_outlined, '端口转发',
+            _navLink(Icons.swap_horiz_outlined, l.t('left.forward'),
                 _forwardBadge(ref),
                 onTap: () => showForwardDialog(context)),
             // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
-            _navLink(Icons.shield_outlined, '安全策略',
+            _navLink(Icons.shield_outlined, l.t('left.security'),
                 _guardBadge(ref),
                 onTap: () => showSecurityDialog(context)),
             // 审计日志：真实功能，点击弹审计面板，badge 显示总条数
-            _navLink(Icons.receipt_long_outlined, '审计日志',
+            _navLink(Icons.receipt_long_outlined, l.t('left.audit'),
                 '${ref.watch(auditProvider).length}',
                 onTap: () => showAuditDialog(context)),
           ],
@@ -196,20 +200,21 @@ class LeftBar extends ConsumerWidget {
   // 主机右键菜单：目前仅删除
   void _showHostMenu(
       BuildContext context, WidgetRef ref, Host h, Offset pos) {
+    final l = ref.read(l10nProvider);
     showMenu<String>(
       context: context,
       color: AppColors.mantle,
       position: RelativeRect.fromLTRB(pos.dx, pos.dy, pos.dx, pos.dy),
-      items: const [
+      items: [
         PopupMenuItem(
           value: 'delete',
           height: 36,
           child: Row(
             children: [
-              Icon(Icons.delete_outline, size: 15, color: AppColors.red),
-              SizedBox(width: 8),
-              Text('删除主机',
-                  style: TextStyle(fontSize: 13, color: AppColors.text)),
+              const Icon(Icons.delete_outline, size: 15, color: AppColors.red),
+              const SizedBox(width: 8),
+              Text(l.t('left.deleteHost'),
+                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
             ],
           ),
         ),
@@ -223,6 +228,7 @@ class LeftBar extends ConsumerWidget {
 
   // 删除确认。若正连着这台，先断开再删。
   void _confirmDelete(BuildContext context, WidgetRef ref, Host h) {
+    final l = ref.read(l10nProvider);
     final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
     showDialog<void>(
       context: context,
@@ -232,15 +238,17 @@ class LeftBar extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
           side: const BorderSide(color: AppColors.surface0),
         ),
-        title: const Text('删除主机',
-            style: TextStyle(fontSize: 15, color: AppColors.text)),
-        content: Text('确定删除「$name」（${h.host}:${h.port}）？此操作不可撤销。',
+        title: Text(l.t('left.deleteHost'),
+            style: const TextStyle(fontSize: 15, color: AppColors.text)),
+        content: Text(
+            l.t('left.deleteHostConfirm',
+                {'name': name, 'addr': '${h.host}:${h.port}'}),
             style: const TextStyle(fontSize: 13, color: AppColors.subtext)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('取消',
-                style: TextStyle(color: AppColors.subtext)),
+            child: Text(l.t('common.cancel'),
+                style: const TextStyle(color: AppColors.subtext)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -255,7 +263,7 @@ class LeftBar extends ConsumerWidget {
               ref.read(configProvider.notifier).deleteHost(h.id);
               Navigator.pop(ctx);
             },
-            child: const Text('删除'),
+            child: Text(l.t('common.delete')),
           ),
         ],
       ),

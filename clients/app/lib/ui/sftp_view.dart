@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
+import '../core/i18n.dart';
+import '../state/settings_provider.dart';
 
 /// 文件项占位 model（Step 4 接 core/ssh.dart 的 SFTP listdir）
 class _FileItem {
@@ -14,7 +17,7 @@ class _FileItem {
 
 /// SFTP 双栏文件管理器 —— 本地 | 传输控制 | 远程
 /// 对应设计稿 .sftp-view。图标统一 Material 线性。
-class SftpView extends StatelessWidget {
+class SftpView extends ConsumerWidget {
   const SftpView({super.key});
 
   static const _folder = Icons.folder_outlined;
@@ -40,13 +43,14 @@ class SftpView extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
     return Container(
       color: AppColors.base,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _toolbar(),
+          _toolbar(l),
           Expanded(
             child: Row(
               children: [
@@ -59,14 +63,14 @@ class SftpView extends StatelessWidget {
               ],
             ),
           ),
-          _status(),
+          _status(l),
         ],
       ),
     );
   }
 
   // 工具条：本地路径 | 上传/下载 | 远程路径
-  Widget _toolbar() => Container(
+  Widget _toolbar(L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: const BoxDecoration(
           color: AppColors.mantle,
@@ -74,14 +78,14 @@ class SftpView extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Expanded(child: _pathBar('本地', '~/Downloads', remote: false)),
+            Expanded(child: _pathBar(l.t('sftp.local'), '~/Downloads', remote: false)),
             const SizedBox(width: 12),
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _arrow(Icons.arrow_upward, '上传'),
+                _arrow(Icons.arrow_upward, l.t('sftp.upload')),
                 const SizedBox(height: 5),
-                _arrow(Icons.arrow_downward, '下载'),
+                _arrow(Icons.arrow_downward, l.t('sftp.download')),
               ],
             ),
             const SizedBox(width: 12),
@@ -220,7 +224,7 @@ class SftpView extends StatelessWidget {
       );
 
   // 底部传输状态条
-  Widget _status() => Container(
+  Widget _status(L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: const BoxDecoration(
           color: AppColors.crust,
@@ -228,8 +232,8 @@ class SftpView extends StatelessWidget {
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: const [
-            Row(
+          children: [
+            const Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.upload, size: 12, color: AppColors.blue),
@@ -241,8 +245,8 @@ class SftpView extends StatelessWidget {
                         color: AppColors.blue)),
               ],
             ),
-            Text('双击文件用内置编辑器打开 · 拖拽可跨栏传输',
-                style: TextStyle(
+            Text(l.t('sftp.hint'),
+                style: const TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 10.5,
                     color: AppColors.overlay)),

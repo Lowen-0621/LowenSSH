@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    name: 后端（Java）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+      # 单测均为纯单元测试，不依赖 MySQL，可直接跑
+      - name: 编译 + 单测
+        run: ./mvnw -B clean test
+
+  app:
+    name: 桌面端（Flutter）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/app
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: 拉依赖
+        run: flutter pub get
+      - name: 静态分析
+        run: flutter analyze
+      - name: 单测
+        run: flutter test
+
+  cli:
+    name: CLI（Node）
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/cli
+    steps:
+      - uses: actions/checkout@v4
+      - name: 安装 Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: clients/cli/package-lock.json
+      - name: 装依赖
+        run: npm ci
+      - name: 类型检查
+        run: npm run typecheck
+      - name: 单测
+        run: npm test
+      - name: 构建
+        run: npm run build
