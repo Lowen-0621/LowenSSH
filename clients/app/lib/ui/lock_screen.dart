@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/i18n.dart';
 import '../core/lock_store.dart';
-import '../core/settings_store.dart';
 import '../state/settings_provider.dart';
 
 /// 解锁界面 —— 已设主密码时，启动先过这一关，验证通过才进 AppShell。
