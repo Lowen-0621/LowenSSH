@@ -20,8 +20,6 @@ target/
 # 远端拉取的服务器日志，不进仓库
 logs/
 
-# 前端
-frontend/node_modules/
-frontend/dist/
-# 构建产物：前端 build 会输出到此，不提交（由 CI/本地构建生成）
-src/main/resources/static/
+# CLI 客户端（Node）构建产物与依赖
+clients/cli/node_modules/
+clients/cli/dist/
