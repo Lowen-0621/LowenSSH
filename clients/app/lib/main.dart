@@ -40,9 +40,26 @@ class _LowenSshAppState extends ConsumerState<LowenSshApp> {
       title: 'LowenSSH',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      home: _unlocked
-          ? const AppShell()
-          : LockScreen(onUnlocked: () => setState(() => _unlocked = true)),
+      // 解锁 → 主界面转场：旧页淡出，新页淡入 + 轻微缩放浮现
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 520),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: ScaleTransition(
+            // 新页从 0.98 放大到 1，细微浮现感；不喧宾夺主
+            scale: Tween<double>(begin: 0.98, end: 1.0).animate(anim),
+            child: child,
+          ),
+        ),
+        child: _unlocked
+            ? const AppShell(key: ValueKey('shell'))
+            : LockScreen(
+                key: const ValueKey('lock'),
+                onUnlocked: () => setState(() => _unlocked = true),
+              ),
+      ),
     );
   }
 }

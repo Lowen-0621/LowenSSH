@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gpt_markdown/gpt_markdown.dart';
 import '../theme.dart';
 import '../state/agent_provider.dart';
+import '../state/agent_panel_provider.dart';
 import '../state/snippet_provider.dart';
 import '../state/config_provider.dart';
 import '../state/settings_provider.dart';
@@ -187,7 +188,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
       ),
       child: Row(
         children: [
-          Icon(Icons.smart_toy_outlined,
+          Icon(Icons.auto_awesome,
               size: 14, color: AppColors.subtext),
           const SizedBox(width: 7),
           Text(l.t('ai.agent'),
@@ -250,10 +251,148 @@ class _AiPaneState extends ConsumerState<AiPane> {
               ),
             ),
           ),
+          // 历史会话：点击弹出历史列表，可恢复/删除
+          _barIcon(
+            icon: Icons.history,
+            tooltip: l.t('ai.history'),
+            onTap: () => _showHistory(context),
+          ),
+          const SizedBox(width: 2),
+          // 关闭面板：归档当前会话 + 清空，然后隐藏面板
+          _barIcon(
+            icon: Icons.close,
+            tooltip: l.t('ai.close'),
+            onTap: () {
+              ref.read(agentProvider.notifier).archiveAndClear();
+              ref.read(agentPanelProvider.notifier).hide();
+            },
+          ),
         ],
       ),
     );
   }
+
+  // 模型条上的小图标按钮
+  Widget _barIcon(
+          {required IconData icon,
+          required String tooltip,
+          required VoidCallback onTap}) =>
+      Tooltip(
+        message: tooltip,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(5),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(icon, size: 16, color: AppColors.subtext),
+          ),
+        ),
+      );
+
+  // 历史会话面板：列出当前主机的归档会话，点击恢复，垃圾桶删除
+  void _showHistory(BuildContext context) {
+    final l = ref.read(l10nProvider);
+    final entries = ref.read(agentProvider.notifier).historyEntries();
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: AppColors.mantle,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 460),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                child: Text(l.t('ai.history'),
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.text)),
+              ),
+              if (entries.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 24),
+                  child: Text(l.t('ai.historyEmpty'),
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.overlay)),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    itemCount: entries.length,
+                    itemBuilder: (_, i) {
+                      final e = entries[i];
+                      final dt = DateTime.fromMillisecondsSinceEpoch(e.ts);
+                      final ds =
+                          '${dt.year}-${_pad2(dt.month)}-${_pad2(dt.day)} ${_pad2(dt.hour)}:${_pad2(dt.minute)}';
+                      return InkWell(
+                        onTap: () {
+                          ref
+                              .read(agentProvider.notifier)
+                              .restoreHistory(e.id);
+                          Navigator.of(ctx).pop();
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 9),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(e.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                            fontSize: 12.5,
+                                            color: AppColors.text)),
+                                    const SizedBox(height: 2),
+                                    Text(ds,
+                                        style: TextStyle(
+                                            fontSize: 10.5,
+                                            color: AppColors.overlay)),
+                                  ],
+                                ),
+                              ),
+                              InkWell(
+                                onTap: () {
+                                  ref
+                                      .read(agentProvider.notifier)
+                                      .deleteHistory(e.id);
+                                  Navigator.of(ctx).pop();
+                                  _showHistory(context); // 刷新列表
+                                },
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(4),
+                                  child: Icon(Icons.delete_outline,
+                                      size: 15, color: AppColors.overlay),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _pad2(int n) => n.toString().padLeft(2, '0');
 
   // 智能体消息正文（Markdown 渲染：加粗/列表/表格/代码块）
   Widget _assistantMsg({required String text}) => Column(

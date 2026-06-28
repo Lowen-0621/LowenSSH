@@ -15,7 +15,12 @@ TabbedViewThemeData buildTabbedTheme() {
     ..border = Border(
         bottom: BorderSide(color: AppColors.surface0)) // 底部一条细分隔
     ..initialGap = 0
-    ..middleGap = 0;
+    ..middleGap = 0
+    // 右侧按钮区：留右边距避免贴边被遮，加垂直 padding 让按钮与 tab 文字垂直对齐
+    ..buttonsAreaPadding = const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
+    ..buttonIconSize = 15
+    ..normalButtonColor = AppColors.subtext
+    ..hoverButtonColor = AppColors.text;
 
   // 单个 tab：无圆角无边框，紧凑
   theme.tab

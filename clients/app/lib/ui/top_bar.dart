@@ -3,44 +3,37 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
 import '../state/settings_provider.dart';
-import '../state/layout_provider.dart';
 import 'dialogs.dart';
 import 'settings_center.dart';
 
-/// 顶栏 —— Logo + 搜索框 + 操作按钮（高 38px）
-/// 对应设计稿 .topbar
+/// 顶栏 —— 搜索框 + 操作按钮
+/// macOS 下标题栏透明、内容顶到最上方，故左侧留出红绿灯位置。
 class TopBar extends ConsumerWidget {
   const TopBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      height: 38,
+      height: 52,
       decoration: BoxDecoration(
         color: AppColors.mantle,
         border: Border(bottom: BorderSide(color: AppColors.surface0)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
+      // 左侧 78px 给 macOS 红绿灯让位
+      padding: const EdgeInsets.only(left: 78, right: 12),
+      // Stack 垂直居中所有内容；搜索框水平绝对居中，按钮组固定右侧
+      child: Stack(
         children: [
-          // Logo
-          Row(
-            children: [
-              Text('◈', style: TextStyle(color: AppColors.blue, fontSize: 14)),
-              SizedBox(width: 5),
-              Text('LowenSSH',
-                  style: TextStyle(
-                      color: AppColors.lavender,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: .3)),
-            ],
+          // 搜索框：相对顶栏正中
+          Align(
+            alignment: Alignment.center,
+            child: SizedBox(width: 360, child: _searchBox(ref)),
           ),
-          const SizedBox(width: 12),
-          // 搜索框（弹性占据中间剩余空间，窄窗口下自动收缩，避免溢出）
-          Expanded(child: _searchBox(ref)),
-          const SizedBox(width: 12),
-          // 操作按钮组
-          _actions(context, ref),
+          // 操作按钮组：右侧，垂直居中
+          Align(
+            alignment: Alignment.centerRight,
+            child: _actions(context, ref),
+          ),
         ],
       ),
     );
@@ -82,6 +75,7 @@ class TopBar extends ConsumerWidget {
   Widget _actions(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _btn(icon: Icons.bolt, label: l.t('top.connect'), primary: true),
         const SizedBox(width: 6),
@@ -89,16 +83,6 @@ class TopBar extends ConsumerWidget {
             icon: Icons.add,
             label: l.t('top.newHost'),
             onTap: () => showAddHostDialog(context, ref)),
-        const SizedBox(width: 6),
-        _btn(icon: Icons.folder_outlined, label: 'SFTP'),
-        const SizedBox(width: 6),
-        _btn(icon: Icons.splitscreen_outlined, label: l.t('top.split')),
-        const SizedBox(width: 6),
-        // 重置布局：找回被关掉的面板（终端/智能体等）
-        _btn(
-            icon: Icons.restart_alt,
-            label: l.t('top.resetLayout'),
-            onTap: () => ref.read(layoutResetProvider.notifier).reset()),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,
