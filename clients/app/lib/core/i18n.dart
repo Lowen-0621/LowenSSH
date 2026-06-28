@@ -131,6 +131,9 @@ const Map<String, Map<AppLang, String>> _dict = {
   'ai.thinkingDone': {AppLang.zh: '思考 {sec}s', AppLang.en: 'Thought {sec}s'},
   'ai.thinking': {AppLang.zh: '思考中…', AppLang.en: 'Thinking…'},
   'ai.thinkProcess': {AppLang.zh: '思考过程', AppLang.en: 'Reasoning'},
+  'ai.history': {AppLang.zh: '历史会话', AppLang.en: 'History'},
+  'ai.historyEmpty': {AppLang.zh: '暂无历史会话', AppLang.en: 'No history yet'},
+  'ai.close': {AppLang.zh: '关闭', AppLang.en: 'Close'},
 
   // ========== 审计对话框 ==========
   'audit.title': {AppLang.zh: '审计日志', AppLang.en: 'Audit Log'},

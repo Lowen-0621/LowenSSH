@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/agent.dart';
 import '../core/chat_store.dart';
+import '../core/agent_history_store.dart';
 import '../core/events.dart';
 import '../core/glm.dart';
 import 'config_provider.dart';
@@ -405,6 +406,70 @@ class AgentNotifier extends Notifier<AgentState> {
         reasoningSec: kind == ChatItemKind.reasoning ? 0 : null,
       ));
     }
+    _refreshIfCurrent(hostId);
+  }
+
+  /// 关闭智能体面板：把当前展示主机的会话归档到历史，然后清空当前会话。
+  /// 当前会话存盘(chat_store)也一并清空，重启后当前会话为空（历史仍在）。
+  void archiveAndClear() {
+    final hostId = _currentHostId;
+    if (hostId == null) return;
+    final s = _sessions[hostId];
+    if (s == null) return;
+    if (s.running) return; // 任务运行中不归档，避免截断
+    // 有内容才归档
+    if (s.items.isNotEmpty) {
+      appendAgentHistory(hostId, List.of(s.items), List.of(s.history));
+    }
+    s.items.clear();
+    s.history.clear();
+    s.error = null;
+    _persist(hostId); // 清空当前会话存档
+    _refreshIfCurrent(hostId);
+  }
+
+  /// 读取当前展示主机的历史会话列表（供历史面板展示）。
+  List<AgentHistoryEntry> historyEntries() {
+    final hostId = _currentHostId;
+    if (hostId == null) return [];
+    return loadAgentHistory(hostId);
+  }
+
+  /// 从历史恢复一条会话到当前会话（先把当前会话归档，避免覆盖丢失）。
+  void restoreHistory(String entryId) {
+    final hostId = _currentHostId;
+    if (hostId == null) return;
+    final s = _session(hostId);
+    if (s.running) return;
+    final entries = loadAgentHistory(hostId);
+    AgentHistoryEntry? target;
+    for (final e in entries) {
+      if (e.id == entryId) {
+        target = e;
+        break;
+      }
+    }
+    if (target == null) return;
+    // 当前会话非空则先归档，再载入历史
+    if (s.items.isNotEmpty) {
+      appendAgentHistory(hostId, List.of(s.items), List.of(s.history));
+    }
+    s.items
+      ..clear()
+      ..addAll(target.items);
+    s.history
+      ..clear()
+      ..addAll(target.history);
+    s.error = null;
+    _persist(hostId);
+    _refreshIfCurrent(hostId);
+  }
+
+  /// 删除一条历史会话。
+  void deleteHistory(String entryId) {
+    final hostId = _currentHostId;
+    if (hostId == null) return;
+    deleteAgentHistoryEntry(hostId, entryId);
     _refreshIfCurrent(hostId);
   }
 }

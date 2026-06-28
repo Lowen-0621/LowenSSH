@@ -4,6 +4,7 @@ import '../theme.dart';
 import '../core/i18n.dart';
 import '../core/lock_store.dart';
 import '../state/settings_provider.dart';
+import 'anim.dart';
 
 /// 解锁界面 —— 已设主密码时，启动先过这一关，验证通过才进 AppShell。
 class LockScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
   final _focus = FocusNode();
   String? _error;
   bool _checking = false;
+  int _shakeTick = 0; // 每次密码错误 +1，触发输入框抖动
 
   @override
   void initState() {
@@ -48,6 +50,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         _checking = false;
         _error = _isZh ? '密码错误' : 'Wrong password';
         _ctrl.clear();
+        _shakeTick++; // 触发抖动反馈
       });
       _focus.requestFocus();
     }
@@ -66,70 +69,95 @@ class _LockScreenState extends ConsumerState<LockScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('◈',
-                  style: TextStyle(fontSize: 40, color: AppColors.blue)),
-              const SizedBox(height: 12),
-              Text('LowenSSH',
-                  style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.lavender,
-                      letterSpacing: .5)),
-              const SizedBox(height: 6),
-              Text(zh ? '已锁定，请输入主密码' : 'Locked. Enter master password',
-                  style: TextStyle(fontSize: 12.5, color: AppColors.overlay)),
-              const SizedBox(height: 22),
-              TextField(
-                controller: _ctrl,
-                focusNode: _focus,
-                obscureText: true,
-                autofocus: true,
-                onSubmitted: (_) => _submit(),
-                style: TextStyle(fontSize: 14, color: AppColors.text),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: true,
-                  fillColor: AppColors.mantle,
-                  hintText: zh ? '主密码' : 'Master password',
-                  hintStyle: TextStyle(color: AppColors.overlay),
-                  prefixIcon:
-                      Icon(Icons.lock_outline, size: 18, color: AppColors.overlay),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(
-                        color: _error != null
-                            ? AppColors.red
-                            : AppColors.surface0),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: BorderSide(color: AppColors.blue),
-                  ),
+              // 品牌区：模糊浮现入场
+              BlurIn(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('◈',
+                        style: TextStyle(fontSize: 40, color: AppColors.blue)),
+                    const SizedBox(height: 12),
+                    Text('LowenSSH',
+                        style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.lavender,
+                            letterSpacing: .5)),
+                  ],
                 ),
               ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(_error!,
-                      style: TextStyle(fontSize: 12, color: AppColors.red)),
-                ),
-              ],
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _checking ? null : _submit,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.blue,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+              const SizedBox(height: 6),
+              // 锁定提示：错峰淡入上移
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 120),
+                child: Text(zh ? '已锁定，请输入主密码' : 'Locked. Enter master password',
+                    style: TextStyle(fontSize: 12.5, color: AppColors.overlay)),
+              ),
+              const SizedBox(height: 22),
+              // 输入区：错峰入场 + 密码错误时抖动
+              FadeSlideIn(
+                delay: const Duration(milliseconds: 220),
+                child: Shake(
+                  trigger: _shakeTick,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: _ctrl,
+                        focusNode: _focus,
+                        obscureText: true,
+                        autofocus: true,
+                        onSubmitted: (_) => _submit(),
+                        style: TextStyle(fontSize: 14, color: AppColors.text),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          filled: true,
+                          fillColor: AppColors.mantle,
+                          hintText: zh ? '主密码' : 'Master password',
+                          hintStyle: TextStyle(color: AppColors.overlay),
+                          prefixIcon: Icon(Icons.lock_outline,
+                              size: 18, color: AppColors.overlay),
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 14),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(
+                                color: _error != null
+                                    ? AppColors.red
+                                    : AppColors.surface0),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.blue),
+                          ),
+                        ),
+                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(_error!,
+                              style:
+                                  TextStyle(fontSize: 12, color: AppColors.red)),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          onPressed: _checking ? null : _submit,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.blue,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                          ),
+                          child: Text(zh ? '解锁' : 'Unlock',
+                              style: TextStyle(
+                                  color: AppColors.crust,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text(zh ? '解锁' : 'Unlock',
-                      style: TextStyle(
-                          color: AppColors.crust,
-                          fontWeight: FontWeight.w600)),
                 ),
               ),
             ],
