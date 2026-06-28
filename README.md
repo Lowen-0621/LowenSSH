@@ -1,8 +1,23 @@
 # LowenSSH
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Java 17](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4-6DB33F.svg)](https://spring.io/projects/spring-boot)
+[![Flutter](https://img.shields.io/badge/Flutter-macOS%20%7C%20Windows-02569B.svg)](https://flutter.dev)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+
 AI 驱动的 SSH 智能运维 Agent。给它一个运维目标和一台服务器，它会像工程师一样一步步排查：自己决定跑什么命令、读结果、调整思路，直到给出结论。危险命令会被安全门禁实时拦截。
 
 核心看点是「看得见 AI 在干什么，也看得见安全护栏起作用」——整个 agentic loop 是从零手写的，不套用任何编排框架。
+
+## 界面预览
+
+> 截图待补充。桌面端运行界面、解锁动画、智能体面板与安全门禁可视化效果。
+>
+> <!-- 截图放到 docs/images/ 下，按下方格式引用：
+> ![桌面端主界面](docs/images/app-main.png)
+> ![智能体面板](docs/images/app-agent.png)
+> -->
 
 ## 三种形态
 
@@ -105,6 +120,10 @@ LowenSSH/
 - 客户端密码字段不写入明文持久化（AES-GCM 加密落库），不打印到控制台。
 - 安全门禁的高危命令规则（含 `rm -rf`、`find -delete` 等变体）是真实防护，请勿在生产前移除。
 - 这是一个运维 Agent，会真实在目标服务器执行命令。请只连接你有权操作的服务器。
+
+## 贡献
+
+欢迎提 issue 和 PR。开发环境搭建、代码约定、提交规范见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## License
 
