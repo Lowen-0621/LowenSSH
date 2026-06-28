@@ -93,7 +93,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
             child: st.items.isEmpty && st.pendingAsk == null
                 ? Center(
                     child: Text(l.t('ai.empty'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 12, color: AppColors.overlay)),
                   )
                 : SingleChildScrollView(
@@ -112,7 +112,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               color: AppColors.red.withValues(alpha: .12),
               child: Text(l.t('ai.error', {'err': '${st.error}'}),
-                  style: const TextStyle(fontSize: 11, color: AppColors.red)),
+                  style: TextStyle(fontSize: 11, color: AppColors.red)),
             ),
           _inputBox(st.running, l),
         ],
@@ -155,7 +155,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 280),
           padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface0,
             borderRadius: BorderRadius.only(
               topLeft: Radius.circular(8),
@@ -165,7 +165,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
             ),
           ),
           child: SelectableText(text,
-              style: const TextStyle(fontSize: 13, color: AppColors.text)),
+              style: TextStyle(fontSize: 13, color: AppColors.text)),
         ),
       );
 
@@ -181,17 +181,17 @@ class _AiPaneState extends ConsumerState<AiPane> {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.mantle,
         border: Border(bottom: BorderSide(color: AppColors.surface0)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.smart_toy_outlined,
+          Icon(Icons.smart_toy_outlined,
               size: 14, color: AppColors.subtext),
           const SizedBox(width: 7),
           Text(l.t('ai.agent'),
-              style: const TextStyle(fontSize: 12, color: AppColors.subtext)),
+              style: TextStyle(fontSize: 12, color: AppColors.subtext)),
           const SizedBox(width: 8),
           // 模型下拉
           Expanded(
@@ -220,7 +220,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                                   : AppColors.overlay),
                           const SizedBox(width: 8),
                           Text('${p.name} · ${p.model}',
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontSize: 12, color: AppColors.text)),
                         ],
                       ),
@@ -237,12 +237,12 @@ class _AiPaneState extends ConsumerState<AiPane> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(active.model,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 11.5,
                               fontWeight: FontWeight.w600,
                               color: AppColors.text)),
                       const SizedBox(width: 4),
-                      const Icon(Icons.expand_more,
+                      Icon(Icons.expand_more,
                           size: 14, color: AppColors.subtext),
                     ],
                   ),
@@ -261,11 +261,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
         children: [
           Row(
             children: [
-              const Icon(Icons.smart_toy_outlined,
+              Icon(Icons.smart_toy_outlined,
                   size: 13, color: AppColors.overlay),
               const SizedBox(width: 5),
               Text(ref.read(l10nProvider).t('ai.agent'),
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10.5, color: AppColors.overlay)),
             ],
           ),
@@ -274,7 +274,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
           SelectionArea(
             child: GptMarkdown(
               text,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13, height: 1.5, color: AppColors.text),
             ),
           ),
@@ -298,11 +298,11 @@ class _AiPaneState extends ConsumerState<AiPane> {
           children: [
             Row(
               children: [
-                const Icon(Icons.warning_amber_rounded,
+                Icon(Icons.warning_amber_rounded,
                     size: 14, color: AppColors.yellow),
                 const SizedBox(width: 6),
                 Text(ref.read(l10nProvider).t('ai.askTitle'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.yellow)),
@@ -310,14 +310,14 @@ class _AiPaneState extends ConsumerState<AiPane> {
             ),
             const SizedBox(height: 5),
             Text(cmd,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 12,
                     color: AppColors.peach)),
             const SizedBox(height: 5),
             Text(why,
                 style:
-                    const TextStyle(fontSize: 11, color: AppColors.subtext)),
+                    TextStyle(fontSize: 11, color: AppColors.subtext)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -347,10 +347,10 @@ class _AiPaneState extends ConsumerState<AiPane> {
           children: [
             Row(
               children: [
-                const Icon(Icons.block, size: 14, color: AppColors.red),
+                Icon(Icons.block, size: 14, color: AppColors.red),
                 const SizedBox(width: 6),
                 Text(ref.read(l10nProvider).t('ai.blockedTitle'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: AppColors.red)),
@@ -358,14 +358,14 @@ class _AiPaneState extends ConsumerState<AiPane> {
             ),
             const SizedBox(height: 5),
             Text(cmd,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 11.5,
                     color: AppColors.peach)),
             const SizedBox(height: 5),
             Text(why,
                 style:
-                    const TextStyle(fontSize: 11, color: AppColors.subtext)),
+                    TextStyle(fontSize: 11, color: AppColors.subtext)),
           ],
         ),
       );
@@ -394,7 +394,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
   // AI 输入框 + 快捷键提示。running 时禁用并显示中断。
   Widget _inputBox(bool running, L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.mantle,
           border: Border(top: BorderSide(color: AppColors.surface0)),
         ),
@@ -416,13 +416,13 @@ class _AiPaneState extends ConsumerState<AiPane> {
                       focusNode: _focusNode,
                       enabled: !running,
                       onSubmitted: (_) => _send(),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13, color: AppColors.text),
                       decoration: InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
                         hintText: l.t('ai.inputHint'),
-                        hintStyle: const TextStyle(
+                        hintStyle: TextStyle(
                             fontSize: 13, color: AppColors.overlay),
                       ),
                     ),
@@ -436,7 +436,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const SizedBox(
+                              SizedBox(
                                 width: 12,
                                 height: 12,
                                 child: CircularProgressIndicator(
@@ -445,7 +445,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                               ),
                               const SizedBox(width: 6),
                               Text(l.t('ai.interrupt'),
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       fontSize: 12, color: AppColors.yellow)),
                             ],
                           ),
@@ -453,7 +453,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                       : InkWell(
                           onTap: _send,
                           child: Text(l.t('ai.send'),
-                              style: const TextStyle(
+                              style: TextStyle(
                                   fontFamily: kMonoFont,
                                   fontSize: 12,
                                   color: AppColors.blue)),
@@ -463,7 +463,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
             ),
             const SizedBox(height: 6),
             DefaultTextStyle(
-              style: const TextStyle(
+              style: TextStyle(
                   fontFamily: kMonoFont, fontSize: 10, color: AppColors.overlay),
               child: Wrap(
                 spacing: 14,
@@ -520,11 +520,11 @@ class _ReasoningTileState extends State<_ReasoningTile> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.psychology_outlined,
+                Icon(Icons.psychology_outlined,
                     size: 13, color: AppColors.overlay),
                 const SizedBox(width: 5),
                 Text(title,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
                 const SizedBox(width: 3),
                 Icon(
@@ -542,12 +542,12 @@ class _ReasoningTileState extends State<_ReasoningTile> {
           Container(
             margin: const EdgeInsets.only(top: 4, left: 2),
             padding: const EdgeInsets.only(left: 9),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               border:
                   Border(left: BorderSide(color: AppColors.surface1, width: 2)),
             ),
             child: SelectableText(widget.text,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11.5,
                     fontStyle: FontStyle.italic,
                     color: AppColors.overlay)),
@@ -610,7 +610,7 @@ class _ToolTileState extends State<_ToolTile> {
                   const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
               child: Row(
                 children: [
-                  const Icon(Icons.terminal,
+                  Icon(Icons.terminal,
                       size: 13, color: AppColors.sapphire),
                   const SizedBox(width: 7),
                   // 命令（单行省略），占满中间
@@ -619,7 +619,7 @@ class _ToolTileState extends State<_ToolTile> {
                       _display,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: kMonoFont,
                           fontSize: 11.5,
                           color: AppColors.peach),
@@ -628,17 +628,17 @@ class _ToolTileState extends State<_ToolTile> {
                   const SizedBox(width: 6),
                   // 状态：执行中转圈 / 已执行绿勾 / 被阻止红叉
                   if (widget.running)
-                    const SizedBox(
+                    SizedBox(
                       width: 11,
                       height: 11,
                       child: CircularProgressIndicator(
                           strokeWidth: 1.5, color: AppColors.yellow),
                     )
                   else if (widget.executed)
-                    const Icon(Icons.check_circle_outline,
+                    Icon(Icons.check_circle_outline,
                         size: 12, color: AppColors.green)
                   else
-                    const Icon(Icons.block,
+                    Icon(Icons.block,
                         size: 12, color: AppColors.red),
                   const SizedBox(width: 4),
                   Icon(
@@ -657,13 +657,13 @@ class _ToolTileState extends State<_ToolTile> {
               width: double.infinity,
               constraints: const BoxConstraints(maxHeight: 200),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.crust,
                 border: Border(top: BorderSide(color: AppColors.surface0)),
               ),
               child: SingleChildScrollView(
                 child: SelectableText(widget.result,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontFamily: kMonoFont,
                         fontSize: 11.5,
                         color: AppColors.subtext)),

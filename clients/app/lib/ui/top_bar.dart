@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
 import '../state/settings_provider.dart';
+import '../state/layout_provider.dart';
 import 'dialogs.dart';
 import 'settings_center.dart';
 
@@ -15,7 +16,7 @@ class TopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 38,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.mantle,
         border: Border(bottom: BorderSide(color: AppColors.surface0)),
       ),
@@ -24,7 +25,7 @@ class TopBar extends ConsumerWidget {
         children: [
           // Logo
           Row(
-            children: const [
+            children: [
               Text('◈', style: TextStyle(color: AppColors.blue, fontSize: 14)),
               SizedBox(width: 5),
               Text('LowenSSH',
@@ -56,19 +57,19 @@ class TopBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 15, color: AppColors.overlay),
+          Icon(Icons.search, size: 15, color: AppColors.overlay),
           const SizedBox(width: 6),
           Expanded(
             child: TextField(
               onChanged: (v) =>
                   ref.read(hostSearchProvider.notifier).update(v),
-              style: const TextStyle(color: AppColors.text, fontSize: 13),
+              style: TextStyle(color: AppColors.text, fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 6),
                 hintText: l.t('top.search'),
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                     color: AppColors.overlay, fontSize: 13),
               ),
             ),
@@ -92,6 +93,12 @@ class TopBar extends ConsumerWidget {
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
         _btn(icon: Icons.splitscreen_outlined, label: l.t('top.split')),
+        const SizedBox(width: 6),
+        // 重置布局：找回被关掉的面板（终端/智能体等）
+        _btn(
+            icon: Icons.restart_alt,
+            label: l.t('top.resetLayout'),
+            onTap: () => ref.read(layoutResetProvider.notifier).reset()),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,

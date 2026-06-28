@@ -14,7 +14,7 @@ Future<void> showSecurityDialog(BuildContext context) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
@@ -42,16 +42,16 @@ class _SecurityBody extends ConsumerWidget {
         // 标题
         Row(
           children: [
-            const Icon(Icons.shield_outlined, size: 16, color: AppColors.text),
+            Icon(Icons.shield_outlined, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
             Text(l.t('sec.title'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
             Text(l.t('sec.subtitle'),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
           ],
         ),
         const SizedBox(height: 12),
@@ -75,7 +75,7 @@ class _SecurityBody extends ConsumerWidget {
           ),
           child: Text(
               '${l.t('sec.principle1')}${l.t('sec.principle2')}',
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 10.5, height: 1.5, color: AppColors.subtext)),
         ),
         const SizedBox(height: 12),
@@ -99,7 +99,7 @@ class _SecurityBody extends ConsumerWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
                 child: Text(l.t('sec.allowDesc'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
               ),
             ],
@@ -127,7 +127,7 @@ class _SecurityBody extends ConsumerWidget {
               const SizedBox(height: 2),
               Text(label,
                   style:
-                      const TextStyle(fontSize: 10, color: AppColors.overlay)),
+                      TextStyle(fontSize: 10, color: AppColors.overlay)),
             ],
           ),
         ),
@@ -140,7 +140,7 @@ class _SecurityBody extends ConsumerWidget {
             Container(width: 3, height: 12, color: color),
             const SizedBox(width: 7),
             Text(text,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
@@ -184,13 +184,13 @@ class _SecurityBody extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(r.pattern,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontFamily: kMonoFont,
                         fontSize: 11,
                         color: AppColors.peach)),
                 const SizedBox(height: 2),
                 Text(r.desc,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10.5, color: AppColors.subtext)),
               ],
             ),

@@ -15,7 +15,7 @@ Future<T?> _showDark<T>(BuildContext context, Widget child) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 420),
@@ -49,17 +49,17 @@ class _FieldState extends State<_Field> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(widget.label,
-              style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+              style: TextStyle(fontSize: 11, color: AppColors.subtext)),
           const SizedBox(height: 4),
           TextField(
             controller: widget.controller,
             obscureText: _hidden,
-            style: const TextStyle(fontSize: 13, color: AppColors.text),
+            style: TextStyle(fontSize: 13, color: AppColors.text),
             decoration: InputDecoration(
               isDense: true,
               hintText: widget.hint,
               hintStyle:
-                  const TextStyle(fontSize: 12, color: AppColors.overlay),
+                  TextStyle(fontSize: 12, color: AppColors.overlay),
               filled: true,
               fillColor: AppColors.base,
               contentPadding:
@@ -80,11 +80,11 @@ class _FieldState extends State<_Field> {
                   : null,
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppColors.surface0),
+                borderSide: BorderSide(color: AppColors.surface0),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(6),
-                borderSide: const BorderSide(color: AppColors.blue),
+                borderSide: BorderSide(color: AppColors.blue),
               ),
             ),
           ),
@@ -106,7 +106,7 @@ Widget _title(IconData icon, String text) => Padding(
           Icon(icon, size: 18, color: AppColors.blue),
           const SizedBox(width: 8),
           Text(text,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: AppColors.text)),
@@ -122,7 +122,7 @@ Widget _actions(BuildContext context, L10n l,
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: Text(l.t('common.cancel'),
-              style: const TextStyle(color: AppColors.subtext)),
+              style: TextStyle(color: AppColors.subtext)),
         ),
         const SizedBox(width: 8),
         FilledButton(
@@ -164,7 +164,7 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(l.t('host.authMode'),
-                style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+                style: TextStyle(fontSize: 11, color: AppColors.subtext)),
           ),
           Row(
             children: [
@@ -240,7 +240,7 @@ Widget _keyDropdown(L10n l,
         border: Border.all(color: AppColors.surface0),
       ),
       child: Text(l.t('host.keyEmpty'),
-          style: const TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+          style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
     );
   }
   return Column(
@@ -249,7 +249,7 @@ Widget _keyDropdown(L10n l,
       Padding(
         padding: const EdgeInsets.only(bottom: 4),
         child: Text(l.t('host.selectKey'),
-            style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+            style: TextStyle(fontSize: 11, color: AppColors.subtext)),
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -264,8 +264,8 @@ Widget _keyDropdown(L10n l,
             isExpanded: true,
             dropdownColor: AppColors.mantle,
             hint: Text(l.t('host.pleaseSelect'),
-                style: const TextStyle(fontSize: 12, color: AppColors.overlay)),
-            style: const TextStyle(fontSize: 13, color: AppColors.text),
+                style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+            style: TextStyle(fontSize: 13, color: AppColors.text),
             items: [
               for (final k in keys)
                 DropdownMenuItem(value: k.id, child: Text(k.name)),

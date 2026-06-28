@@ -13,7 +13,7 @@ Future<void> showSnippetsDialog(BuildContext context) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480, maxHeight: 560),
@@ -67,17 +67,17 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
         // 标题行
         Row(
           children: [
-            const Icon(Icons.content_paste_outlined,
+            Icon(Icons.content_paste_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
             Text(l.t('snip.title'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const Spacer(),
             Text(l.t('snip.clickToFill'),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
           ],
         ),
         const SizedBox(height: 12),
@@ -88,7 +88,7 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
                   padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Text(l.t('snip.empty'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
@@ -108,9 +108,9 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
               onPressed: () => setState(() => _adding = true),
-              icon: const Icon(Icons.add, size: 16, color: AppColors.blue),
+              icon: Icon(Icons.add, size: 16, color: AppColors.blue),
               label: Text(l.t('snip.addNew'),
-                  style: const TextStyle(fontSize: 12, color: AppColors.blue)),
+                  style: TextStyle(fontSize: 12, color: AppColors.blue)),
             ),
           ),
       ],
@@ -141,13 +141,13 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(s.label,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 12.5, color: AppColors.text)),
                       const SizedBox(height: 2),
                       Text(s.command,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontFamily: kMonoFont,
                               fontSize: 11,
                               color: AppColors.overlay)),
@@ -157,7 +157,7 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 14, color: AppColors.overlay),
+              icon: Icon(Icons.close, size: 14, color: AppColors.overlay),
               splashRadius: 16,
               onPressed: () => ref.read(snippetProvider.notifier).removeAt(index),
             ),
@@ -187,7 +187,7 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
                 TextButton(
                   onPressed: () => setState(() => _adding = false),
                   child: Text(l.t('common.cancel'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppColors.subtext)),
                 ),
                 const SizedBox(width: 4),
@@ -218,16 +218,16 @@ class _SnippetsBodyState extends ConsumerState<_SnippetsBody> {
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: const TextStyle(fontSize: 12, color: AppColors.overlay),
+          hintStyle: TextStyle(fontSize: 12, color: AppColors.overlay),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: AppColors.surface1),
+            borderSide: BorderSide(color: AppColors.surface1),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(6),
-            borderSide: const BorderSide(color: AppColors.surface1),
+            borderSide: BorderSide(color: AppColors.surface1),
           ),
         ),
       );

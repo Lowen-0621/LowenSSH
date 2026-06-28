@@ -14,6 +14,9 @@ enum CursorStyle { block, underline, bar }
 class AppSettings {
   final AppLang lang;
 
+  // 外观
+  final String themeId; //        配色方案 id（见 palette.dart）
+
   // 终端设置（xterm 真实支持项）
   final double termFontSize; //   字号
   final bool selectToCopy; //     选中即复制
@@ -23,6 +26,7 @@ class AppSettings {
 
   const AppSettings({
     this.lang = AppLang.zh,
+    this.themeId = 'mocha',
     this.termFontSize = 12.5,
     this.selectToCopy = true,
     this.rightClickPaste = true,
@@ -32,6 +36,7 @@ class AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> j) => AppSettings(
         lang: (j['lang'] as String?) == 'en' ? AppLang.en : AppLang.zh,
+        themeId: j['themeId'] as String? ?? 'mocha',
         termFontSize: (j['termFontSize'] as num?)?.toDouble() ?? 12.5,
         selectToCopy: j['selectToCopy'] as bool? ?? true,
         rightClickPaste: j['rightClickPaste'] as bool? ?? true,
@@ -45,6 +50,7 @@ class AppSettings {
 
   Map<String, dynamic> toJson() => {
         'lang': lang == AppLang.en ? 'en' : 'zh',
+        'themeId': themeId,
         'termFontSize': termFontSize,
         'selectToCopy': selectToCopy,
         'rightClickPaste': rightClickPaste,
@@ -54,6 +60,7 @@ class AppSettings {
 
   AppSettings copyWith({
     AppLang? lang,
+    String? themeId,
     double? termFontSize,
     bool? selectToCopy,
     bool? rightClickPaste,
@@ -62,6 +69,7 @@ class AppSettings {
   }) =>
       AppSettings(
         lang: lang ?? this.lang,
+        themeId: themeId ?? this.themeId,
         termFontSize: termFontSize ?? this.termFontSize,
         selectToCopy: selectToCopy ?? this.selectToCopy,
         rightClickPaste: rightClickPaste ?? this.rightClickPaste,

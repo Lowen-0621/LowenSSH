@@ -22,7 +22,13 @@ const Map<String, Map<AppLang, String>> _dict = {
   'settings.nav.aiModel': {AppLang.zh: 'AI 模型', AppLang.en: 'AI Model'},
   'settings.nav.common': {AppLang.zh: '通用', AppLang.en: 'Common'},
   'settings.nav.terminal': {AppLang.zh: '终端', AppLang.en: 'Terminal'},
-  'settings.nav.theme': {AppLang.zh: '终端主题', AppLang.en: 'Terminal Theme'},
+  'settings.nav.theme': {AppLang.zh: '外观', AppLang.en: 'Appearance'},
+  'settings.theme.scheme': {AppLang.zh: '配色方案', AppLang.en: 'Color Scheme'},
+  'settings.theme.hint': {
+    AppLang.zh: '选择应用的整体配色，立即生效。',
+    AppLang.en: 'Pick the app color scheme. Applies instantly.'
+  },
+  'settings.nav.security': {AppLang.zh: '安全', AppLang.en: 'Security'},
   'settings.nav.shortcuts': {AppLang.zh: '快捷键', AppLang.en: 'Shortcuts'},
 
   // 通用页
@@ -76,6 +82,7 @@ const Map<String, Map<AppLang, String>> _dict = {
   'top.connect': {AppLang.zh: '连接', AppLang.en: 'Connect'},
   'top.newHost': {AppLang.zh: '新建主机', AppLang.en: 'New Host'},
   'top.split': {AppLang.zh: '分屏', AppLang.en: 'Split'},
+  'top.resetLayout': {AppLang.zh: '重置布局', AppLang.en: 'Reset Layout'},
 
   // ========== 面板标题 ==========
   'panel.hosts': {AppLang.zh: '主机', AppLang.en: 'Hosts'},

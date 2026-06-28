@@ -12,33 +12,33 @@ TabbedViewThemeData buildTabbedTheme() {
   // tab 栏整体
   theme.tabsArea
     ..color = AppColors.mantle
-    ..border = const Border(
+    ..border = Border(
         bottom: BorderSide(color: AppColors.surface0)) // 底部一条细分隔
     ..initialGap = 0
     ..middleGap = 0;
 
   // 单个 tab：无圆角无边框，紧凑
   theme.tab
-    ..textStyle = const TextStyle(fontSize: 12, color: AppColors.subtext)
+    ..textStyle = TextStyle(fontSize: 12, color: AppColors.subtext)
     ..padding = const EdgeInsets.symmetric(horizontal: 14, vertical: 8)
-    ..decoration = const BoxDecoration(color: AppColors.mantle)
+    ..decoration = BoxDecoration(color: AppColors.mantle)
     ..normalButtonColor = AppColors.overlay
     ..hoverButtonColor = AppColors.text;
 
   // 选中态：背景提亮 + 顶部 2px 蓝线（VS Code 活动 tab 标志）
   theme.tab.selectedStatus
     ..fontColor = AppColors.text
-    ..decoration = const BoxDecoration(
+    ..decoration = BoxDecoration(
       color: AppColors.base,
       border: Border(top: BorderSide(color: AppColors.blue, width: 2)),
     );
 
   // hover 态：轻微提亮
   theme.tab.highlightedStatus.decoration =
-      const BoxDecoration(color: AppColors.surface0);
+      BoxDecoration(color: AppColors.surface0);
 
   // 内容区：去掉默认粗边框
-  theme.contentArea.decoration = const BoxDecoration(color: AppColors.base);
+  theme.contentArea.decoration = BoxDecoration(color: AppColors.base);
 
   return theme;
 }

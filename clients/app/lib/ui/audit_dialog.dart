@@ -13,7 +13,7 @@ Future<void> showAuditDialog(BuildContext context) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 600),
@@ -51,23 +51,23 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
         // 标题 + 清空
         Row(
           children: [
-            const Icon(Icons.receipt_long_outlined,
+            Icon(Icons.receipt_long_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
             Text(l.t('audit.title'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
             Text(l.t('audit.count', {'n': '${all.length}'}),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             if (all.isNotEmpty)
               TextButton(
                 onPressed: () => ref.read(auditProvider.notifier).clear(),
                 child: Text(l.t('common.clear'),
-                    style: const TextStyle(fontSize: 12, color: AppColors.red)),
+                    style: TextStyle(fontSize: 12, color: AppColors.red)),
               ),
           ],
         ),
@@ -89,7 +89,7 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
                   padding: const EdgeInsets.symmetric(vertical: 30),
                   child: Text(l.t('audit.empty'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
@@ -170,13 +170,13 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(e.command,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: kMonoFont,
                           fontSize: 11.5,
                           color: AppColors.text)),
                   const SizedBox(height: 2),
                   Text('${e.host} · ${_fmtTime(e.time)}${e.executed ? '' : l.t('audit.notExecuted')}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10, color: AppColors.overlay)),
                 ],
               ),
