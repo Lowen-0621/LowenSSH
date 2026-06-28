@@ -82,6 +82,7 @@ const Map<String, Map<AppLang, String>> _dict = {
   'top.connect': {AppLang.zh: '连接', AppLang.en: 'Connect'},
   'top.newHost': {AppLang.zh: '新建主机', AppLang.en: 'New Host'},
   'top.split': {AppLang.zh: '分屏', AppLang.en: 'Split'},
+  'top.resetLayout': {AppLang.zh: '重置布局', AppLang.en: 'Reset Layout'},
 
   // ========== 面板标题 ==========
   'panel.hosts': {AppLang.zh: '主机', AppLang.en: 'Hosts'},

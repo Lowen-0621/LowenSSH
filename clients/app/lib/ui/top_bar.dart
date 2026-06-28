@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../state/search_provider.dart';
 import '../state/settings_provider.dart';
+import '../state/layout_provider.dart';
 import 'dialogs.dart';
 import 'settings_center.dart';
 
@@ -92,6 +93,12 @@ class TopBar extends ConsumerWidget {
         _btn(icon: Icons.folder_outlined, label: 'SFTP'),
         const SizedBox(width: 6),
         _btn(icon: Icons.splitscreen_outlined, label: l.t('top.split')),
+        const SizedBox(width: 6),
+        // 重置布局：找回被关掉的面板（终端/智能体等）
+        _btn(
+            icon: Icons.restart_alt,
+            label: l.t('top.resetLayout'),
+            onTap: () => ref.read(layoutResetProvider.notifier).reset()),
         const SizedBox(width: 6),
         _btn(
             icon: Icons.settings_outlined,
