@@ -15,7 +15,7 @@ Future<void> showKeysDialog(BuildContext context) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 620),
@@ -44,22 +44,22 @@ class _KeysBody extends ConsumerWidget {
         // 标题 + 添加
         Row(
           children: [
-            const Icon(Icons.vpn_key_outlined, size: 16, color: AppColors.text),
+            Icon(Icons.vpn_key_outlined, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
             Text(l.t('keys.title'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
             Text(l.t('keys.count', {'n': '${keys.length}'}),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             TextButton.icon(
               onPressed: () => _showAddKeyDialog(context, ref),
-              icon: const Icon(Icons.add, size: 15, color: AppColors.blue),
+              icon: Icon(Icons.add, size: 15, color: AppColors.blue),
               label: Text(l.t('keys.add'),
-                  style: const TextStyle(fontSize: 12, color: AppColors.blue)),
+                  style: TextStyle(fontSize: 12, color: AppColors.blue)),
             ),
           ],
         ),
@@ -70,7 +70,7 @@ class _KeysBody extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Text(l.t('keys.empty'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
@@ -102,26 +102,26 @@ class _KeysBody extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.vpn_key, size: 15, color: AppColors.yellow),
+            Icon(Icons.vpn_key, size: 15, color: AppColors.yellow),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(k.name,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13, color: AppColors.text)),
                   const SizedBox(height: 2),
                   Text(
                       '${k.passphraseEnc != null ? l.t('keys.withPassphrase') : ''}'
                       '${usedBy > 0 ? l.t('keys.usedBy', {'n': '$usedBy'}) : l.t('keys.unused')}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10, color: AppColors.overlay)),
                 ],
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 16, color: AppColors.red),
               splashRadius: 16,
               tooltip: l.t('common.delete'),
@@ -141,20 +141,20 @@ class _KeysBody extends ConsumerWidget {
         backgroundColor: AppColors.mantle,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.surface0),
+          side: BorderSide(color: AppColors.surface0),
         ),
         title: Text(l.t('keys.deleteKey'),
-            style: const TextStyle(fontSize: 15, color: AppColors.text)),
+            style: TextStyle(fontSize: 15, color: AppColors.text)),
         content: Text(
             usedBy > 0
                 ? l.t('keys.deleteUsed', {'name': k.name, 'n': '$usedBy'})
                 : l.t('keys.deleteConfirm', {'name': k.name}),
-            style: const TextStyle(fontSize: 13, color: AppColors.subtext)),
+            style: TextStyle(fontSize: 13, color: AppColors.subtext)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(l.t('common.cancel'),
-                style: const TextStyle(color: AppColors.subtext)),
+                style: TextStyle(color: AppColors.subtext)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -187,7 +187,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
         backgroundColor: AppColors.mantle,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.surface0),
+          side: BorderSide(color: AppColors.surface0),
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -199,11 +199,11 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.vpn_key_outlined,
+                    Icon(Icons.vpn_key_outlined,
                         size: 18, color: AppColors.blue),
                     const SizedBox(width: 8),
                     Text(l.t('keys.add'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppColors.text)),
@@ -224,7 +224,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
                   const SizedBox(height: 8),
                   Text(errorText!,
                       style:
-                          const TextStyle(fontSize: 11, color: AppColors.red)),
+                          TextStyle(fontSize: 11, color: AppColors.red)),
                 ],
                 const SizedBox(height: 16),
                 Row(
@@ -233,7 +233,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
                       child: Text(l.t('common.cancel'),
-                          style: const TextStyle(color: AppColors.subtext)),
+                          style: TextStyle(color: AppColors.subtext)),
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
@@ -276,7 +276,7 @@ void _showAddKeyDialog(BuildContext context, WidgetRef ref) {
 Widget _label(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(text,
-          style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+          style: TextStyle(fontSize: 11, color: AppColors.subtext)),
     );
 
 Widget _input(TextEditingController c,
@@ -295,18 +295,18 @@ Widget _input(TextEditingController c,
       decoration: InputDecoration(
         isDense: true,
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 11, color: AppColors.overlay),
+        hintStyle: TextStyle(fontSize: 11, color: AppColors.overlay),
         filled: true,
         fillColor: AppColors.base,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.surface0),
+          borderSide: BorderSide(color: AppColors.surface0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.blue),
+          borderSide: BorderSide(color: AppColors.blue),
         ),
       ),
     );

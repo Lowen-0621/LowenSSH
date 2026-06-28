@@ -15,7 +15,7 @@ class TopBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       height: 38,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.mantle,
         border: Border(bottom: BorderSide(color: AppColors.surface0)),
       ),
@@ -24,7 +24,7 @@ class TopBar extends ConsumerWidget {
         children: [
           // Logo
           Row(
-            children: const [
+            children: [
               Text('◈', style: TextStyle(color: AppColors.blue, fontSize: 14)),
               SizedBox(width: 5),
               Text('LowenSSH',
@@ -56,19 +56,19 @@ class TopBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
       child: Row(
         children: [
-          const Icon(Icons.search, size: 15, color: AppColors.overlay),
+          Icon(Icons.search, size: 15, color: AppColors.overlay),
           const SizedBox(width: 6),
           Expanded(
             child: TextField(
               onChanged: (v) =>
                   ref.read(hostSearchProvider.notifier).update(v),
-              style: const TextStyle(color: AppColors.text, fontSize: 13),
+              style: TextStyle(color: AppColors.text, fontSize: 13),
               decoration: InputDecoration(
                 isDense: true,
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 6),
                 hintText: l.t('top.search'),
-                hintStyle: const TextStyle(
+                hintStyle: TextStyle(
                     color: AppColors.overlay, fontSize: 13),
               ),
             ),

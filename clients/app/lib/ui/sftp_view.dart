@@ -72,7 +72,7 @@ class SftpView extends ConsumerWidget {
   // 工具条：本地路径 | 上传/下载 | 远程路径
   Widget _toolbar(L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.mantle,
           border: Border(bottom: BorderSide(color: AppColors.surface0)),
         ),
@@ -112,7 +112,7 @@ class SftpView extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(path,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontFamily: kMonoFont,
                       fontSize: 11.5,
                       color: AppColors.subtext)),
@@ -133,7 +133,7 @@ class SftpView extends ConsumerWidget {
             Icon(icon, size: 13, color: AppColors.text),
             const SizedBox(width: 4),
             Text(label,
-                style: const TextStyle(fontSize: 11, color: AppColors.text)),
+                style: TextStyle(fontSize: 11, color: AppColors.text)),
           ],
         ),
       );
@@ -154,24 +154,24 @@ class SftpView extends ConsumerWidget {
             // 头
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColors.mantle,
                 border: Border(bottom: BorderSide(color: AppColors.surface0)),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.folder_open_outlined,
+                  Icon(Icons.folder_open_outlined,
                       size: 14, color: AppColors.subtext),
                   const SizedBox(width: 7),
                   Text(head,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: kMonoFont,
                           fontSize: 11.5,
                           color: AppColors.subtext)),
                   if (host != null) ...[
                     const Spacer(),
                     Text(host,
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 10, color: AppColors.green)),
                   ],
                 ],
@@ -208,7 +208,7 @@ class SftpView extends ConsumerWidget {
             ),
             // 上传中显示进度图标
             if (f.uploading)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(right: 4),
                 child: Icon(Icons.upload, size: 12, color: AppColors.blue),
               ),
@@ -226,14 +226,14 @@ class SftpView extends ConsumerWidget {
   // 底部传输状态条
   Widget _status(L10n l) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.crust,
           border: Border(top: BorderSide(color: AppColors.surface0)),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Row(
+            Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.upload, size: 12, color: AppColors.blue),
@@ -246,7 +246,7 @@ class SftpView extends ConsumerWidget {
               ],
             ),
             Text(l.t('sftp.hint'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 10.5,
                     color: AppColors.overlay)),

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../theme.dart';
 import '../core/i18n.dart';
 import '../core/config.dart';
+import '../core/palette.dart';
+import '../core/lock_store.dart';
 import '../core/settings_store.dart';
 import '../state/config_provider.dart';
 import '../state/settings_provider.dart';
@@ -20,7 +22,7 @@ Future<void> showSettingsCenter(BuildContext context) {
       insetPadding: const EdgeInsets.all(40),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 860, maxHeight: 620),
@@ -31,7 +33,7 @@ Future<void> showSettingsCenter(BuildContext context) {
 }
 
 // 导航项标识
-enum _Nav { aiModel, common, terminal, theme, shortcuts }
+enum _Nav { aiModel, common, terminal, theme, security, shortcuts }
 
 class _SettingsCenter extends ConsumerStatefulWidget {
   const _SettingsCenter();
@@ -51,7 +53,7 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
       children: [
         // 左栏导航
         SizedBox(width: 220, child: _navBar(l)),
-        const VerticalDivider(width: 1, color: AppColors.surface0),
+        VerticalDivider(width: 1, color: AppColors.surface0),
         // 右栏内容
         Expanded(
           child: Column(
@@ -60,21 +62,21 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
               // 顶部标题条
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   border:
                       Border(bottom: BorderSide(color: AppColors.surface0)),
                 ),
                 child: Row(
                   children: [
                     Text(l.t('settings.title'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: AppColors.text)),
                     const Spacer(),
                     InkWell(
                       onTap: () => Navigator.pop(context),
-                      child: const Icon(Icons.close,
+                      child: Icon(Icons.close,
                           size: 18, color: AppColors.subtext),
                     ),
                   ],
@@ -87,6 +89,8 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
                     _Nav.aiModel => const _AiModelPage(),
                     _Nav.common => const _CommonPage(),
                     _Nav.terminal => const _TerminalPage(),
+                    _Nav.theme => const _ThemePage(),
+                    _Nav.security => const _SecurityPage(),
                     _ => _placeholder(l),
                   },
                 ),
@@ -140,6 +144,8 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
               l.t('settings.nav.terminal')),
           item(_Nav.theme, Icons.palette_outlined,
               l.t('settings.nav.theme')),
+          item(_Nav.security, Icons.lock_outline,
+              l.t('settings.nav.security')),
           item(_Nav.shortcuts, Icons.keyboard_outlined,
               l.t('settings.nav.shortcuts')),
           const Spacer(),
@@ -150,10 +156,10 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(l.t('common.version'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
                 Text(kAppVersion,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
               ],
             ),
@@ -167,7 +173,7 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
         padding: const EdgeInsets.symmetric(vertical: 40),
         child: Text(l.t('settings.comingSoon'),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, color: AppColors.overlay)),
+            style: TextStyle(fontSize: 13, color: AppColors.overlay)),
       );
 }
 
@@ -196,13 +202,13 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(l.t('settings.ai.title'),
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.text)),
         const SizedBox(height: 4),
         Text(l.t('settings.ai.hint'),
-            style: const TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+            style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
         const SizedBox(height: 16),
         // 供应商选择行（横向卡片）
         Wrap(
@@ -246,13 +252,13 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
                 Expanded(
                   child: Text(p.name,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: AppColors.text)),
                 ),
                 if (active)
-                  const Icon(Icons.check_circle,
+                  Icon(Icons.check_circle,
                       size: 14, color: AppColors.green),
               ],
             ),
@@ -271,7 +277,7 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
                 Flexible(
                   child: Text(p.model,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10, color: AppColors.overlay)),
                 ),
               ],
@@ -350,7 +356,7 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
           Row(
             children: [
               Text(widget.provider.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                       color: AppColors.text)),
@@ -364,7 +370,7 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(l.t('settings.ai.active'),
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 9.5,
                           fontWeight: FontWeight.w700,
                           color: AppColors.green)),
@@ -386,7 +392,7 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
             alignment: Alignment.centerLeft,
             child: widget.isActive
                 ? Text(l.t('settings.ai.active'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 12, color: AppColors.green))
                 : FilledButton(
                     onPressed: widget.provider.configured
@@ -421,7 +427,7 @@ class _CommonPage extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(l.t('settings.common.title'),
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.text)),
@@ -436,7 +442,7 @@ class _CommonPage extends ConsumerWidget {
           child: Row(
             children: [
               Text(l.t('settings.common.language'),
-                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+                  style: TextStyle(fontSize: 13, color: AppColors.text)),
               const Spacer(),
               // 语言切换
               _langTab(l.t('settings.common.langZh'), lang == AppLang.zh,
@@ -485,7 +491,7 @@ class _TerminalPage extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(l.t('settings.term.title'),
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 color: AppColors.text)),
@@ -504,11 +510,11 @@ class _TerminalPage extends ConsumerWidget {
                   (v) {
                 notifier.updateTerminal(selectToCopy: v, rightClickPaste: v);
               }),
-              const Divider(height: 1, color: AppColors.surface0),
+              Divider(height: 1, color: AppColors.surface0),
               // 光标闪烁
               _switchRow(l.t('settings.term.cursorBlink'), s.cursorBlink,
                   (v) => notifier.updateTerminal(cursorBlink: v)),
-              const Divider(height: 1, color: AppColors.surface0),
+              Divider(height: 1, color: AppColors.surface0),
               // 光标样式（三选）
               _rowWrap(
                 l.t('settings.term.cursorStyle'),
@@ -532,7 +538,7 @@ class _TerminalPage extends ConsumerWidget {
                   ],
                 ),
               ),
-              const Divider(height: 1, color: AppColors.surface0),
+              Divider(height: 1, color: AppColors.surface0),
               // 字号（± 步进）
               _rowWrap(
                 l.t('settings.term.fontSize'),
@@ -547,7 +553,7 @@ class _TerminalPage extends ConsumerWidget {
                       width: 44,
                       alignment: Alignment.center,
                       child: Text(s.termFontSize.toStringAsFixed(0),
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13, color: AppColors.text)),
                     ),
                     _stepBtn(Icons.add, () {
@@ -572,7 +578,7 @@ class _TerminalPage extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(label,
-                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+                  style: TextStyle(fontSize: 13, color: AppColors.text)),
             ),
             Switch(
               value: value,
@@ -591,7 +597,7 @@ class _TerminalPage extends ConsumerWidget {
           children: [
             Expanded(
               child: Text(label,
-                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+                  style: TextStyle(fontSize: 13, color: AppColors.text)),
             ),
             trailing,
           ],
@@ -637,7 +643,7 @@ class _TerminalPage extends ConsumerWidget {
 Widget _label(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(text,
-          style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+          style: TextStyle(fontSize: 11, color: AppColors.subtext)),
     );
 
 Widget _input(TextEditingController c,
@@ -646,7 +652,7 @@ Widget _input(TextEditingController c,
       controller: c,
       obscureText: obscure,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 13, color: AppColors.text),
+      style: TextStyle(fontSize: 13, color: AppColors.text),
       decoration: InputDecoration(
         isDense: true,
         filled: true,
@@ -655,11 +661,274 @@ Widget _input(TextEditingController c,
             const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.surface0),
+          borderSide: BorderSide(color: AppColors.surface0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.blue),
+          borderSide: BorderSide(color: AppColors.blue),
         ),
       ),
     );
+
+// ============ 外观（配色）页 ============
+
+class _ThemePage extends ConsumerWidget {
+  const _ThemePage();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = ref.watch(l10nProvider);
+    final currentId = ref.watch(settingsProvider).themeId;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(l.t('settings.theme.scheme')),
+        const SizedBox(height: 4),
+        Text(l.t('settings.theme.hint'),
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final p in Palettes.all)
+              _paletteCard(
+                p,
+                selected: p.id == currentId,
+                onTap: () => ref.read(settingsProvider.notifier).setTheme(p.id),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // 单张配色预览卡：迷你界面预览 + 名称 + 选中标记
+  Widget _paletteCard(AppPalette p,
+      {required bool selected, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 180,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.base,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? AppColors.blue : AppColors.surface0,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 迷你界面预览：用该方案自身的颜色渲染
+            _miniPreview(p),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(p.name,
+                      style: TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.text)),
+                ),
+                if (selected)
+                  Icon(Icons.check_circle, size: 16, color: AppColors.blue),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 用配色自身颜色画一个三栏迷你界面缩略图
+  Widget _miniPreview(AppPalette p) {
+    return Container(
+      height: 64,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: p.base,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: p.surface0),
+      ),
+      child: Row(
+        children: [
+          // 侧栏
+          Container(width: 30, color: p.mantle, child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _dot(p.blue),
+              const SizedBox(height: 4),
+              _dot(p.subtext),
+              const SizedBox(height: 4),
+              _dot(p.subtext),
+            ],
+          )),
+          // 主区：几条彩色文字行
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _bar(p.green, 0.7),
+                  const SizedBox(height: 4),
+                  _bar(p.yellow, 0.5),
+                  const SizedBox(height: 4),
+                  _bar(p.text, 0.85),
+                  const SizedBox(height: 4),
+                  _bar(p.mauve, 0.4),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dot(Color c) =>
+      Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+
+  Widget _bar(Color c, double widthFactor) => FractionallySizedBox(
+        widthFactor: widthFactor,
+        alignment: Alignment.centerLeft,
+        child: Container(
+            height: 5,
+            decoration: BoxDecoration(
+                color: c, borderRadius: BorderRadius.circular(3))),
+      );
+}
+
+// ============ 安全（主密码）页 ============
+
+class _SecurityPage extends ConsumerStatefulWidget {
+  const _SecurityPage();
+
+  @override
+  ConsumerState<_SecurityPage> createState() => _SecurityPageState();
+}
+
+class _SecurityPageState extends ConsumerState<_SecurityPage> {
+  final _oldCtrl = TextEditingController();
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  String? _msg;
+  bool _isError = false;
+
+  @override
+  void dispose() {
+    _oldCtrl.dispose();
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  void _setMsg(String m, {bool error = false}) =>
+      setState(() {
+        _msg = m;
+        _isError = error;
+      });
+
+  bool get _zh => ref.read(settingsProvider).lang == AppLang.zh;
+
+  // 设置或修改主密码
+  void _save() {
+    final hasOld = hasMasterPassword();
+    // 已设密码：先验旧
+    if (hasOld && !verifyMasterPassword(_oldCtrl.text)) {
+      _setMsg(_zh ? '当前密码错误' : 'Current password is wrong', error: true);
+      return;
+    }
+    final np = _newCtrl.text;
+    if (np.isEmpty) {
+      _setMsg(_zh ? '新密码不能为空' : 'New password cannot be empty', error: true);
+      return;
+    }
+    if (np != _confirmCtrl.text) {
+      _setMsg(_zh ? '两次输入不一致' : 'Passwords do not match', error: true);
+      return;
+    }
+    setMasterPassword(np);
+    _oldCtrl.clear();
+    _newCtrl.clear();
+    _confirmCtrl.clear();
+    _setMsg(_zh ? '已保存，下次启动生效' : 'Saved. Takes effect next launch');
+  }
+
+  // 取消主密码
+  void _clear() {
+    if (!verifyMasterPassword(_oldCtrl.text)) {
+      _setMsg(_zh ? '当前密码错误' : 'Current password is wrong', error: true);
+      return;
+    }
+    clearMasterPassword();
+    _oldCtrl.clear();
+    _newCtrl.clear();
+    _confirmCtrl.clear();
+    setState(() {});
+    _setMsg(_zh ? '已取消主密码' : 'Master password removed');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final zh = _zh;
+    final hasPwd = hasMasterPassword();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(zh ? '主密码' : 'Master Password'),
+        const SizedBox(height: 4),
+        Text(
+            hasPwd
+                ? (zh ? '已启用。启动应用时需输入主密码解锁。' : 'Enabled. Required to unlock on launch.')
+                : (zh ? '未设置。设置后启动需解锁，保护本地主机簿与密钥。' : 'Not set. Protects local hosts & keys.'),
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+        const SizedBox(height: 16),
+        if (hasPwd) ...[
+          _label(zh ? '当前密码' : 'Current Password'),
+          _input(_oldCtrl, obscure: true),
+          const SizedBox(height: 12),
+        ],
+        _label(zh ? '新密码' : 'New Password'),
+        _input(_newCtrl, obscure: true),
+        const SizedBox(height: 12),
+        _label(zh ? '确认新密码' : 'Confirm New Password'),
+        _input(_confirmCtrl, obscure: true),
+        if (_msg != null) ...[
+          const SizedBox(height: 10),
+          Text(_msg!,
+              style: TextStyle(
+                  fontSize: 12,
+                  color: _isError ? AppColors.red : AppColors.green)),
+        ],
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            FilledButton(
+              onPressed: _save,
+              style: FilledButton.styleFrom(backgroundColor: AppColors.blue),
+              child: Text(hasPwd ? (zh ? '修改' : 'Change') : (zh ? '设置' : 'Set'),
+                  style: TextStyle(color: AppColors.crust)),
+            ),
+            if (hasPwd) ...[
+              const SizedBox(width: 10),
+              OutlinedButton(
+                onPressed: _clear,
+                style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: AppColors.red)),
+                child: Text(zh ? '取消主密码' : 'Remove',
+                    style: TextStyle(color: AppColors.red)),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}

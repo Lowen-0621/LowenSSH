@@ -14,7 +14,7 @@ Future<void> showForwardDialog(BuildContext context) {
       backgroundColor: AppColors.mantle,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: AppColors.surface0),
+        side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 560, maxHeight: 620),
@@ -46,17 +46,17 @@ class _ForwardBody extends ConsumerWidget {
         // 标题 + 添加
         Row(
           children: [
-            const Icon(Icons.swap_horiz_outlined,
+            Icon(Icons.swap_horiz_outlined,
                 size: 16, color: AppColors.text),
             const SizedBox(width: 8),
             Text(l.t('fwd.title'),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
                     color: AppColors.text)),
             const SizedBox(width: 8),
             Text(l.t('fwd.count', {'n': '${list.length}'}),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
             const Spacer(),
             TextButton.icon(
               onPressed: conn.isConnected
@@ -96,7 +96,7 @@ class _ForwardBody extends ConsumerWidget {
                     conn.isConnected
                         ? l.t('fwd.boundHint', {'host': hostName})
                         : l.t('fwd.notConnected'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10.5, height: 1.4, color: AppColors.subtext)),
               ),
             ],
@@ -109,7 +109,7 @@ class _ForwardBody extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Text(l.t('fwd.empty'),
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 12, color: AppColors.overlay)),
                 )
               : ListView.separated(
@@ -157,7 +157,7 @@ class _ForwardBody extends ConsumerWidget {
                 children: [
                   Text(
                       'localhost:${e.localPort}  →  ${e.remoteHost}:${e.remotePort}',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontFamily: kMonoFont,
                           fontSize: 12,
                           color: AppColors.text)),
@@ -188,7 +188,7 @@ class _ForwardBody extends ConsumerWidget {
             ),
             // 删除
             IconButton(
-              icon: const Icon(Icons.delete_outline,
+              icon: Icon(Icons.delete_outline,
                   size: 16, color: AppColors.red),
               splashRadius: 16,
               tooltip: l.t('common.delete'),
@@ -215,7 +215,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
         backgroundColor: AppColors.mantle,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.surface0),
+          side: BorderSide(color: AppColors.surface0),
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 440),
@@ -227,11 +227,11 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.swap_horiz_outlined,
+                    Icon(Icons.swap_horiz_outlined,
                         size: 18, color: AppColors.blue),
                     const SizedBox(width: 8),
                     Text(l.t('fwd.addTunnel'),
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w600,
                             color: AppColors.text)),
@@ -239,7 +239,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                 ),
                 const SizedBox(height: 6),
                 Text(l.t('fwd.addDesc'),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10.5, height: 1.4, color: AppColors.overlay)),
                 const SizedBox(height: 14),
                 _label(l.t('fwd.localPort')),
@@ -254,7 +254,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                   const SizedBox(height: 8),
                   Text(errorText!,
                       style:
-                          const TextStyle(fontSize: 11, color: AppColors.red)),
+                          TextStyle(fontSize: 11, color: AppColors.red)),
                 ],
                 const SizedBox(height: 16),
                 Row(
@@ -263,7 +263,7 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
                     TextButton(
                       onPressed: () => Navigator.pop(ctx),
                       child: Text(l.t('common.cancel'),
-                          style: const TextStyle(color: AppColors.subtext)),
+                          style: TextStyle(color: AppColors.subtext)),
                     ),
                     const SizedBox(width: 8),
                     FilledButton(
@@ -309,27 +309,27 @@ void _showAddDialog(BuildContext context, WidgetRef ref) {
 Widget _label(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Text(text,
-          style: const TextStyle(fontSize: 11, color: AppColors.subtext)),
+          style: TextStyle(fontSize: 11, color: AppColors.subtext)),
     );
 
 Widget _input(TextEditingController c, {String? hint}) => TextField(
       controller: c,
-      style: const TextStyle(fontSize: 13, color: AppColors.text),
+      style: TextStyle(fontSize: 13, color: AppColors.text),
       decoration: InputDecoration(
         isDense: true,
         hintText: hint,
-        hintStyle: const TextStyle(fontSize: 11, color: AppColors.overlay),
+        hintStyle: TextStyle(fontSize: 11, color: AppColors.overlay),
         filled: true,
         fillColor: AppColors.base,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.surface0),
+          borderSide: BorderSide(color: AppColors.surface0),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(6),
-          borderSide: const BorderSide(color: AppColors.blue),
+          borderSide: BorderSide(color: AppColors.blue),
         ),
       ),
     );

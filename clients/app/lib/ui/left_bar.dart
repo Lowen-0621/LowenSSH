@@ -53,7 +53,7 @@ class LeftBar extends ConsumerWidget {
                     query.isEmpty
                         ? l.t('left.noHosts')
                         : l.t('left.noMatch', {'q': query}),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.overlay)),
               )
             else
@@ -68,7 +68,7 @@ class LeftBar extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(l.t('left.connectFail', {'err': '${conn.error}'}),
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10.5, color: AppColors.red)),
               ),
             _divider(),
@@ -105,14 +105,14 @@ class LeftBar extends ConsumerWidget {
         child: Row(
           children: [
             Text(title.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 10.5,
                     letterSpacing: 1,
                     color: AppColors.overlay)),
             const Spacer(),
             InkWell(
               onTap: () => showAddHostDialog(context, ref),
-              child: const Icon(Icons.add, size: 15, color: AppColors.subtext),
+              child: Icon(Icons.add, size: 15, color: AppColors.subtext),
             ),
           ],
         ),
@@ -151,7 +151,7 @@ class LeftBar extends ConsumerWidget {
             children: [
               // 状态：连接中转圈 / error红点 / 已连绿点 / 未连灰点
               if (connecting)
-                const SizedBox(
+                SizedBox(
                   width: 9,
                   height: 9,
                   child: CircularProgressIndicator(
@@ -161,13 +161,13 @@ class LeftBar extends ConsumerWidget {
                 Container(
                   width: 7,
                   height: 7,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                       color: AppColors.red, shape: BoxShape.circle),
                 )
               else
                 _onlineDot(connected),
               const SizedBox(width: 9),
-              const Icon(Icons.dns_outlined,
+              Icon(Icons.dns_outlined,
                   size: 15, color: AppColors.subtext),
               const SizedBox(width: 8),
               Expanded(
@@ -176,7 +176,7 @@ class LeftBar extends ConsumerWidget {
                     Flexible(
                       child: Text(name,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13, color: AppColors.text)),
                     ),
                     const SizedBox(width: 6),
@@ -184,7 +184,7 @@ class LeftBar extends ConsumerWidget {
                     Flexible(
                       child: Text('${h.host}:${h.port}',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 10.5, color: AppColors.overlay)),
                     ),
                   ],
@@ -211,10 +211,10 @@ class LeftBar extends ConsumerWidget {
           height: 36,
           child: Row(
             children: [
-              const Icon(Icons.delete_outline, size: 15, color: AppColors.red),
+              Icon(Icons.delete_outline, size: 15, color: AppColors.red),
               const SizedBox(width: 8),
               Text(l.t('left.deleteHost'),
-                  style: const TextStyle(fontSize: 13, color: AppColors.text)),
+                  style: TextStyle(fontSize: 13, color: AppColors.text)),
             ],
           ),
         ),
@@ -236,19 +236,19 @@ class LeftBar extends ConsumerWidget {
         backgroundColor: AppColors.mantle,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: const BorderSide(color: AppColors.surface0),
+          side: BorderSide(color: AppColors.surface0),
         ),
         title: Text(l.t('left.deleteHost'),
-            style: const TextStyle(fontSize: 15, color: AppColors.text)),
+            style: TextStyle(fontSize: 15, color: AppColors.text)),
         content: Text(
             l.t('left.deleteHostConfirm',
                 {'name': name, 'addr': '${h.host}:${h.port}'}),
-            style: const TextStyle(fontSize: 13, color: AppColors.subtext)),
+            style: TextStyle(fontSize: 13, color: AppColors.subtext)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(l.t('common.cancel'),
-                style: const TextStyle(color: AppColors.subtext)),
+                style: TextStyle(color: AppColors.subtext)),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
@@ -325,7 +325,7 @@ class LeftBar extends ConsumerWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 13, color: AppColors.subtext)),
               ),
               if (badge != null)
@@ -337,7 +337,7 @@ class LeftBar extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(badge,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10, color: AppColors.subtext)),
                 ),
             ],

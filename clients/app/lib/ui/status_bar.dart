@@ -26,13 +26,13 @@ class StatusBar extends ConsumerWidget {
 
     return Container(
       height: 26,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.crust,
         border: Border(top: BorderSide(color: AppColors.surface0)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DefaultTextStyle(
-        style: const TextStyle(
+        style: TextStyle(
             fontFamily: kMonoFont, fontSize: 11, color: AppColors.subtext),
         child: Row(
           children: [
@@ -42,30 +42,30 @@ class StatusBar extends ConsumerWidget {
             // 门禁：ON + 阻止/待确认实时计数
             _seg([
               Text(l.t('status.guard'),
-                  style: const TextStyle(color: AppColors.overlay)),
-              const Text('ON', style: TextStyle(color: AppColors.green)),
-              const Text(' · ', style: TextStyle(color: AppColors.overlay)),
+                  style: TextStyle(color: AppColors.overlay)),
+              Text('ON', style: TextStyle(color: AppColors.green)),
+              Text(' · ', style: TextStyle(color: AppColors.overlay)),
               Text(l.t('status.blocked', {'n': '${guard.denyCount}'}),
-                  style: const TextStyle(color: AppColors.red)),
-              const Text(' · ', style: TextStyle(color: AppColors.overlay)),
+                  style: TextStyle(color: AppColors.red)),
+              Text(' · ', style: TextStyle(color: AppColors.overlay)),
               Text(l.t('status.pending', {'n': '${guard.askCount}'}),
-                  style: const TextStyle(color: AppColors.yellow)),
+                  style: TextStyle(color: AppColors.yellow)),
             ]),
             const Spacer(),
             // 模型
             _seg([
               Text(l.t('status.model'),
-                  style: const TextStyle(color: AppColors.overlay)),
+                  style: TextStyle(color: AppColors.overlay)),
               Text(llm.model.isEmpty ? l.t('status.notConfigured') : llm.model,
-                  style: const TextStyle(color: AppColors.text)),
+                  style: TextStyle(color: AppColors.text)),
             ]),
             const SizedBox(width: 16),
             // 上下文轮数
             _seg([
               Text(l.t('status.context'),
-                  style: const TextStyle(color: AppColors.overlay)),
+                  style: TextStyle(color: AppColors.overlay)),
               Text(l.t('status.rounds', {'n': '$rounds'}),
-                  style: const TextStyle(color: AppColors.text)),
+                  style: TextStyle(color: AppColors.text)),
             ]),
           ],
         ),

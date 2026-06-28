@@ -81,7 +81,7 @@ class _RightBarState extends ConsumerState<RightBar> {
     }
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: AppColors.surface0)),
       ),
       child: Row(
@@ -142,7 +142,7 @@ class _SecurityPanel extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Text(l.t('right.noBlock'),
-                style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
           )
         else
           for (final b in stats.blocked)
@@ -175,7 +175,7 @@ class _SecurityPanel extends ConsumerWidget {
                       color: color)),
               const SizedBox(height: 2),
               Text(label,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10, color: AppColors.overlay)),
             ],
           ),
@@ -196,7 +196,7 @@ class _SecurityPanel extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: Text(pattern,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontFamily: kMonoFont,
                       fontSize: 11,
                       color: AppColors.subtext)),
@@ -204,7 +204,7 @@ class _SecurityPanel extends ConsumerWidget {
             const SizedBox(width: 6),
             Text(hits,
                 style:
-                    const TextStyle(fontSize: 10, color: AppColors.overlay)),
+                    TextStyle(fontSize: 10, color: AppColors.overlay)),
           ],
         ),
       );
@@ -235,7 +235,7 @@ class _SecurityPanel extends ConsumerWidget {
   Widget _logItem(String cmd, String meta, L10n l) => Container(
         margin: const EdgeInsets.only(bottom: 5),
         padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.base,
           borderRadius: BorderRadius.all(Radius.circular(6)),
           border: Border(left: BorderSide(color: AppColors.red, width: 2)),
@@ -244,7 +244,7 @@ class _SecurityPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(cmd,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 11,
                     color: AppColors.peach)),
@@ -253,10 +253,10 @@ class _SecurityPanel extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(meta,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10, color: AppColors.overlay)),
                 Text(l.t('right.tempAllow'),
-                    style: const TextStyle(fontSize: 10, color: AppColors.blue)),
+                    style: TextStyle(fontSize: 10, color: AppColors.blue)),
               ],
             ),
           ],
@@ -310,7 +310,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(l.t('right.filesEmpty'),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
       );
     }
 
@@ -329,14 +329,14 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
               Expanded(
                 child: Text(sftp.path,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontFamily: kMonoFont,
                         fontSize: 11,
                         color: AppColors.subtext)),
               ),
               InkWell(
                 onTap: () => ref.read(sftpProvider.notifier).load(),
-                child: const Icon(Icons.refresh,
+                child: Icon(Icons.refresh,
                     size: 13, color: AppColors.blue),
               ),
             ],
@@ -344,7 +344,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
         ),
         const SizedBox(height: 8),
         if (sftp.loading)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 16),
             child: Center(
               child: SizedBox(
@@ -359,7 +359,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(l.t('right.loadFail', {'err': '${sftp.error}'}),
-                style: const TextStyle(fontSize: 11, color: AppColors.red)),
+                style: TextStyle(fontSize: 11, color: AppColors.red)),
           )
         else ...[
           // 顶部 .. 返回上级（非根目录时）
@@ -386,7 +386,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(l.t('right.emptyDir'),
-                  style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay)),
             ),
         ],
       ],
@@ -420,7 +420,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
             ),
             if (meta != null)
               Text(meta,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 10, color: AppColors.overlay)),
           ],
         ),
@@ -463,7 +463,7 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
         padding: const EdgeInsets.symmetric(vertical: 20),
         child: Text(l.t('right.monEmpty'),
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 11, color: AppColors.overlay)),
+            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
       );
     }
 
@@ -488,7 +488,7 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
         if (m.error != null) ...[
           const SizedBox(height: 8),
           Text(l.t('right.sampleFail', {'err': '${m.error}'}),
-              style: const TextStyle(fontSize: 10, color: AppColors.red)),
+              style: TextStyle(fontSize: 10, color: AppColors.red)),
         ],
       ],
     );
@@ -502,7 +502,7 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
             SizedBox(
                 width: 48,
                 child: Text(label,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 11, color: AppColors.subtext))),
             const SizedBox(width: 9),
             Expanded(
@@ -523,7 +523,7 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
                 child: Text(val,
                     textAlign: TextAlign.right,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 10.5, color: AppColors.text))),
           ],
         ),
@@ -540,13 +540,13 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
-                style: const TextStyle(
+                style: TextStyle(
                     fontFamily: kMonoFont,
                     fontSize: 11,
                     color: AppColors.subtext)),
             Text(val,
                 style:
-                    const TextStyle(fontSize: 10, color: AppColors.overlay)),
+                    TextStyle(fontSize: 10, color: AppColors.overlay)),
           ],
         ),
       );
@@ -556,6 +556,6 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
 Widget _panelTitle(String text) => Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(text.toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
               fontSize: 10.5, letterSpacing: 1, color: AppColors.overlay)),
     );
