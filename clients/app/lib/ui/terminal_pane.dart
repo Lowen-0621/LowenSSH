@@ -181,19 +181,20 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
   }
 }
 
-/// 终端配色（贴近 Catppuccin Mocha）
-final TerminalTheme _termTheme = TerminalTheme(
+/// 终端配色 —— getter（非 const 全局），随当前主题 AppColors 实时重算，
+/// 切换配色后终端区域颜色立即跟随。
+TerminalTheme get _termTheme => TerminalTheme(
   cursor: AppColors.text,
   // 选区半透明，选中后文字仍可读（原来不透明的灰会盖住文字）
   selection: AppColors.surface2.withValues(alpha: .45),
   foreground: AppColors.text,
   background: AppColors.crust,
-  black: const Color(0xFF45475A),
+  black: AppColors.surface1,
   red: AppColors.red,
   green: AppColors.green,
   yellow: AppColors.yellow,
   blue: AppColors.blue,
-  magenta: Color(0xFFF5C2E7),
+  magenta: AppColors.pink,
   cyan: AppColors.sapphire,
   white: AppColors.text,
   brightBlack: AppColors.overlay,
@@ -201,9 +202,9 @@ final TerminalTheme _termTheme = TerminalTheme(
   brightGreen: AppColors.green,
   brightYellow: AppColors.yellow,
   brightBlue: AppColors.blue,
-  brightMagenta: Color(0xFFF5C2E7),
+  brightMagenta: AppColors.mauve,
   brightCyan: AppColors.sapphire,
-  brightWhite: Colors.white,
+  brightWhite: AppColors.text,
   searchHitBackground: AppColors.yellow,
   searchHitBackgroundCurrent: AppColors.peach,
   searchHitForeground: AppColors.crust,

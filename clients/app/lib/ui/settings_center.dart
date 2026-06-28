@@ -679,6 +679,7 @@ class _ThemePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     final currentId = ref.watch(settingsProvider).themeId;
+    final zh = ref.watch(settingsProvider).lang == AppLang.zh;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -694,6 +695,7 @@ class _ThemePage extends ConsumerWidget {
             for (final p in Palettes.all)
               _paletteCard(
                 p,
+                zh: zh,
                 selected: p.id == currentId,
                 onTap: () => ref.read(settingsProvider.notifier).setTheme(p.id),
               ),
@@ -705,7 +707,7 @@ class _ThemePage extends ConsumerWidget {
 
   // 单张配色预览卡：迷你界面预览 + 名称 + 选中标记
   Widget _paletteCard(AppPalette p,
-      {required bool selected, required VoidCallback onTap}) {
+      {required bool zh, required bool selected, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -729,7 +731,7 @@ class _ThemePage extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(p.name,
+                  child: Text(zh ? p.nameZh : p.nameEn,
                       style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,

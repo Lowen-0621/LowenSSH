@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 /// 新增配色只需 new 一个 AppPalette 实例，不必改调用点。
 class AppPalette {
   final String id; //        持久化用的稳定标识
-  final String name; //      显示名
+  final String nameZh; //    显示名（中）
+  final String nameEn; //    显示名（英）
   final Brightness brightness; // 亮/暗，给 Flutter ThemeData 用
 
   final Color base; //       主背景
@@ -29,7 +30,8 @@ class AppPalette {
 
   const AppPalette({
     required this.id,
-    required this.name,
+    required this.nameZh,
+    required this.nameEn,
     required this.brightness,
     required this.base,
     required this.mantle,
@@ -59,7 +61,7 @@ class Palettes {
   /// Catppuccin Mocha（深暗，原默认）
   static const mocha = AppPalette(
     id: 'mocha',
-    name: 'Mocha 深暗',
+    nameZh: 'Mocha 深暗', nameEn: 'Mocha Dark',
     brightness: Brightness.dark,
     base: Color(0xFF1E1E2E),
     mantle: Color(0xFF181825),
@@ -85,7 +87,7 @@ class Palettes {
   /// Catppuccin Macchiato（暗，比 Mocha 略亮偏暖）
   static const macchiato = AppPalette(
     id: 'macchiato',
-    name: 'Macchiato 暖暗',
+    nameZh: 'Macchiato 暖暗', nameEn: 'Macchiato Warm',
     brightness: Brightness.dark,
     base: Color(0xFF24273A),
     mantle: Color(0xFF1E2030),
@@ -111,7 +113,7 @@ class Palettes {
   /// Catppuccin Frappé（暗，更柔和的中间调）
   static const frappe = AppPalette(
     id: 'frappe',
-    name: 'Frappé 柔暗',
+    nameZh: 'Frappé 柔暗', nameEn: 'Frappé Soft',
     brightness: Brightness.dark,
     base: Color(0xFF303446),
     mantle: Color(0xFF292C3C),
@@ -137,7 +139,7 @@ class Palettes {
   /// Catppuccin Latte（亮色）
   static const latte = AppPalette(
     id: 'latte',
-    name: 'Latte 亮色',
+    nameZh: 'Latte 亮色', nameEn: 'Latte Light',
     brightness: Brightness.light,
     base: Color(0xFFEFF1F5),
     mantle: Color(0xFFE6E9EF),
@@ -160,8 +162,62 @@ class Palettes {
     pink: Color(0xFFEA76CB),
   );
 
+  /// 霓虹夜（Tokyo Night 风，高饱和彩色，深蓝底 + 鲜亮强调色）
+  static const neon = AppPalette(
+    id: 'neon',
+    nameZh: '霓虹夜',
+    nameEn: 'Neon Night',
+    brightness: Brightness.dark,
+    base: Color(0xFF1A1B26),
+    mantle: Color(0xFF16161E),
+    crust: Color(0xFF0F0F17),
+    surface0: Color(0xFF2A2E45),
+    surface1: Color(0xFF3B4261),
+    surface2: Color(0xFF545C7E),
+    text: Color(0xFFC0CAF5),
+    subtext: Color(0xFF9AA5CE),
+    overlay: Color(0xFF565F89),
+    blue: Color(0xFF7AA2F7),
+    lavender: Color(0xFFBB9AF7),
+    sapphire: Color(0xFF2AC3DE),
+    green: Color(0xFF9ECE6A),
+    yellow: Color(0xFFE0AF68),
+    peach: Color(0xFFFF9E64),
+    red: Color(0xFFF7768E),
+    mauve: Color(0xFFBB9AF7),
+    teal: Color(0xFF73DACA),
+    pink: Color(0xFFFF75A0),
+  );
+
+  /// 樱桃亮（高对比亮色，白底 + 鲜艳强调色，彩色边框感强）
+  static const cherry = AppPalette(
+    id: 'cherry',
+    nameZh: '樱桃亮',
+    nameEn: 'Cherry Light',
+    brightness: Brightness.light,
+    base: Color(0xFFFFFFFF),
+    mantle: Color(0xFFF6F2F8),
+    crust: Color(0xFFEDE7F0),
+    surface0: Color(0xFFE0D4E7),
+    surface1: Color(0xFFCBB8D6),
+    surface2: Color(0xFFB199C2),
+    text: Color(0xFF2D1B33),
+    subtext: Color(0xFF5C476B),
+    overlay: Color(0xFF8A7397),
+    blue: Color(0xFF2563EB),
+    lavender: Color(0xFF7C3AED),
+    sapphire: Color(0xFF0891B2),
+    green: Color(0xFF16A34A),
+    yellow: Color(0xFFCA8A04),
+    peach: Color(0xFFEA580C),
+    red: Color(0xFFDC2626),
+    mauve: Color(0xFF9333EA),
+    teal: Color(0xFF0D9488),
+    pink: Color(0xFFDB2777),
+  );
+
   /// 全部内置方案，按显示顺序
-  static const all = [mocha, macchiato, frappe, latte];
+  static const all = [mocha, macchiato, frappe, latte, neon, cherry];
 
   /// 按 id 取，找不到回退 Mocha
   static AppPalette byId(String? id) =>
