@@ -35,9 +35,9 @@ class TopBar extends ConsumerWidget {
             ],
           ),
           const SizedBox(width: 12),
-          // 搜索框
-          _searchBox(ref),
-          const Spacer(),
+          // 搜索框（弹性占据中间剩余空间，窄窗口下自动收缩，避免溢出）
+          Expanded(child: _searchBox(ref)),
+          const SizedBox(width: 12),
           // 操作按钮组
           _actions(context, ref),
         ],
@@ -48,7 +48,6 @@ class TopBar extends ConsumerWidget {
   Widget _searchBox(WidgetRef ref) {
     final l = ref.watch(l10nProvider);
     return Container(
-      width: 280,
       decoration: BoxDecoration(
         color: AppColors.base,
         border: Border.all(color: AppColors.surface0),

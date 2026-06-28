@@ -26,9 +26,14 @@ class _TermSession {
       _selListener = () {
         final sel = controller.selection;
         if (sel == null) return;
-        final text = terminal.buffer.getText(sel);
-        if (text.trim().isNotEmpty) {
-          Clipboard.setData(ClipboardData(text: text));
+        // buffer 可能尚未布局完成，getText 越界会抛异常，包一层防御
+        try {
+          final text = terminal.buffer.getText(sel);
+          if (text.trim().isNotEmpty) {
+            Clipboard.setData(ClipboardData(text: text));
+          }
+        } catch (_) {
+          // 选区超出当前 buffer 范围，忽略本次复制
         }
       };
       controller.addListener(_selListener!);
