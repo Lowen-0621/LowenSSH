@@ -77,49 +77,62 @@ class TopBar extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _btn(icon: Icons.bolt, label: l.t('top.connect'), primary: true),
-        const SizedBox(width: 6),
-        _btn(
+        _TopBarButton(
             icon: Icons.add,
             label: l.t('top.newHost'),
             onTap: () => showAddHostDialog(context, ref)),
         const SizedBox(width: 6),
-        _btn(
+        _TopBarButton(
             icon: Icons.settings_outlined,
             onTap: () => showSettingsCenter(context)),
       ],
     );
   }
+}
 
-  Widget _btn(
-      {required IconData icon,
-      String? label,
-      bool primary = false,
-      VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        decoration: BoxDecoration(
-          color: primary ? AppColors.blue : AppColors.surface0,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon,
-                size: 15, color: primary ? AppColors.crust : AppColors.text),
-            if (label != null) ...[
-              const SizedBox(width: 5),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight:
-                          primary ? FontWeight.w600 : FontWeight.normal,
-                      color: primary ? AppColors.crust : AppColors.text)),
+/// 顶栏按钮 —— 悬停高亮 + 手型光标（桌面端手感）
+class _TopBarButton extends StatefulWidget {
+  const _TopBarButton({required this.icon, this.label, this.onTap});
+
+  final IconData icon;
+  final String? label;
+  final VoidCallback? onTap;
+
+  @override
+  State<_TopBarButton> createState() => _TopBarButtonState();
+}
+
+class _TopBarButtonState extends State<_TopBarButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // 悬停时背景从 surface0 提亮到 surface1
+    final Color bg = _hover ? AppColors.surface1 : AppColors.surface0;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 15, color: AppColors.text),
+              if (widget.label != null) ...[
+                const SizedBox(width: 5),
+                Text(widget.label!,
+                    style: TextStyle(fontSize: 12, color: AppColors.text)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
