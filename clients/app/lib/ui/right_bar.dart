@@ -31,11 +31,18 @@ class _RightBarState extends ConsumerState<RightBar> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(12),
-              child: switch (_tab) {
-                'files' => const _FilesPanel(),
-                'mon' => const _MonitorPanel(),
-                _ => const _SecurityPanel(),
-              },
+              // Tab 切换 cross-fade；KeyedSubtree 让 AnimatedSwitcher 识别内容变化
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                child: KeyedSubtree(
+                  key: ValueKey(_tab),
+                  child: switch (_tab) {
+                    'files' => const _FilesPanel(),
+                    'mon' => const _MonitorPanel(),
+                    _ => const _SecurityPanel(),
+                  },
+                ),
+              ),
             ),
           ),
         ],
@@ -49,31 +56,34 @@ class _RightBarState extends ConsumerState<RightBar> {
     Widget tab(String id, IconData icon, String label) {
       final active = _tab == id;
       return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _tab = id),
-          behavior: HitTestBehavior.opaque,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-            decoration: BoxDecoration(
-              border: Border(
-                bottom: BorderSide(
-                  color: active ? AppColors.blue : Colors.transparent,
-                  width: 2,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => setState(() => _tab = id),
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: active ? AppColors.blue : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
               ),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon,
-                    size: 14,
-                    color: active ? AppColors.text : AppColors.subtext),
-                const SizedBox(width: 5),
-                Text(label,
-                    style: TextStyle(
-                        fontSize: 11.5,
-                        color: active ? AppColors.text : AppColors.subtext)),
-              ],
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon,
+                      size: 14,
+                      color: active ? AppColors.text : AppColors.subtext),
+                  const SizedBox(width: 5),
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          color: active ? AppColors.text : AppColors.subtext)),
+                ],
+              ),
             ),
           ),
         ),
@@ -220,7 +230,7 @@ class _SecurityPanel extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: c.withValues(alpha: .18),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(text,
           style: TextStyle(

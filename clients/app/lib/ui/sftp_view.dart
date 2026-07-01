@@ -125,7 +125,7 @@ class SftpView extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
         decoration: BoxDecoration(
           color: AppColors.surface0,
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -192,7 +192,7 @@ class SftpView extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         decoration: BoxDecoration(
           color: f.uploading ? AppColors.blue.withValues(alpha: .10) : null,
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: Row(
           children: [

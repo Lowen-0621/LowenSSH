@@ -43,7 +43,7 @@ class StatusBar extends ConsumerWidget {
             _seg([
               Text(l.t('status.guard'),
                   style: TextStyle(color: AppColors.overlay)),
-              Text('ON', style: TextStyle(color: AppColors.green)),
+              Text(l.t('status.on'), style: TextStyle(color: AppColors.green)),
               Text(' · ', style: TextStyle(color: AppColors.overlay)),
               Text(l.t('status.blocked', {'n': '${guard.denyCount}'}),
                   style: TextStyle(color: AppColors.red)),

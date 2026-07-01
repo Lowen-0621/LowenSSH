@@ -120,82 +120,13 @@ class LeftBar extends ConsumerWidget {
 
   // 主机条目：点击连接。当前主机左侧蓝条高亮，已连绿点/连接中转圈。右键删除。
   Widget _hostItem(
-      BuildContext context, WidgetRef ref, Host h, ConnState conn) {
-    final isCurrent = conn.host?.id == h.id;
-    // 多连接并存：已连接看整池 connectedIds，不只看当前主机
-    final connected = conn.connectedIds.contains(h.id);
-    final connecting = isCurrent && conn.phase == ConnPhase.connecting;
-    final failed = isCurrent && conn.phase == ConnPhase.error;
-    final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
-
-    return GestureDetector(
-      // 右键弹出删除菜单（桌面交互习惯）
-      onSecondaryTapDown: (d) =>
-          _showHostMenu(context, ref, h, d.globalPosition),
-      child: InkWell(
-        onTap: connecting
-            ? null
-            : () => ref.read(connectionProvider.notifier).connect(h),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(14, 7, 14, 7),
-          decoration: BoxDecoration(
-            color: isCurrent ? AppColors.base : null,
-            border: Border(
-              left: BorderSide(
-                color: isCurrent ? AppColors.blue : Colors.transparent,
-                width: 2,
-              ),
-            ),
-          ),
-          child: Row(
-            children: [
-              // 状态：连接中转圈 / error红点 / 已连绿点 / 未连灰点
-              if (connecting)
-                SizedBox(
-                  width: 9,
-                  height: 9,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: AppColors.blue),
-                )
-              else if (failed)
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                      color: AppColors.red, shape: BoxShape.circle),
-                )
-              else
-                _onlineDot(connected),
-              const SizedBox(width: 9),
-              Icon(Icons.dns_outlined,
-                  size: 15, color: AppColors.subtext),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Row(
-                  children: [
-                    Flexible(
-                      child: Text(name,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.text)),
-                    ),
-                    const SizedBox(width: 6),
-                    // IP:端口 也用 Flexible+省略，避免主机名+IP 过长时 Row 溢出
-                    Flexible(
-                      child: Text('${h.host}:${h.port}',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 10.5, color: AppColors.overlay)),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+          BuildContext context, WidgetRef ref, Host h, ConnState conn) =>
+      _HostItem(
+        host: h,
+        conn: conn,
+        onTap: () => ref.read(connectionProvider.notifier).connect(h),
+        onSecondaryTap: (pos) => _showHostMenu(context, ref, h, pos),
+      );
 
   // 主机右键菜单：目前仅删除
   void _showHostMenu(
@@ -270,23 +201,6 @@ class LeftBar extends ConsumerWidget {
     );
   }
 
-  // 在线状态点（绿色带辉光 / 灰色）
-  Widget _onlineDot(bool online) => Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(
-          color: online ? AppColors.green : AppColors.overlay,
-          shape: BoxShape.circle,
-          boxShadow: online
-              ? [
-                  BoxShadow(
-                      color: AppColors.green.withValues(alpha: .6),
-                      blurRadius: 6)
-                ]
-              : null,
-        ),
-      );
-
   Widget _divider() => Container(
         height: 1,
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -315,20 +229,52 @@ class LeftBar extends ConsumerWidget {
   // 导航链接（图标 + 标题 + 可选 badge）。传 onTap 则可点击。
   Widget _navLink(IconData icon, String label, String? badge,
           {VoidCallback? onTap}) =>
-      InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      _NavLink(icon: icon, label: label, badge: badge, onTap: onTap);
+}
+
+/// 左栏导航链接 —— 悬停淡背景渐变 + 手型光标
+class _NavLink extends StatefulWidget {
+  const _NavLink(
+      {required this.icon, required this.label, this.badge, this.onTap});
+
+  final IconData icon;
+  final String label;
+  final String? badge;
+  final VoidCallback? onTap;
+
+  @override
+  State<_NavLink> createState() => _NavLinkState();
+}
+
+class _NavLinkState extends State<_NavLink> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          decoration: BoxDecoration(
+            color: _hover ? AppColors.surface1 : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Row(
             children: [
-              Icon(icon, size: 16, color: AppColors.subtext),
+              Icon(widget.icon, size: 16, color: AppColors.subtext),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        fontSize: 13, color: AppColors.subtext)),
+                child: Text(widget.label,
+                    style: TextStyle(fontSize: 13, color: AppColors.subtext)),
               ),
-              if (badge != null)
+              if (widget.badge != null)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
@@ -336,12 +282,140 @@ class LeftBar extends ConsumerWidget {
                     color: AppColors.surface0,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(badge,
-                      style: TextStyle(
-                          fontSize: 10, color: AppColors.subtext)),
+                  child: Text(widget.badge!,
+                      style: TextStyle(fontSize: 10, color: AppColors.subtext)),
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 左栏主机条目 —— 悬停淡背景渐变 + 手型光标；当前项左侧蓝条高亮
+class _HostItem extends StatefulWidget {
+  const _HostItem(
+      {required this.host,
+      required this.conn,
+      required this.onTap,
+      required this.onSecondaryTap});
+
+  final Host host;
+  final ConnState conn;
+  final VoidCallback onTap;
+  final ValueChanged<Offset> onSecondaryTap;
+
+  @override
+  State<_HostItem> createState() => _HostItemState();
+}
+
+class _HostItemState extends State<_HostItem> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final h = widget.host;
+    final conn = widget.conn;
+    final isCurrent = conn.host?.id == h.id;
+    // 多连接并存：已连接看整池 connectedIds，不只看当前主机
+    final connected = conn.connectedIds.contains(h.id);
+    final connecting = isCurrent && conn.phase == ConnPhase.connecting;
+    final failed = isCurrent && conn.phase == ConnPhase.error;
+    final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
+
+    // 背景：当前项蓝色淡染药丸；否则悬停时柔和高亮
+    final Color bg = isCurrent
+        ? AppColors.blue.withValues(alpha: .15)
+        : (_hover ? AppColors.surface1 : Colors.transparent);
+
+    return MouseRegion(
+      cursor: connecting ? SystemMouseCursors.basic : SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        // 右键弹出删除菜单（桌面交互习惯）
+        onSecondaryTapDown: (d) => widget.onSecondaryTap(d.globalPosition),
+        onTap: connecting ? null : widget.onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              // 状态：连接中转圈 / error红点 / 已连绿点 / 未连灰点
+              if (connecting)
+                SizedBox(
+                  width: 9,
+                  height: 9,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 1.5, color: AppColors.blue),
+                )
+              else if (failed)
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                      color: AppColors.red, shape: BoxShape.circle),
+                )
+              else
+                _onlineDot(connected),
+              const SizedBox(width: 9),
+              Icon(Icons.dns_outlined, size: 15, color: AppColors.subtext),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(name,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13,
+                              // 当前项文字提亮 + 加粗，替代原左侧蓝条
+                              fontWeight: isCurrent
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                              color: isCurrent
+                                  ? AppColors.blue
+                                  : AppColors.text)),
+                    ),
+                    const SizedBox(width: 6),
+                    // IP:端口 也用 Flexible+省略，避免主机名+IP 过长时 Row 溢出
+                    Flexible(
+                      child: Text('${h.host}:${h.port}',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 10.5, color: AppColors.overlay)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 在线状态点（绿色带辉光 / 灰色）
+  Widget _onlineDot(bool online) => Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: online ? AppColors.green : AppColors.overlay,
+          shape: BoxShape.circle,
+          boxShadow: online
+              ? [
+                  BoxShadow(
+                      color: AppColors.green.withValues(alpha: .6),
+                      blurRadius: 6)
+                ]
+              : null,
         ),
       );
 }

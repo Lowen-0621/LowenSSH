@@ -208,22 +208,25 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
 // 认证方式切换标签
 Widget _authTab(String id, String label, String current, VoidCallback onTap) =>
     Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: current == id ? AppColors.surface1 : AppColors.base,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-                color: current == id ? AppColors.blue : AppColors.surface0),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: current == id ? AppColors.surface1 : AppColors.base,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                  color: current == id ? AppColors.blue : AppColors.surface0),
+            ),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    color:
+                        current == id ? AppColors.text : AppColors.subtext)),
           ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 12.5,
-                  color:
-                      current == id ? AppColors.text : AppColors.subtext)),
         ),
       ),
     );

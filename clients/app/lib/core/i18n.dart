@@ -273,6 +273,7 @@ const Map<String, Map<AppLang, String>> _dict = {
 
   // ========== 状态栏 ==========
   'status.guard': {AppLang.zh: '门禁 ', AppLang.en: 'Guard '},
+  'status.on': {AppLang.zh: '开', AppLang.en: 'ON'},
   'status.blocked': {AppLang.zh: '阻止{n}', AppLang.en: 'blocked {n}'},
   'status.pending': {AppLang.zh: '待确认{n}', AppLang.en: 'pending {n}'},
   'status.model': {AppLang.zh: '模型 ', AppLang.en: 'Model '},

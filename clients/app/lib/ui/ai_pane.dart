@@ -232,7 +232,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: AppColors.surface0,
-                    borderRadius: BorderRadius.circular(5),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -281,7 +281,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
         message: tooltip,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(5),
+          borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.all(4),
             child: Icon(icon, size: 16, color: AppColors.subtext),
@@ -370,7 +370,7 @@ class _AiPaneState extends ConsumerState<AiPane> {
                                   Navigator.of(ctx).pop();
                                   _showHistory(context); // 刷新列表
                                 },
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(6),
                                 child: Padding(
                                   padding: const EdgeInsets.all(4),
                                   child: Icon(Icons.delete_outline,
@@ -653,7 +653,7 @@ class _ReasoningTileState extends State<_ReasoningTile> {
         // 折叠标题行：脑图标 + "思考 Xs" + 展开箭头
         InkWell(
           onTap: () => setState(() => _expanded = !_expanded),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(6),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(

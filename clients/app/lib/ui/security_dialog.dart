@@ -169,7 +169,7 @@ class _SecurityBody extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: c.withValues(alpha: .18),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(6),
             ),
             child: Text(text,
                 style: TextStyle(

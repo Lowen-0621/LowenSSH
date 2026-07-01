@@ -108,20 +108,23 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
     final active = _filter == id;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: GestureDetector(
-        onTap: () => setState(() => _filter = id),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-          decoration: BoxDecoration(
-            color: active ? AppColors.surface1 : AppColors.base,
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: active ? AppColors.blue : AppColors.surface0),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: () => setState(() => _filter = id),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+            decoration: BoxDecoration(
+              color: active ? AppColors.surface1 : AppColors.base,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                  color: active ? AppColors.blue : AppColors.surface0),
+            ),
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: active ? AppColors.text : AppColors.subtext)),
           ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 11.5,
-                  color: active ? AppColors.text : AppColors.subtext)),
         ),
       ),
     );
@@ -156,7 +159,7 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: _color(e.decision).withValues(alpha: .15),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: Text(_label(e.decision),
                   style: TextStyle(

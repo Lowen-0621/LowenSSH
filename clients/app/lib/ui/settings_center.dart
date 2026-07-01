@@ -21,7 +21,7 @@ Future<void> showSettingsCenter(BuildContext context) {
       backgroundColor: AppColors.base,
       insetPadding: const EdgeInsets.all(40),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
@@ -367,7 +367,7 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
                       const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: AppColors.green.withValues(alpha: .18),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(l.t('settings.ai.active'),
                       style: TextStyle(
