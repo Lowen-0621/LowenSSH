@@ -2,6 +2,7 @@ package com.lowenssh.agent;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lowenssh.agent.guard.CommandGuard;
+import com.lowenssh.agent.guard.ConfirmationRequest;
 import com.lowenssh.agent.guard.ConfirmationHandler;
 import com.lowenssh.persistence.AuditService;
 import com.lowenssh.persistence.MessageService;
@@ -22,9 +23,16 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import jakarta.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -53,9 +61,7 @@ public class AgentService {
     /** 最大循环轮数，防止模型反复调工具停不下来。可配置：xwssh.agent.max-rounds */
     private final int maxRounds;
 
-    /** 只对这个工具的命令做门禁；其余（读文件/看日志）天然只读，放行 */
-    private static final String EXEC_TOOL = "execCommand";
-
+    /** Shell 与有副作用的 SFTP 工具都必须进入统一门禁。 */
     private static final String SYSTEM_PROMPT = """
             ## 身份
             你是 LowenSSH，一个面向 Linux 服务器的 SSH/SFTP 智能体。
@@ -84,6 +90,7 @@ public class AgentService {
     private final MessageService messageService;
     private final ContextManager contextManager;
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ExecutorService modelCalls;
 
     // OpenAiChatModel 和 ToolCallingManager 都由 starter 自动配置好，直接注入
     public AgentService(OpenAiChatModel chatModel, ToolCallingManager toolCallingManager,
@@ -97,6 +104,13 @@ public class AgentService {
         this.messageService = messageService;
         this.contextManager = contextManager;
         this.maxRounds = maxRounds;
+        AtomicInteger sequence = new AtomicInteger();
+        this.modelCalls = Executors.newCachedThreadPool(runnable -> {
+            Thread thread = new Thread(runnable,
+                    "agent-model-" + sequence.incrementAndGet());
+            thread.setDaemon(true);
+            return thread;
+        });
     }
 
     /**
@@ -105,10 +119,31 @@ public class AgentService {
      * @param sessionId   本次会话 id（审计落库用）
      * @param task        用户的运维任务
      * @param tools       会话级工具集（已绑定连好的 SSH 会话）
-     * @param confirmer   ask 态命令的人工确认入口（控制台真人 / REST 自动放行）
+     * @param confirmer   ASK 态命令的确认入口
      * @return 模型的最终结论文本
      */
     public String run(Long sessionId, String task, SshTools tools, ConfirmationHandler confirmer) {
+        return run(sessionId, task, tools, confirmer, AgentRunObserver.NOOP);
+    }
+
+    /** 新版持久化任务使用 observer 在真实 Loop 节点写状态，不复制第二套 Agent 逻辑。 */
+    public String run(Long sessionId, String task, SshTools tools,
+                      ConfirmationHandler confirmer, AgentRunObserver observer) {
+        return runInternal(sessionId, task, tools, confirmer, observer, true);
+    }
+
+    /**
+     * 服务重启后的安全续跑：历史里已经包含原 user/assistant/tool 消息，
+     * 不重复保存用户任务，从持久化对话末尾继续让模型决策。
+     */
+    public String continueRun(Long sessionId, SshTools tools,
+                              ConfirmationHandler confirmer, AgentRunObserver observer) {
+        return runInternal(sessionId, "", tools, confirmer, observer, false);
+    }
+
+    private String runInternal(Long sessionId, String task, SshTools tools,
+                               ConfirmationHandler confirmer, AgentRunObserver observer,
+                               boolean appendUserTask) {
         ToolCallback[] callbacks = ToolCallbacks.from(tools);
 
         // 关键：internalToolExecutionEnabled(false) 关掉框架自动执行工具。
@@ -122,17 +157,22 @@ public class AgentService {
         List<Message> messages = new ArrayList<>();
         messages.add(new SystemMessage(SYSTEM_PROMPT));
         messages.addAll(messageService.loadHistory(sessionId));  // 还原历史，支持多轮续聊
-        messages.add(new UserMessage(task));
-        messageService.saveUser(sessionId, task);   // 落用户任务
+        if (appendUserTask) {
+            messages.add(new UserMessage(task));
+            messageService.saveUser(sessionId, task);   // 落用户任务
+        }
 
         for (int round = 1; round <= maxRounds; round++) {
             // 进模型前整理上下文：Layer 0 截断大工具结果 + Layer 4 历史超阈值则压缩
             messages = contextManager.truncateToolResponses(messages);
-            messages = contextManager.compressIfNeeded(messages);
+            messages = contextManager.compressIfNeeded(
+                    messages, prompt -> callModel(prompt, observer));
 
             Prompt prompt = new Prompt(messages, options);
-            ChatResponse response = chatModel.call(prompt);
+            observer.beforeModelCall(round);
+            ChatResponse response = callModel(prompt, observer);
             logUsage(response);   // 测缓存命中
+            observer.onModelResponse(round, response);
 
             // 没有 tool_call 了，模型给出最终结论，结束
             if (!response.hasToolCalls()) {
@@ -141,9 +181,11 @@ public class AgentService {
                 if (text == null || text.isBlank()) {
                     text = "模型暂时没有返回内容，请重试。";
                     messageService.saveAssistant(sessionId, text, null);
+                    observer.onFinalAnswer(text);
                     return text;
                 }
                 messageService.saveAssistant(sessionId, text, null);   // 落最终结论
+                observer.onFinalAnswer(text);
                 return text;
             }
 
@@ -151,7 +193,8 @@ public class AgentService {
             persistAssistant(sessionId, assistant);   // 落 assistant（文字 + tool_calls）
 
             // —— 门禁预检：逐个 tool_call 判定，收集被拒的 ——
-            List<ToolResponseMessage.ToolResponse> rejected = screen(sessionId, assistant, confirmer, null);
+            List<ToolResponseMessage.ToolResponse> rejected =
+                    screen(sessionId, assistant, confirmer, null, observer);
 
             if (!rejected.isEmpty()) {
                 // 有被拒的：不调框架执行（executeToolCalls 是整批执行，没法只跑一部分）。
@@ -163,12 +206,45 @@ public class AgentService {
             }
 
             // 全放行：交给框架执行，拿回灌后的完整历史
+            observer.beforeToolExecution(assistant.getToolCalls());
             ToolExecutionResult execResult = toolCallingManager.executeToolCalls(prompt, response);
             persistLastToolResponses(sessionId, execResult);   // 落本轮工具执行结果
+            observer.afterToolExecution(lastToolResponses(execResult));
             messages = new ArrayList<>(execResult.conversationHistory());
         }
 
-        return "已达到最大循环轮数（" + maxRounds + "），任务可能未完成。请拆分任务后重试。";
+        String summary = "已达到最大循环轮数（" + maxRounds + "），任务可能未完成。请拆分任务后重试。";
+        observer.onMaxRounds(summary);
+        return summary;
+    }
+
+    /**
+     * 模型 SDK 是同步阻塞调用，放进独立 Future 后，任务取消才能直接中断模型调用线程，
+     * 而不只是取消外层 Agent Loop。
+     */
+    private ChatResponse callModel(Prompt prompt, AgentRunObserver observer) {
+        Future<ChatResponse> future = modelCalls.submit(() -> chatModel.call(prompt));
+        observer.onModelCallStarted(future);
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            throw new CancellationException("模型调用已取消");
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("模型调用失败", cause);
+        } finally {
+            observer.onModelCallFinished(future);
+        }
+    }
+
+    @PreDestroy
+    void shutdownModelCalls() {
+        modelCalls.shutdownNow();
     }
 
     /**
@@ -228,7 +304,8 @@ public class AgentService {
                                     sink.tryEmitNext(new AgentEvent.ToolCall(call.name(), call.arguments()));
                                 }
                                 List<ToolResponseMessage.ToolResponse> rj =
-                                        screen(sessionId, retried, confirmer, sink::tryEmitNext);
+                                        screen(sessionId, retried, confirmer, sink::tryEmitNext,
+                                                AgentRunObserver.NOOP);
                                 if (!rj.isEmpty()) {
                                     messages.add(retried);
                                     messages.add(ToolResponseMessage.builder().responses(rj).build());
@@ -262,7 +339,8 @@ public class AgentService {
 
                     // 门禁预检：DENY/用户拒绝会通过 onBlocked 推 Blocked 事件
                     List<ToolResponseMessage.ToolResponse> rejected =
-                            screen(sessionId, assistant, confirmer, sink::tryEmitNext);
+                            screen(sessionId, assistant, confirmer, sink::tryEmitNext,
+                                    AgentRunObserver.NOOP);
 
                     if (!rejected.isEmpty()) {
                         // 有被拒：整批不执行，把 assistant + 拒绝结果回灌，让模型换方案
@@ -440,14 +518,20 @@ public class AgentService {
 
     /** 从框架执行后的会话历史末尾抽取本轮工具结果落库（数据源同 emitToolResults） */
     private void persistLastToolResponses(Long sessionId, ToolExecutionResult execResult) {
+        persistToolResponses(sessionId, lastToolResponses(execResult));
+    }
+
+    private List<ToolResponseMessage.ToolResponse> lastToolResponses(
+            ToolExecutionResult execResult) {
         List<Message> history = execResult.conversationHistory();
         if (history.isEmpty()) {
-            return;
+            return List.of();
         }
         Message last = history.get(history.size() - 1);
         if (last instanceof ToolResponseMessage trm) {
-            persistToolResponses(sessionId, trm.getResponses());
+            return trm.getResponses();
         }
+        return List.of();
     }
 
     /**
@@ -459,17 +543,23 @@ public class AgentService {
      */
     private List<ToolResponseMessage.ToolResponse> screen(Long sessionId, AssistantMessage assistant,
                                                           ConfirmationHandler confirmer,
-                                                          Consumer<AgentEvent> onBlocked) {
+                                                          Consumer<AgentEvent> onBlocked,
+                                                          AgentRunObserver observer) {
         List<ToolResponseMessage.ToolResponse> rejected = new ArrayList<>();
 
         for (AssistantMessage.ToolCall call : assistant.getToolCalls()) {
-            // 非 execCommand 的工具（读文件/看日志）只读，直接放行
-            if (!EXEC_TOOL.equals(call.name())) {
+            String command = ToolRiskCommand.from(
+                    call.name(), call.arguments(), objectMapper);
+            // 没有副作用的 SFTP 读取工具不需要 ASK。
+            if (command == null) {
+                observer.onRiskChecked(call,
+                        new CommandGuard.Verdict(CommandGuard.Decision.ALLOW,
+                                "只读工具"));
                 continue;
             }
 
-            String command = extractCommand(call.arguments());
             CommandGuard.Verdict verdict = guard.evaluate(command);
+            observer.onRiskChecked(call, verdict);
 
             switch (verdict.decision()) {
                 case DENY -> {
@@ -483,7 +573,10 @@ public class AgentService {
                             "命令被安全门禁拒绝执行（" + verdict.reason() + "）。请改用更安全的方式。"));
                 }
                 case ASK -> {
-                    boolean ok = confirmer.confirm(command, verdict.reason());
+                    boolean ok = confirmer.confirm(new ConfirmationRequest(
+                            call.id(), call.name(), call.arguments(), command, verdict.reason(),
+                            verdict.riskLevel().name(), verdict.matchedRules(),
+                            verdict.policyVersion()));
                     if (!ok) {
                         // 用户拒绝也记一笔（dangerous=true 因为是 ask 态命中副作用规则）
                         auditService.logBlocked(sessionId, command, true,
@@ -499,18 +592,6 @@ public class AgentService {
             }
         }
         return rejected;
-    }
-
-    /** 从 tool_call 的 JSON 参数里取出 command 字段 */
-    private String extractCommand(String argumentsJson) {
-        try {
-            var node = objectMapper.readTree(argumentsJson);
-            var cmd = node.get("command");
-            return cmd == null ? "" : cmd.asText();
-        } catch (Exception e) {
-            // 解析失败当空命令处理（门禁会放行，但实际执行会报错，模型自己会看到）
-            return "";
-        }
     }
 
     /** 构造一条"拒绝"工具结果，id/name 必须和原 tool_call 对上，模型才知道是哪一步被拒 */

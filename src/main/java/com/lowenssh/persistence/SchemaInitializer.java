@@ -2,6 +2,7 @@ package com.lowenssh.persistence;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ import java.util.List;
  * 不支持「ADD COLUMN IF NOT EXISTS」的问题。
  */
 @Component
+@ConditionalOnProperty(name = "xwssh.schema.enabled", havingValue = "true", matchIfMissing = true)
 public class SchemaInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(SchemaInitializer.class);
@@ -33,6 +35,7 @@ public class SchemaInitializer {
     @jakarta.annotation.PostConstruct
     public void init() {
         createTables();
+        migrateHostAuthentication();
         migrateSessionHostId();
     }
 
@@ -46,6 +49,9 @@ public class SchemaInitializer {
                 ssh_port     INT                   DEFAULT 22,
                 ssh_user     VARCHAR(64)  NOT NULL,
                 password_enc VARCHAR(512)          DEFAULT NULL,
+                auth_type    VARCHAR(16)  NOT NULL DEFAULT 'PASSWORD',
+                private_key_path VARCHAR(1024)      DEFAULT NULL,
+                passphrase_enc VARCHAR(512)         DEFAULT NULL,
                 created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (id)
@@ -92,6 +98,150 @@ public class SchemaInitializer {
                 PRIMARY KEY (id),
                 KEY idx_session (session_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='命令执行审计'
+            """);
+        createAgentWorkflowTables();
+    }
+
+    /** 老库补齐密码/私钥认证字段；已有主机默认沿用 PASSWORD。 */
+    private void migrateHostAuthentication() {
+        if (!columnExists("t_host", "auth_type")) {
+            jdbc.execute("""
+                    ALTER TABLE t_host
+                    ADD COLUMN auth_type VARCHAR(16) NOT NULL DEFAULT 'PASSWORD'
+                    AFTER password_enc
+                    """);
+        }
+        if (!columnExists("t_host", "private_key_path")) {
+            jdbc.execute("""
+                    ALTER TABLE t_host
+                    ADD COLUMN private_key_path VARCHAR(1024) DEFAULT NULL
+                    AFTER auth_type
+                    """);
+        }
+        if (!columnExists("t_host", "passphrase_enc")) {
+            jdbc.execute("""
+                    ALTER TABLE t_host
+                    ADD COLUMN passphrase_enc VARCHAR(512) DEFAULT NULL
+                    AFTER private_key_path
+                    """);
+        }
+    }
+
+    /** 建立 Agent 状态机、审批、事件与幂等表。 */
+    private void createAgentWorkflowTables() {
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS t_agent_task (
+                task_id               CHAR(36)      NOT NULL,
+                session_id            BIGINT                 DEFAULT NULL,
+                host_id               BIGINT                 DEFAULT NULL,
+                request_hash          CHAR(64)      NOT NULL,
+                task_text             TEXT          NOT NULL,
+                status                VARCHAR(32)   NOT NULL,
+                phase                 VARCHAR(32)   NOT NULL,
+                cancel_requested      TINYINT       NOT NULL DEFAULT 0,
+                deadline_at           DATETIME(6)            DEFAULT NULL,
+                model_calls           INT           NOT NULL DEFAULT 0,
+                tool_calls            INT           NOT NULL DEFAULT 0,
+                consecutive_failures  INT           NOT NULL DEFAULT 0,
+                next_step_sequence    BIGINT        NOT NULL DEFAULT 1,
+                next_event_sequence   BIGINT        NOT NULL DEFAULT 1,
+                final_summary         MEDIUMTEXT             DEFAULT NULL,
+                error_code            VARCHAR(64)            DEFAULT NULL,
+                error_message         TEXT                   DEFAULT NULL,
+                version               BIGINT        NOT NULL DEFAULT 0,
+                started_at            DATETIME(6)            DEFAULT NULL,
+                finished_at           DATETIME(6)            DEFAULT NULL,
+                created_at            DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at            DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (task_id),
+                KEY idx_agent_task_session (session_id),
+                KEY idx_agent_task_status (status, updated_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 持久化任务'
+            """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS t_agent_step (
+                step_id                CHAR(36)      NOT NULL,
+                task_id                CHAR(36)      NOT NULL,
+                sequence_no            INT           NOT NULL,
+                tool_call_id           VARCHAR(128)  NOT NULL,
+                phase                  VARCHAR(32)   NOT NULL,
+                step_type              VARCHAR(32)   NOT NULL,
+                status                 VARCHAR(32)   NOT NULL,
+                tool_name              VARCHAR(128)           DEFAULT NULL,
+                arguments_json         MEDIUMTEXT             DEFAULT NULL,
+                action_digest          CHAR(64)      NOT NULL,
+                risk_level             VARCHAR(16)            DEFAULT NULL,
+                policy_version         VARCHAR(32)            DEFAULT NULL,
+                matched_rules          TEXT                   DEFAULT NULL,
+                pre_snapshot           MEDIUMTEXT             DEFAULT NULL,
+                result_summary         MEDIUMTEXT             DEFAULT NULL,
+                exit_code              INT                    DEFAULT NULL,
+                timed_out              TINYINT       NOT NULL DEFAULT 0,
+                truncated              TINYINT       NOT NULL DEFAULT 0,
+                verification_plan      MEDIUMTEXT             DEFAULT NULL,
+                verification_result    MEDIUMTEXT             DEFAULT NULL,
+                rollback_suggestion    MEDIUMTEXT             DEFAULT NULL,
+                version                BIGINT        NOT NULL DEFAULT 0,
+                started_at             DATETIME(6)            DEFAULT NULL,
+                finished_at            DATETIME(6)            DEFAULT NULL,
+                created_at             DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at             DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (step_id),
+                UNIQUE KEY uk_agent_step_action (task_id, tool_call_id, action_digest),
+                UNIQUE KEY uk_agent_step_sequence (task_id, sequence_no),
+                KEY idx_agent_step_status (task_id, status)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 工作流步骤'
+            """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS t_agent_approval (
+                approval_id    CHAR(36)      NOT NULL,
+                task_id        CHAR(36)      NOT NULL,
+                step_id        CHAR(36)      NOT NULL,
+                tool_call_id   VARCHAR(128)  NOT NULL,
+                action_digest  CHAR(64)      NOT NULL,
+                status         VARCHAR(16)   NOT NULL,
+                risk_level     VARCHAR(16)            DEFAULT NULL,
+                reason         TEXT                   DEFAULT NULL,
+                matched_rules  TEXT                   DEFAULT NULL,
+                expires_at     DATETIME(6)   NOT NULL,
+                decided_at     DATETIME(6)            DEFAULT NULL,
+                version        BIGINT        NOT NULL DEFAULT 0,
+                created_at     DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at     DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (approval_id),
+                UNIQUE KEY uk_agent_approval_action (task_id, tool_call_id, action_digest),
+                KEY idx_agent_approval_status (status, expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 人工审批'
+            """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS t_agent_event (
+                id           BIGINT       NOT NULL AUTO_INCREMENT,
+                task_id      CHAR(36)     NOT NULL,
+                sequence_no  BIGINT       NOT NULL,
+                event_type   VARCHAR(64)  NOT NULL,
+                payload_json MEDIUMTEXT   NOT NULL,
+                created_at   DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_agent_event_sequence (task_id, sequence_no),
+                KEY idx_agent_event_replay (task_id, id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent 可回放事件'
+            """);
+        jdbc.execute("""
+            CREATE TABLE IF NOT EXISTS t_idempotency_record (
+                id               BIGINT        NOT NULL AUTO_INCREMENT,
+                scope            VARCHAR(32)   NOT NULL,
+                idempotency_key  VARCHAR(128)  NOT NULL,
+                request_hash     CHAR(64)      NOT NULL,
+                resource_id      VARCHAR(64)            DEFAULT NULL,
+                response_status  INT                    DEFAULT NULL,
+                response_json    MEDIUMTEXT             DEFAULT NULL,
+                expires_at       DATETIME(6)   NOT NULL,
+                created_at       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+                updated_at       DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+                PRIMARY KEY (id),
+                UNIQUE KEY uk_idempotency_scope_key (scope, idempotency_key),
+                KEY idx_idempotency_expiry (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='HTTP 严格幂等记录'
             """);
     }
 

@@ -28,6 +28,9 @@ public class HostEntity {
     private Integer sshPort;
     private String sshUser;
     private String passwordEnc;  // AES-GCM 密文，对应 password_enc
+    private String authType;     // PASSWORD / PRIVATE_KEY
+    private String privateKeyPath;
+    private String passphraseEnc;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

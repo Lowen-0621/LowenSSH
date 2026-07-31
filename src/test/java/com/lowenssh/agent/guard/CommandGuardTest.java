@@ -80,7 +80,7 @@ class CommandGuardTest {
     // —— 防误伤：dd 不该误伤 add，rm 不该误伤 chmod 之外的词 ——
     @Test
     void 不误伤子串() {
-        assertEquals(Decision.ALLOW, decide("git add ."));     // add 含 dd 不该命中
+        assertEquals(Decision.ASK, decide("git add ."));       // 未误判为 DENY，未知写操作仍需审批
         assertEquals(Decision.ALLOW, decide("echo warm"));      // warm 含 rm 不该命中
     }
 
@@ -100,5 +100,38 @@ class CommandGuardTest {
         assertEquals(Decision.DENY, decide("find /data -type f -exec rm -f {} \\;"));
         // 普通 find 查找不该误伤
         assertEquals(Decision.ALLOW, decide("find /etc -name nginx.conf"));
+    }
+
+    @Test
+    void 包装编码和变量间接执行全部拒绝() {
+        assertEquals(Decision.DENY, decide("bash -c 'rm -rf /data'"));
+        assertEquals(Decision.DENY, decide("python -c 'import os; os.system(\"rm /tmp/a\")'"));
+        assertEquals(Decision.DENY, decide("echo cm0gL3RtcC9h | base64 -d | bash"));
+        assertEquals(Decision.DENY, decide("CMD=rm; $CMD -f /tmp/a"));
+        assertEquals(Decision.DENY, decide("find /tmp -exec sh -c 'echo x' \\;"));
+    }
+
+    @Test
+    void 提权写重定向和网络写操作需要审批() {
+        assertEquals(Decision.ASK, decide("sudo systemctl status nginx"));
+        assertEquals(Decision.ASK, decide("echo value > /etc/app.conf"));
+        assertEquals(Decision.ASK, decide("sed -i 's/a/b/' /etc/app.conf"));
+        assertEquals(Decision.ASK, decide("curl -X POST https://example.test/api"));
+    }
+
+    @Test
+    void 返回风险等级规则编号和策略版本() {
+        Verdict verdict = guard.evaluate("sudo systemctl restart nginx");
+
+        assertEquals(Decision.ASK, verdict.decision());
+        assertEquals(com.lowenssh.agent.guard.policy.RiskLevel.HIGH, verdict.riskLevel());
+        org.junit.jupiter.api.Assertions.assertTrue(
+                verdict.matchedRules().contains("ask.privilege_escalation"));
+        assertEquals("v1", verdict.policyVersion());
+    }
+
+    @Test
+    void 超长命令拒绝() {
+        assertEquals(Decision.DENY, decide("echo " + "x".repeat(5000)));
     }
 }

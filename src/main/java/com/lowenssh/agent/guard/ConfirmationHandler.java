@@ -16,4 +16,14 @@ public interface ConfirmationHandler {
      * @return true=批准执行，false=拒绝
      */
     boolean confirm(String command, String reason);
+
+    /**
+     * 带 Tool Call 身份的确认入口。
+     *
+     * 默认退化到旧接口，保证控制台、自动测试和现有 lambda 不受影响；
+     * 持久化审批实现会覆盖此方法，用 toolCallId/actionDigest 保证幂等。
+     */
+    default boolean confirm(ConfirmationRequest request) {
+        return confirm(request.command(), request.reason());
+    }
 }

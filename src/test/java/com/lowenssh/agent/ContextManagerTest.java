@@ -12,9 +12,11 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.openai.OpenAiChatModel;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -213,6 +215,17 @@ class ContextManagerTest {
         List<Message> out = cm.compressIfNeeded(in);
         // 摘要失败不能丢历史，必须原样返回
         assertEquals(in.size(), out.size(), "摘要失败应原样返回不丢历史");
+    }
+
+    @Test
+    void 摘要模型取消不能被当成普通失败吞掉() {
+        ContextManager cm = new ContextManager(
+                mockModel("不会使用"), 8000, 800, 100, 6, 3);
+
+        assertThrows(CancellationException.class, () ->
+                cm.compressIfNeeded(longHistory(10), prompt -> {
+                    throw new CancellationException("用户取消");
+                }));
     }
 
     // ============================ token 估算 ============================

@@ -9,15 +9,33 @@ public final class HostDto {
     }
 
     /** 主机列表项 / 新增响应。hasPassword 表示库里是否已存密码（false 则连接时需补填）。 */
-    public record HostItem(Long id, String alias, String host, Integer port, String user, boolean hasPassword) {
+    public record HostItem(
+            Long id,
+            String alias,
+            String host,
+            Integer port,
+            String user,
+            boolean hasPassword,
+            String authType,
+            boolean hasCredential
+    ) {
     }
 
     /** 新增主机请求 */
-    public record CreateRequest(String alias, String host, Integer port, String user, String password) {
+    public record CreateRequest(
+            String alias,
+            String host,
+            Integer port,
+            String user,
+            String password,
+            String authType,
+            String privateKeyPath,
+            String privateKeyPassphrase
+    ) {
     }
 
     /** 进入主机连接请求：库里没存密码时带上明文补连，否则可不传 */
-    public record ConnectRequest(String password) {
+    public record ConnectRequest(String password, String privateKeyPassphrase) {
     }
 
     /** 连接结果：成功带 sessionId，失败带 error */

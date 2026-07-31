@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lowenssh.persistence.entity.HostEntity;
 import com.lowenssh.persistence.mapper.HostMapper;
 import com.lowenssh.ssh.SshClient;
+import com.lowenssh.ssh.SshAuth;
 import com.lowenssh.util.CryptoUtil;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.nio.file.Path;
 
 /**
  * 主机簿接口 —— 管理常用服务器 + 进入主机时建立连接。
@@ -47,7 +49,8 @@ public class HostController {
         return hostMapper.selectList(wrapper).stream()
                 .map(h -> new HostDto.HostItem(
                         h.getId(), h.getAlias(), h.getSshHost(), h.getSshPort(), h.getSshUser(),
-                        h.getPasswordEnc() != null && !h.getPasswordEnc().isBlank()))
+                        hasText(h.getPasswordEnc()), authType(h),
+                        hasText(h.getPasswordEnc()) || hasText(h.getPrivateKeyPath())))
                 .toList();
     }
 
@@ -59,10 +62,26 @@ public class HostController {
         h.setSshHost(req.host());
         h.setSshPort(req.port() == null || req.port() == 0 ? 22 : req.port());
         h.setSshUser(req.user());
-        h.setPasswordEnc(crypto.encrypt(req.password()));  // 明文不落库
+        String authType = req.authType() == null || req.authType().isBlank()
+                ? "PASSWORD" : req.authType().strip().toUpperCase(java.util.Locale.ROOT);
+        if (!authType.equals("PASSWORD") && !authType.equals("PRIVATE_KEY")) {
+            throw new IllegalArgumentException("authType 只支持 PASSWORD 或 PRIVATE_KEY");
+        }
+        h.setAuthType(authType);
+        if ("PASSWORD".equals(authType)) {
+            h.setPasswordEnc(crypto.encrypt(req.password()));
+        } else {
+            if (req.privateKeyPath() == null || req.privateKeyPath().isBlank()) {
+                throw new IllegalArgumentException("私钥认证必须提供 privateKeyPath");
+            }
+            Path keyPath = Path.of(req.privateKeyPath()).toAbsolutePath().normalize();
+            h.setPrivateKeyPath(keyPath.toString());
+            h.setPassphraseEnc(crypto.encrypt(req.privateKeyPassphrase()));
+        }
         hostMapper.insert(h);
         return new HostDto.HostItem(h.getId(), h.getAlias(), h.getSshHost(), h.getSshPort(),
-                h.getSshUser(), h.getPasswordEnc() != null);
+                h.getSshUser(), hasText(h.getPasswordEnc()), authType,
+                hasText(h.getPasswordEnc()) || hasText(h.getPrivateKeyPath()));
     }
 
     /** 删除主机（历史会话仍在库里，只是从主机簿移除入口） */
@@ -84,27 +103,52 @@ public class HostController {
         if (h == null) {
             return ResponseEntity.status(404).body(new HostDto.ConnectResult(null, "主机不存在"));
         }
-        // 优先用库里存的密码；没存则用前端补填的
-        String password;
+        SshAuth auth;
         try {
-            String stored = crypto.decrypt(h.getPasswordEnc());
-            password = (stored != null && !stored.isBlank())
-                    ? stored
-                    : (req == null ? null : req.password());
+            if ("PRIVATE_KEY".equals(authType(h))) {
+                if (!hasText(h.getPrivateKeyPath())) {
+                    return ResponseEntity.badRequest()
+                            .body(new HostDto.ConnectResult(null, "该主机未配置私钥路径"));
+                }
+                String storedPassphrase = crypto.decrypt(h.getPassphraseEnc());
+                String passphrase = hasText(storedPassphrase)
+                        ? storedPassphrase
+                        : (req == null ? null : req.privateKeyPassphrase());
+                auth = new SshAuth.PrivateKey(Path.of(h.getPrivateKeyPath()), passphrase);
+            } else {
+                String stored = crypto.decrypt(h.getPasswordEnc());
+                String password = hasText(stored)
+                        ? stored
+                        : (req == null ? null : req.password());
+                if (!hasText(password)) {
+                    return ResponseEntity.status(400).body(
+                            new HostDto.ConnectResult(
+                                    null, "该主机未保存密码，请补填密码后连接"));
+                }
+                auth = new SshAuth.Password(password);
+            }
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(new HostDto.ConnectResult(null, "密码解密失败，请重新保存主机密码"));
-        }
-        if (password == null || password.isBlank()) {
-            return ResponseEntity.status(400).body(new HostDto.ConnectResult(null, "该主机未保存密码，请补填密码后连接"));
+            return ResponseEntity.status(500).body(
+                    new HostDto.ConnectResult(
+                            null, "SSH 凭据解密失败，请重新保存主机凭据"));
         }
 
         try {
             sessionManager.connectHost(
-                    id, h.getSshHost(), h.getSshPort() == null ? 22 : h.getSshPort(), h.getSshUser(), password);
+                    id, h.getSshHost(), h.getSshPort() == null ? 22 : h.getSshPort(),
+                    h.getSshUser(), auth);
             // 只建连不落库，sessionId 留给首条任务时 attach；这里回 null 表示「连上了，等首条任务」
             return ResponseEntity.ok(new HostDto.ConnectResult(null, null));
         } catch (Exception e) {
             return ResponseEntity.status(502).body(new HostDto.ConnectResult(null, "SSH 连接失败: " + e.getMessage()));
         }
+    }
+
+    private static String authType(HostEntity host) {
+        return hasText(host.getAuthType()) ? host.getAuthType() : "PASSWORD";
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

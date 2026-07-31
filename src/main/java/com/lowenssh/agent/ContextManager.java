@@ -1,5 +1,6 @@
 package com.lowenssh.agent;
 
+import com.lowenssh.observability.AgentMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -10,12 +11,15 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 /**
  * 上下文管理 —— 防止 agentic loop 多轮滚下来把模型上下文撑爆。
@@ -45,6 +49,7 @@ public class ContextManager {
     private static final double CHARS_PER_TOKEN = 2.5;
 
     private final OpenAiChatModel chatModel;
+    private final AgentMetrics metrics;
 
     /** Layer 0：最近 K 条内的工具结果保留的最大字符数，超出截断中段 */
     private final int toolResultMaxChars;
@@ -62,17 +67,31 @@ public class ContextManager {
 
     public ContextManager(
             OpenAiChatModel chatModel,
+            int toolResultMaxChars,
+            int oldToolResultMaxChars,
+            int maxContextTokens,
+            int keepRecentMessages,
+            int circuitLimit) {
+        this(chatModel, toolResultMaxChars, oldToolResultMaxChars,
+                maxContextTokens, keepRecentMessages, circuitLimit, null);
+    }
+
+    @Autowired
+    public ContextManager(
+            OpenAiChatModel chatModel,
             @Value("${xwssh.context.tool-result-max-chars:8000}") int toolResultMaxChars,
             @Value("${xwssh.context.old-tool-result-max-chars:800}") int oldToolResultMaxChars,
             @Value("${xwssh.context.max-context-tokens:32000}") int maxContextTokens,
             @Value("${xwssh.context.keep-recent-messages:6}") int keepRecentMessages,
-            @Value("${xwssh.context.circuit-limit:3}") int circuitLimit) {
+            @Value("${xwssh.context.circuit-limit:3}") int circuitLimit,
+            AgentMetrics metrics) {
         this.chatModel = chatModel;
         this.toolResultMaxChars = toolResultMaxChars;
         this.oldToolResultMaxChars = oldToolResultMaxChars;
         this.maxContextTokens = maxContextTokens;
         this.keepRecentMessages = keepRecentMessages;
         this.circuitLimit = circuitLimit;
+        this.metrics = metrics;
     }
 
     // ============================ Layer 0：工具结果截断 ============================
@@ -156,6 +175,15 @@ public class ContextManager {
      * 模型见到孤儿 tool_result 会报错）。切割点往前移到对应 assistant，让两者一起进保留区。
      */
     public List<Message> compressIfNeeded(List<Message> messages) {
+        return compressIfNeeded(messages, chatModel::call);
+    }
+
+    /**
+     * 允许任务编排器提供可取消的模型调用入口；旧调用方仍使用默认同步入口。
+     */
+    public List<Message> compressIfNeeded(
+            List<Message> messages,
+            Function<Prompt, ChatResponse> modelCaller) {
         // 熔断：摘要 LLM 连续挂了就别再试，裸跑兜底
         if (consecutiveFailures.get() >= circuitLimit) {
             return messages;
@@ -179,7 +207,7 @@ public class ContextManager {
         }
 
         List<Message> summaryRegion = messages.subList(1, cutIndex);
-        String summary = summarize(summaryRegion);
+        String summary = summarize(summaryRegion, modelCaller);
         if (summary == null) {
             // 摘要失败：计数 +1，本轮放弃压缩，原样返回
             int fails = consecutiveFailures.incrementAndGet();
@@ -195,24 +223,34 @@ public class ContextManager {
 
         log.info("上下文压缩：{} 条 -> {} 条（摘要了 {} 条）",
                 messages.size(), compressed.size(), summaryRegion.size());
+        if (metrics != null) {
+            metrics.contextCompression();
+        }
         return compressed;
     }
 
     /** 调摘要 LLM 把一段历史压成结论文本；失败返回 null（由调用方走熔断逻辑） */
-    private String summarize(List<Message> region) {
+    private String summarize(
+            List<Message> region,
+            Function<Prompt, ChatResponse> modelCaller) {
         try {
             String rendered = renderRegion(region);
             // 摘要请求不带任何工具，纯文本进纯文本出，避免又触发 tool_call
             List<Message> prompt = List.of(
                     new SystemMessage(SUMMARY_PROMPT),
                     new UserMessage(rendered));
-            ChatResponse resp = chatModel.call(new Prompt(prompt));
+            ChatResponse resp = modelCaller.apply(new Prompt(prompt));
             if (resp == null || resp.getResult() == null) {
                 return null;
             }
             String text = resp.getResult().getOutput().getText();
             return (text == null || text.isBlank()) ? null : text;
+        } catch (CancellationException e) {
+            throw e;
         } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                throw new CancellationException("上下文摘要模型调用已取消");
+            }
             log.warn("摘要 LLM 调用异常: {}", e.getMessage());
             return null;
         }

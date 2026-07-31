@@ -50,7 +50,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
@@ -59,6 +59,9 @@ management:
 # 联调验证压缩逻辑时把阈值调小即可快速触发：
 #   tool-result-max-chars 调到 2000、max-context-tokens 调到 2000
 xwssh:
+  # 启动时自动建立/迁移业务表；测试可关闭并使用隔离 Schema。
+  schema:
+    enabled: true
   agent:
     # agentic loop 最大循环轮数，防模型反复调工具停不下来。
     # 注意：轮数直接乘 token——第 N 轮要把前 N-1 轮历史全发一遍，是 O(N²) 累积。
@@ -67,6 +70,43 @@ xwssh:
     # 会话空闲超时（分钟）：超过这么久没活动的常驻 SSH 连接会被定时回收，防连接泄漏。
     # 设 120（2h）让演示/续聊期间基本不会中途断；断了也能点"新会话"用同样信息秒重连。
     session-idle-timeout-minutes: 120
+    # HTTP Idempotency-Key 的响应保留时间；期限内同 Key 同请求返回首次结果，不重复创建任务。
+    idempotency-retention: 24h
+    # ASK 等待用户决定的默认期限；超时后审批和任务都会持久化为超时状态。
+    approval-timeout: 2m
+    # 兜底扫描遗留 PENDING 审批；正常等待线程也会在 deadline 到达时主动触发过期 CAS。
+    approval-expiry-scan-interval: 5s
+    # 整个持久化 Agent 任务的最长执行时间。
+    task-timeout: 10m
+    # 兜底扫描超过整体截止时间但尚未自行退出的任务。
+    task-timeout-scan-interval: 5s
+    # 服务重启后扫描非终态任务；EXECUTING 不自动重放，只进入人工复核。
+    recovery-initial-delay: 5s
+    recovery-scan-interval: 5s
+    # 防止模型反复绕路调用工具，达到上限后进入总结。
+    max-tool-calls: 30
+    # 连续工具失败达到上限后停止继续尝试。
+    max-consecutive-failures: 3
+  ssh:
+    # 建立 SSH Session/Channel 的超时。
+    connect-timeout: 10s
+    # 单条命令最长执行时间；tail -f、ping、top 等不会无限占用工作线程。
+    command-timeout: 30s
+    # stdout 与 stderr 共用此字节预算，超限后继续排空但不再增长内存。
+    max-output-bytes: 1048576
+    # 生产默认严格校验 Host Key；首次连接前必须显式导入并核对指纹。
+    strict-host-key-checking: true
+    known-hosts-path: ${XWSSH_KNOWN_HOSTS:${user.home}/.lowenssh/known_hosts}
+  security:
+    # 超长 Shell 难以人工审计，也常用于混淆/注入。
+    max-command-length: 4096
+    # actionDigest 和审计记录绑定策略版本；规则改变后旧审批不能授权新语义。
+    policy-version: v1
+  crypto:
+    # 生产禁止内置默认密钥。轮换时用 XWSSH_CRYPTO_KEYS=v2=new,v1=old，
+    # 并把 active-key-version 切到 v2；旧密文仍按前缀选择 v1 解密。
+    allow-insecure-development-key: ${XWSSH_ALLOW_INSECURE_DEV_KEY:false}
+    active-key-version: ${XWSSH_ACTIVE_CRYPTO_KEY_VERSION:v1}
   context:
     # Layer 0：最近几条工具结果回灌给模型的最大字符数，超出截掉中段（完整内容仍存 t_message）。
     # 这条最关键：工具结果每轮都重发，留得越大、轮数越多，token 烧得越凶。

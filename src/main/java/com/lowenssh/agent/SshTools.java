@@ -58,15 +58,16 @@ public class SshTools {
     @Tool(description = "读取目标服务器上指定路径的文本文件的完整内容。")
     public String readRemoteFile(
             @ToolParam(description = "远程文件的绝对路径，例如 '/etc/nginx/nginx.conf'") String path) {
-        // 只读工具：固定非危险、无需确认。单引号包裹防路径里的空格/特殊字符
-        return runAndAudit("cat '" + path + "'", false, false);
+        return runSftpRead("SFTP_READ " + path, () -> ssh.readTextFile(path));
     }
 
     @Tool(description = "读取目标服务器上日志文件的末尾若干行，用于快速查看最新日志。")
     public String tailLog(
             @ToolParam(description = "日志文件的绝对路径，例如 '/var/log/nginx/error.log'") String path,
             @ToolParam(description = "读取末尾的行数，例如 100") int lines) {
-        return runAndAudit("tail -n " + lines + " '" + path + "'", false, false);
+        return runSftpRead(
+                "SFTP_TAIL lines=" + lines + " path=" + path,
+                () -> ssh.tailTextFile(path, lines));
     }
 
     // —— SFTP 文件操作工具 ——
@@ -122,8 +123,8 @@ public class SshTools {
     }
 
     /**
-     * SFTP 写操作统一入口：先把等价 shell 命令过 CommandGuard，DENY 直接拒绝（复刻线上
-     * AutoConfirmationHandler 语义：ASK 自动放行）。放行后在 lock 内执行 SFTP 动作并落审计。
+     * SFTP 写操作统一入口：AgentService 已在执行前用同一条等价命令完成
+     * DENY/ASK/审批；这里再次拒绝 DENY，作为工具执行点的纵深防御。
      */
     private String sftpWrite(String equivCommand, SftpAction action) {
         CommandGuard.Verdict verdict = guard.evaluate(equivCommand);
@@ -174,6 +175,15 @@ public class SshTools {
             auditService.logExecuted(sessionId, command, r, dangerous, confirmed);
             StringBuilder sb = new StringBuilder();
             sb.append("exitCode=").append(r.exitCode()).append("\n");
+            if (r.timedOut()) {
+                sb.append("timedOut=true\n");
+            }
+            if (r.cancelled()) {
+                sb.append("cancelled=true\n");
+            }
+            if (r.truncated()) {
+                sb.append("truncated=true（输出超过上限，仅保留前部）\n");
+            }
             if (!r.stdout().isEmpty()) {
                 sb.append("stdout:\n").append(r.stdout());
             }
@@ -185,5 +195,25 @@ public class SshTools {
             // 工具内部异常不能抛给 loop，要作为"工具结果"回灌，让模型知道这步失败了
             return "命令执行异常: " + e.getMessage();
         }
+    }
+
+    /** SFTP 只读入口：路径直接交给协议层，不进入 Shell 解析。 */
+    private String runSftpRead(String auditLabel, SftpAction action) {
+        return withLock(() -> {
+            try {
+                String result = action.run();
+                auditService.logExecuted(
+                        sessionId, auditLabel,
+                        new ExecResult(result, "", 0), false, false);
+                return result;
+            } catch (Exception e) {
+                String message = e.getMessage() == null
+                        ? e.getClass().getSimpleName() : e.getMessage();
+                auditService.logExecuted(
+                        sessionId, auditLabel,
+                        new ExecResult("", message, 1), false, false);
+                return "读取失败: " + message;
+            }
+        });
     }
 }

@@ -1,13 +1,14 @@
 package com.lowenssh.agent;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.lowenssh.agent.guard.AutoConfirmationHandler;
 import com.lowenssh.agent.guard.CommandGuard;
+import com.lowenssh.agent.guard.RejectingConfirmationHandler;
 import com.lowenssh.persistence.AuditService;
 import com.lowenssh.persistence.MessageService;
 import com.lowenssh.persistence.entity.SessionEntity;
 import com.lowenssh.persistence.mapper.SessionMapper;
 import com.lowenssh.ssh.SshClient;
+import com.lowenssh.ssh.SshClientFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,16 +40,19 @@ public class AgentController {
     private final AuditService auditService;
     private final MessageService messageService;
     private final CommandGuard guard;
+    private final SshClientFactory sshClientFactory;
 
     public AgentController(AgentService agentService, SessionManager sessionManager,
                            SessionMapper sessionMapper, AuditService auditService,
-                           MessageService messageService, CommandGuard guard) {
+                           MessageService messageService, CommandGuard guard,
+                           SshClientFactory sshClientFactory) {
         this.agentService = agentService;
         this.sessionManager = sessionManager;
         this.sessionMapper = sessionMapper;
         this.auditService = auditService;
         this.messageService = messageService;
         this.guard = guard;
+        this.sshClientFactory = sshClientFactory;
     }
 
     private static final DateTimeFormatter TS_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -90,6 +94,7 @@ public class AgentController {
     }
 
     @PostMapping("/api/agent/run")
+    @Deprecated(forRemoval = true)
     public String run(@RequestBody RunRequest req) {
         int port = req.port() == 0 ? 22 : req.port();
 
@@ -103,11 +108,11 @@ public class AgentController {
         Long sessionId = session.getId();
 
         // try-with-resources：loop 跑完自动关连接（同步接口是一次性测试用，不参与多轮常驻）
-        try (SshClient ssh = new SshClient()) {
+        try (SshClient ssh = sshClientFactory.create()) {
             ssh.connect(req.host(), port, req.user(), req.password());
             SshTools tools = new SshTools(ssh, sessionId, auditService, guard);
-            // REST 场景用自动确认：deny 已被门禁拦死，ask 态自动放行以便自动化测试
-            return agentService.run(sessionId, req.task(), tools, new AutoConfirmationHandler());
+            // 旧接口没有审批回传通道，ASK 必须失败关闭；需审批任务改用 /api/agent/tasks。
+            return agentService.run(sessionId, req.task(), tools, RejectingConfirmationHandler.INSTANCE);
         } catch (Exception e) {
             return "任务执行失败: " + e.getMessage();
         }
@@ -126,6 +131,7 @@ public class AgentController {
      * 连接由 SessionManager 常驻，这里不再 doFinally 关连接。
      */
     @PostMapping(value = "/api/agent/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @Deprecated(forRemoval = true)
     public Flux<ServerSentEvent<AgentEvent>> stream(@RequestBody RunRequest req) {
         SessionManager.LiveSession live;
         boolean firstTurn = req.sessionId() == null;
@@ -162,7 +168,7 @@ public class AgentController {
         SshTools tools = new SshTools(live.ssh(), sessionId, auditService, guard, live.lock());
 
         Flux<ServerSentEvent<AgentEvent>> events = agentService
-                .runStream(sessionId, req.task(), tools, new AutoConfirmationHandler())
+                .runStream(sessionId, req.task(), tools, RejectingConfirmationHandler.INSTANCE)
                 .map(this::sse);
 
         // 首轮在事件流最前面插一个 session_ready，把 sessionId 交给前端用于后续续聊

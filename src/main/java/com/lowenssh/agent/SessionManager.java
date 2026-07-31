@@ -3,6 +3,9 @@ package com.lowenssh.agent;
 import com.lowenssh.persistence.entity.SessionEntity;
 import com.lowenssh.persistence.mapper.SessionMapper;
 import com.lowenssh.ssh.SshClient;
+import com.lowenssh.ssh.SshClientFactory;
+import com.lowenssh.ssh.SshAuth;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +41,7 @@ public class SessionManager {
     private static final Logger log = LoggerFactory.getLogger(SessionManager.class);
 
     private final SessionMapper sessionMapper;
+    private final SshClientFactory sshClientFactory;
 
     /** 会话空闲超时（分钟）：超过这么久没活动的连接会被定时任务回收 */
     private final long idleTimeoutMinutes;
@@ -48,10 +52,21 @@ public class SessionManager {
     /** sessionId -> 已绑定会话的活连接，续聊按它查。 */
     private final Map<Long, LiveSession> bySession = new ConcurrentHashMap<>();
 
+    @Autowired
     public SessionManager(SessionMapper sessionMapper,
+                          SshClientFactory sshClientFactory,
                           @Value("${xwssh.agent.session-idle-timeout-minutes:30}") long idleTimeoutMinutes) {
         this.sessionMapper = sessionMapper;
+        this.sshClientFactory = sshClientFactory;
         this.idleTimeoutMinutes = idleTimeoutMinutes;
+    }
+
+    /** 单元测试兼容构造器，不参与 Spring 自动注入。 */
+    SessionManager(SessionMapper sessionMapper, long idleTimeoutMinutes) {
+        this(sessionMapper, new SshClientFactory(
+                SshClient.DEFAULT_CONNECT_TIMEOUT,
+                SshClient.DEFAULT_COMMAND_TIMEOUT,
+                SshClient.DEFAULT_MAX_OUTPUT_BYTES), idleTimeoutMinutes);
     }
 
     /**
@@ -105,6 +120,11 @@ public class SessionManager {
      * 连接失败抛异常，调用方转成 error 事件。
      */
     public LiveSession connectHost(Long hostId, String host, int port, String user, String password) throws Exception {
+        return connectHost(hostId, host, port, user, new SshAuth.Password(password));
+    }
+
+    public LiveSession connectHost(
+            Long hostId, String host, int port, String user, SshAuth auth) throws Exception {
         if (hostId != null) {
             LiveSession existing = byHost.get(hostId);
             if (existing != null && existing.ssh.isConnected()) {
@@ -112,9 +132,9 @@ public class SessionManager {
                 return existing;  // 复用该主机现有预连接
             }
         }
-        SshClient ssh = new SshClient();
+        SshClient ssh = sshClientFactory.create();
         try {
-            ssh.connect(host, port, user, password);
+            ssh.connect(host, port, user, auth);
         } catch (Exception e) {
             ssh.close();
             throw e;

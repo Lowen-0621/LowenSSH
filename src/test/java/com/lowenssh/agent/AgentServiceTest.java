@@ -18,8 +18,15 @@ import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.openai.OpenAiChatModel;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -83,6 +90,17 @@ class AgentServiceTest {
                 new Generation(assistant, ChatGenerationMetadata.NULL)));
     }
 
+    private ChatResponse toolCallResponse(String callId, String toolName, String arguments) {
+        AssistantMessage.ToolCall call = new AssistantMessage.ToolCall(
+                callId, "function", toolName, arguments);
+        AssistantMessage assistant = AssistantMessage.builder()
+                .content("")
+                .toolCalls(List.of(call))
+                .build();
+        return new ChatResponse(List.of(
+                new Generation(assistant, ChatGenerationMetadata.NULL)));
+    }
+
     // ============================ 1. 正常结束 ============================
 
     @Test
@@ -94,6 +112,43 @@ class AgentServiceTest {
         assertEquals("磁盘还剩 58%，一切正常。", result);
         // 没有工具调用，执行器一次都不该被碰
         verify(toolCallingManager, never()).executeToolCalls(any(), any());
+    }
+
+    @Test
+    void 同步模型调用会暴露可取消Future并中断实际调用线程() throws Exception {
+        CountDownLatch modelEntered = new CountDownLatch(1);
+        CountDownLatch modelInterrupted = new CountDownLatch(1);
+        AtomicReference<Future<?>> modelFuture = new AtomicReference<>();
+        when(chatModel.call(any(Prompt.class))).thenAnswer(ignored -> {
+            modelEntered.countDown();
+            try {
+                Thread.sleep(30_000);
+                return textResponse("不应到达");
+            } catch (InterruptedException e) {
+                modelInterrupted.countDown();
+                Thread.currentThread().interrupt();
+                throw new java.util.concurrent.CancellationException("测试取消");
+            }
+        });
+        AgentRunObserver observer = new AgentRunObserver() {
+            @Override
+            public void onModelCallStarted(Future<?> future) {
+                modelFuture.set(future);
+            }
+        };
+        var caller = Executors.newSingleThreadExecutor();
+        try {
+            Future<String> run = caller.submit(() ->
+                    service.run(SID, "等待模型", tools(), (cmd, reason) -> false, observer));
+            assertTrue(modelEntered.await(2, TimeUnit.SECONDS));
+
+            modelFuture.get().cancel(true);
+
+            assertTrue(modelInterrupted.await(2, TimeUnit.SECONDS));
+            assertThrows(ExecutionException.class, () -> run.get(2, TimeUnit.SECONDS));
+        } finally {
+            caller.shutdownNow();
+        }
     }
 
     // ============================ 2. DENY 命令被拦 ============================
@@ -128,6 +183,19 @@ class AgentServiceTest {
 
         assertEquals("已取消重启。", result);
         verify(toolCallingManager, never()).executeToolCalls(any(), any());
+    }
+
+    @Test
+    void SFTP删除同样进入ASK且拒绝后不执行() {
+        when(chatModel.call(any(Prompt.class)))
+                .thenReturn(toolCallResponse("c1", "deleteFile", "{\"path\":\"/tmp/old.log\"}"))
+                .thenReturn(textResponse("已取消删除。"));
+
+        String result = service.run(SID, "删除旧日志", tools(), (cmd, reason) -> false);
+
+        assertEquals("已取消删除。", result);
+        verify(toolCallingManager, never()).executeToolCalls(any(), any());
+        verify(auditService).logBlocked(eq(SID), eq("rm -- '/tmp/old.log'"), eq(true), anyString());
     }
 
     // ============================ 4. ASK 用户批准 → 执行 ============================
