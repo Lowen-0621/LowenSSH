@@ -55,28 +55,36 @@ AI 驱动的 SSH 智能运维 Agent。给它一个运维目标和一台服务器
 
 ### 方式一：Docker 一键启动（推荐）
 
-需要 Docker。两个密钥走环境变量，不写进任何文件：
+需要 Docker。先从示例创建本地环境文件并填写三个必需配置：
 
 ```bash
-export MYSQL_PASSWORD='给MySQL容器设的root密码'
-export GLM_API_KEY='你的智谱AI key'      # https://open.bigmodel.cn 申请
+cp .env.example .env
+# 编辑 .env；XWSSH_CRYPTO_KEY 可用 openssl rand -base64 32 生成
 docker compose up --build
 ```
 
-compose 会自动起 MySQL（建库 + 执行 schema.sql 建表）、构建后端、等 DB 就绪后启动应用。API 监听 http://localhost:8081。
+`.env` 已被 Git 忽略，不能提交。`XWSSH_CRYPTO_KEY` 用于 AES-GCM 加密已保存的 SSH
+密码和私钥口令，部署后必须安全备份；丢失后旧密文无法恢复。compose 会自动起 MySQL
+（建库 + 执行 schema.sql 建表）、构建后端、等 DB 就绪后启动应用。API 监听
+http://localhost:8081。SSH `known_hosts` 保存在独立命名卷 `ssh-security`，容器重建不会丢失。
 
 ### 方式二：本地手动启动
 
 #### 1. 准备环境变量
 
-应用读取两个环境变量，源码里不含任何明文密钥：
+应用读取三个必需环境变量，源码里不含任何明文密钥：
 
 ```bash
 export MYSQL_PASSWORD='你的MySQL密码'   # 本机 MySQL root 密码，空密码则设为 ''
 export GLM_API_KEY='你的智谱AI key'      # https://open.bigmodel.cn 申请
+export XWSSH_CRYPTO_KEY="$(openssl rand -base64 32)"
 ```
 
-> 不设这两个变量，启动会因连不上 MySQL（500）或鉴权失败（401）而报错。
+> 未配置加密主密钥时应用会直接拒绝启动；这是为了防止生产环境误用内置默认密钥。
+
+首次连接某台 SSH 主机前，先通过 `/api/ssh/known-hosts/preview` 查看 SHA-256 指纹，
+与可信渠道提供的服务器指纹核对，再把同一指纹提交到 `/api/ssh/known-hosts/trust`。
+系统不会自动信任首次见到的 Host Key；主机密钥变化会返回 `409 HOST_KEY_CHANGED`。
 
 #### 2. 初始化数据库
 
@@ -117,6 +125,7 @@ LowenSSH/
 ## 安全说明
 
 - 所有密钥走环境变量，源码无任何明文凭据。
+- SSH Host Key 默认严格校验，首次信任必须显式核对指纹，记录持久化到 `known_hosts`。
 - 客户端密码字段不写入明文持久化（AES-GCM 加密落库），不打印到控制台。
 - 安全门禁的高危命令规则（含 `rm -rf`、`find -delete` 等变体）是真实防护，请勿在生产前移除。
 - 这是一个运维 Agent，会真实在目标服务器执行命令。请只连接你有权操作的服务器。

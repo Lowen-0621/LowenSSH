@@ -1,0 +1,923 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="LowenSSH Java 端生产化升级、源码执行顺序与面试讲解手册">
+  <title>LowenSSH Java 生产化升级与面试手册</title>
+  <style>
+    :root {
+      --paper:#f6f3eb; --panel:#fffdf7; --ink:#1d2925; --muted:#65716b;
+      --line:#d9d5ca; --green:#16624f; --green-soft:#dcebe4; --amber:#a85d13;
+      --amber-soft:#f5e7d2; --red:#9f3630; --red-soft:#f4dcda; --blue:#275f8f;
+      --code:#15201d; --code-ink:#dce7df; --nav:300px; --radius:10px;
+      --sans:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+      --mono:"SFMono-Regular",Consolas,"Liberation Mono",monospace;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;overflow-x:hidden;background:var(--paper);color:var(--ink);font:15px/1.72 var(--sans)}
+    a{color:var(--green);text-decoration-thickness:1px;text-underline-offset:3px}
+    button,input{font:inherit}
+    .skip{position:fixed;left:12px;top:-60px;z-index:99;background:#fff;padding:10px}
+    .skip:focus{top:12px}
+    .topbar{position:fixed;inset:0 0 auto 0;height:58px;z-index:40;display:flex;align-items:center;
+      gap:16px;padding:0 20px;background:rgba(246,243,235,.96);border-bottom:1px solid var(--line)}
+    .brand{font-weight:800;letter-spacing:-.02em}.brand small{font-weight:500;color:var(--muted);margin-left:8px}
+    .progress{height:3px;position:absolute;left:0;bottom:-1px;background:var(--green);width:0}
+    .menu{display:none;border:1px solid var(--line);background:var(--panel);padding:6px 10px;border-radius:6px}
+    aside{position:fixed;top:58px;left:0;bottom:0;width:var(--nav);padding:18px 16px 40px;
+      overflow:auto;border-right:1px solid var(--line);background:#eeeae0;z-index:30}
+    .search{width:100%;border:1px solid var(--line);background:var(--panel);padding:9px 10px;border-radius:7px}
+    nav{margin-top:14px}nav a{display:block;padding:5px 8px;border-left:2px solid transparent;
+      color:#40504a;text-decoration:none;font-size:13px}
+    nav a:hover,nav a.active{color:var(--green);border-left-color:var(--green);background:rgba(255,255,255,.5)}
+    main{min-width:0;margin-left:var(--nav);padding:86px clamp(22px,4vw,66px) 90px;max-width:1640px}
+    .hero{border-top:6px solid var(--green);padding:36px 0 28px}
+    .eyebrow{font:700 12px/1 var(--mono);letter-spacing:.12em;color:var(--green);text-transform:uppercase}
+    h1{overflow-wrap:anywhere;font-size:clamp(36px,5.2vw,72px);line-height:1.02;letter-spacing:-.055em;margin:16px 0 20px;max-width:1100px}
+    h2{font-size:clamp(25px,3vw,38px);line-height:1.18;letter-spacing:-.025em;margin:70px 0 20px;
+      padding-top:20px;border-top:1px solid var(--line)}
+    h3{font-size:20px;margin:34px 0 12px}h4{font-size:16px;margin:26px 0 8px}
+    p{max-width:950px}.lead{font-size:19px;max-width:950px;color:#3a4944}
+    .chips{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0}.chip{border:1px solid var(--line);
+      background:var(--panel);padding:5px 9px;border-radius:999px;font:600 12px/1.3 var(--mono)}
+    .callout{border-left:4px solid var(--green);padding:14px 18px;background:var(--green-soft);margin:18px 0}
+    .warn{border-left-color:var(--amber);background:var(--amber-soft)}.danger{border-left-color:var(--red);background:var(--red-soft)}
+    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);
+      border:1px solid var(--line);margin:20px 0}.card{background:var(--panel);padding:20px}
+    .card b{display:block;font-size:17px;margin-bottom:5px}.metric{font:800 32px/1 var(--mono);color:var(--green)}
+    .flow{display:flex;gap:8px;align-items:center;overflow:auto;padding:18px 0}
+    .flow span{flex:0 0 auto;padding:9px 12px;border:1px solid var(--line);background:var(--panel);border-radius:6px;font-weight:700}
+    .flow i{font-style:normal;color:var(--muted)}
+    table{display:block;max-width:100%;overflow-x:auto;width:100%;border-collapse:collapse;background:var(--panel);margin:15px 0 26px;font-size:14px}
+    th,td{text-align:left;vertical-align:top;padding:10px 12px;border:1px solid var(--line)}
+    th{background:#ece8dd;font-weight:750}td code{font-family:var(--mono);font-size:12px}
+    .reader{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(320px,.88fr);border:1px solid var(--line);
+      margin:18px 0 28px;background:var(--panel)}
+    .source{min-width:0;background:var(--code);color:var(--code-ink);padding:18px;overflow:auto}
+    .source .file{display:block;color:#80bba6;font:600 12px/1.4 var(--mono);margin-bottom:12px}
+    pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4;font:12px/1.62 var(--mono)}
+    .explain{padding:20px}.explain ol{margin:0;padding-left:21px}.explain li{margin:0 0 10px}
+    .returns{margin-top:14px;padding:10px 12px;background:#eeeae0;font-size:13px}
+    .stepno{display:inline-grid;place-items:center;width:26px;height:26px;background:var(--green);color:white;
+      border-radius:50%;font:700 12px/1 var(--mono);margin-right:8px}
+    .sequence{border-left:2px solid var(--line);margin:22px 0 30px;padding-left:24px}
+    .sequence article{position:relative;margin:0 0 22px}.sequence article:before{content:"";position:absolute;
+      width:10px;height:10px;border-radius:50%;background:var(--green);left:-30px;top:8px}
+    .sequence h3{margin:0 0 5px}.tag{display:inline-block;font:700 11px/1.4 var(--mono);
+      padding:2px 6px;border-radius:4px;background:var(--green-soft);color:var(--green)}
+    .tag.ask{background:var(--amber-soft);color:var(--amber)}.tag.deny{background:var(--red-soft);color:var(--red)}
+    details{border-top:1px solid var(--line);padding:13px 0}summary{cursor:pointer;font-weight:700}
+    code{font-family:var(--mono);overflow-wrap:anywhere;word-break:break-word}.inline{background:#e9e5da;padding:1px 5px;border-radius:3px}
+    .interview{border:1px solid var(--line);background:var(--panel);padding:22px;margin:18px 0}
+    .interview .q{font-weight:800;color:var(--green);margin-bottom:8px}
+    .two{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+    footer{margin-top:80px;padding-top:26px;border-top:1px solid var(--line);color:var(--muted)}
+    mark{background:#f5d997;color:inherit}
+    .hidden-by-search{display:none!important}
+    :focus-visible{outline:3px solid #db9a3b;outline-offset:3px}
+    @media(max-width:1024px){:root{--nav:250px}.grid{grid-template-columns:1fr 1fr}.reader{grid-template-columns:1fr}}
+    @media(max-width:768px){.menu{display:block}aside{transform:translateX(-102%);transition:transform .2s;width:285px}
+      aside.open{transform:none}main{margin-left:0;padding:78px 18px 60px}.grid,.two{grid-template-columns:1fr}
+      h2{margin-top:52px}.brand small{display:none}}
+    @media(prefers-color-scheme:dark){
+      :root{--paper:#121815;--panel:#18201c;--ink:#e6eee8;--muted:#a8b3ad;--line:#35413b;
+        --green:#75c5a7;--green-soft:#203b31;--amber-soft:#49341f;--red-soft:#482726;--code:#0b100e}
+      aside,.topbar{background:#171e1a}.search,.card{color:var(--ink)}th,.returns{background:#242e29}.inline{background:#2b3530}
+    }
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}aside{transition:none}}
+    @media print{.topbar,aside{display:none}main{margin:0;padding:20px}.reader{break-inside:avoid}body{background:white;color:black}}
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">跳到正文</a>
+<header class="topbar">
+  <button class="menu" aria-label="打开目录" aria-expanded="false">目录</button>
+  <div class="brand">LowenSSH <small>Java 生产化升级与面试手册</small></div>
+  <div class="progress" aria-hidden="true"></div>
+</header>
+<aside aria-label="章节目录">
+  <input class="search" type="search" placeholder="搜索章节和关键词" aria-label="搜索文档">
+  <nav>
+    <a href="#conclusion">先说结论</a>
+    <a href="#jdk">01 JDK 与技术栈</a>
+    <a href="#before-after">02 升级前后</a>
+    <a href="#reading">03 人类阅读顺序</a>
+    <a href="#boot">04 项目启动</a>
+    <a href="#create">05 创建任务与幂等</a>
+    <a href="#orchestrator">06 异步编排</a>
+    <a href="#function-calling">07 Function Calling</a>
+    <a href="#risk">08 风险检查</a>
+    <a href="#ask">09 ASK 完整断点跟踪</a>
+    <a href="#sse">10 SSE 与审批 HTTP</a>
+    <a href="#execute">11 一次性执行</a>
+    <a href="#ssh">12 SSH 超时与输出</a>
+    <a href="#cancel">13 取消</a>
+    <a href="#verify">14 快照、验证、回滚</a>
+    <a href="#recovery">15 重启恢复</a>
+    <a href="#persistence">16 持久化模型</a>
+    <a href="#security">17 SSH 生产安全</a>
+    <a href="#metrics">18 监控与评测</a>
+    <a href="#rag-mcp">19 RAG 与 MCP</a>
+    <a href="#config">20 配置速查</a>
+    <a href="#tests">21 测试证据</a>
+    <a href="#limits">22 边界与不足</a>
+    <a href="#interview">23 面试讲法</a>
+  </nav>
+</aside>
+<main id="content">
+  <section class="hero" id="conclusion">
+    <div class="eyebrow">Interview Edition · Java 17 · 2026-07-31</div>
+    <h1>从“能调用 SSH 的 AI”升级为可治理、可恢复的 Agent 任务系统</h1>
+    <p class="lead">项目真正有面试价值的部分，不是又封装了一次大模型 API，而是把不确定的模型决策放进确定性的工程边界：持久化状态机、严格幂等、人工审批、执行权 CAS、超时取消、安全策略、重启恢复、监控与评测。</p>
+    <div class="chips">
+      <span class="chip">Java 17</span><span class="chip">Spring Boot 3.4.3</span>
+      <span class="chip">Spring AI 1.1.5</span><span class="chip">MyBatis-Plus</span>
+      <span class="chip">MySQL</span><span class="chip">JSch</span>
+      <span class="chip">SSE</span><span class="chip">CompletableFuture</span>
+      <span class="chip">Micrometer</span><span class="chip">Prometheus</span>
+    </div>
+    <div class="grid">
+      <div class="card"><span class="metric">99</span><b>自动化测试</b><span>0 失败、0 错误；2 个真实计费模型测试按设计跳过。</span></div>
+      <div class="card"><span class="metric">30/30</span><b>安全评测场景</b><span>10 ALLOW、10 ASK、10 DENY，固定样例危险误放行 0。</span></div>
+      <div class="card"><span class="metric">3 层</span><b>严格幂等</b><span>HTTP 响应回放、业务唯一键、Step 执行权 CAS。</span></div>
+    </div>
+    <div class="callout"><b>30 秒面试开场：</b>LowenSSH 是一个 Java 17 的 SSH 运维 Agent。模型通过 Function Calling 产生工具意图，但没有执行权。系统先把任务和 Step 持久化，再经过规则链；高风险动作通过 SSE 通知前端审批，独立 HTTP 幂等提交决定，工作线程用 CompletableFuture 等待。批准后还要用数据库 CAS 抢到一次性执行权，执行完成做只读验证。服务崩溃时，执行中的副作用不会自动重放，而是进入 NEEDS_REVIEW。</div>
+  </section>
+
+  <section id="jdk" data-search="jdk java spring boot 技术栈">
+    <h2>01. 项目到底是 JDK 多少？</h2>
+    <p><strong>结论：项目的编译目标是 Java 17。</strong>当前机器运行 Maven 时使用 JDK 21，但 Maven 按 <code class="inline">pom.xml</code> 的 <code class="inline">&lt;java.version&gt;17&lt;/java.version&gt;</code> 编译，所以项目语言级别和发布字节码仍是 Java 17。</p>
+    <div class="reader">
+      <div class="source"><span class="file">pom.xml · 7–24，38–97</span><pre>&lt;parent&gt;
+  &lt;artifactId&gt;spring-boot-starter-parent&lt;/artifactId&gt;
+  &lt;version&gt;3.4.3&lt;/version&gt;
+&lt;/parent&gt;
+
+&lt;properties&gt;
+  &lt;java.version&gt;17&lt;/java.version&gt;
+  &lt;spring-ai.version&gt;1.1.5&lt;/spring-ai.version&gt;
+&lt;/properties&gt;
+
+spring-boot-starter-web
+spring-boot-starter-actuator
+micrometer-registry-prometheus
+spring-ai-starter-model-openai
+jsch 0.2.21
+mybatis-plus 3.5.9
+mysql-connector-j</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>先看 parent：</b>Spring Boot 3.4.3 统一依赖版本和插件默认值。</li>
+          <li><b>再看 properties：</b><code>java.version=17</code> 是回答 JDK 版本的直接证据。</li>
+          <li><b>再看依赖：</b>Web 提供 REST/SSE；Spring AI 负责模型和 Tool Schema；JSch 负责 SSH/SFTP；MyBatis-Plus/MySQL 负责持久化；Actuator/Micrometer 负责指标。</li>
+          <li><b>测试专用：</b>H2 验证事务与唯一键，Apache MINA SSHD 搭真实协议的内嵌 SSH Server。</li>
+        </ol>
+        <div class="returns">面试回答不要说“本机 java -version 是 21，所以项目是 JDK 21”。项目版本以构建文件的 release/source 目标为准。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="before-after" data-search="升级前 升级后 状态机">
+    <h2>02. 升级前后发生了什么</h2>
+    <table>
+      <thead><tr><th>维度</th><th>升级前</th><th>升级后</th><th>面试价值</th></tr></thead>
+      <tbody>
+        <tr><td>执行流程</td><td>模型 → 工具 → 回灌</td><td>Plan → Risk → Approve → Execute → Verify → Summary</td><td>能讲状态机和异常路径</td></tr>
+        <tr><td>ASK</td><td>Web 入口自动批准</td><td>持久化审批 + SSE 事件 + HTTP 决定 + Future 唤醒</td><td>能讲异步桥接与事务边界</td></tr>
+        <tr><td>旧接口</td><td>run/stream 对 ASK 自动放行</td><td>标记弃用并失败关闭；ASK 统一迁移到任务审批 API</td><td>兼容旧响应格式，但不保留安全旁路</td></tr>
+        <tr><td>幂等</td><td>没有完整任务级约束</td><td>请求哈希、响应回放、唯一键、乐观锁、执行权 CAS</td><td>能回答重复点击与网络重试</td></tr>
+        <tr><td>SSH 阻塞</td><td>等 Channel 自然关闭</td><td>30 秒命令超时、1MB 输出上限、主动关闭 Channel</td><td>能处理 tail -f / ping / top</td></tr>
+        <tr><td>取消</td><td>断开流近似结束</td><td>独立取消 API，信号传播到工作线程、模型 Future、SSH Channel</td><td>区分 UI 断开和后台停止</td></tr>
+        <tr><td>安全</td><td>简单正则门禁、Host Key 不校验</td><td>规则链、known_hosts、私钥认证、SFTP、防默认密钥</td><td>纵深防御，不夸大正则能力</td></tr>
+        <tr><td>恢复</td><td>进程结束后调用栈丢失</td><td>数据库恢复；EXECUTING 进入 NEEDS_REVIEW</td><td>承认分布式副作用不确定窗口</td></tr>
+        <tr><td>评估</td><td>看最终回答</td><td>Token、耗时、工具、安全决定、成功率、固定评测集</td><td>从“感觉有效”走向可测量</td></tr>
+      </tbody>
+    </table>
+    <div class="flow" aria-label="升级后状态流">
+      <span>PLAN</span><i>→</i><span>RISK CHECK</span><i>→</i><span>APPROVE</span><i>→</i>
+      <span>EXECUTE</span><i>→</i><span>VERIFY</span><i>→</i><span>SUMMARY</span>
+    </div>
+  </section>
+
+  <section id="reading" data-search="阅读顺序 断点 跳入 跳出 调试">
+    <h2>03. 像人类调试一样阅读项目</h2>
+    <p>不要按包名从 A 到 Z 看，也不要逐行翻译。正确方法是选一个真实场景，把断点放在调用链上，跟着数据走。推荐场景：<mark>“重启 nginx”会命中 ASK，用户批准后执行并验证。</mark></p>
+    <div class="sequence">
+      <article><h3><span class="stepno">1</span>HTTP 入口</h3><p><code>TaskController.create</code>：观察 Idempotency-Key 和请求体。</p></article>
+      <article><h3><span class="stepno">2</span>事务创建</h3><p><code>TaskCommandService.create</code>：跳入请求哈希、幂等记录、任务、task_created 事件。</p></article>
+      <article><h3><span class="stepno">3</span>异步线程</h3><p><code>TaskWorkflowOrchestrator.start → schedule → run</code>：HTTP 已返回 202，Loop 在专用线程继续。</p></article>
+      <article><h3><span class="stepno">4</span>模型决策</h3><p><code>AgentService.runInternal</code>：看 Prompt、Function Schema、ChatResponse.toolCalls。</p></article>
+      <article><h3><span class="stepno">5</span>风险检查</h3><p><code>screen → CommandGuard → CommandPolicyEngine</code>：返回 ASK、风险等级、规则列表。</p></article>
+      <article><h3><span class="stepno">6</span>审批暂停</h3><p><code>PersistentConfirmationHandler → ApprovalCoordinator</code>：写库后进入 <code>future.get</code>。</p></article>
+      <article><h3><span class="stepno">7</span>另一条 HTTP 请求</h3><p><code>ApprovalController → ApprovalDecisionService</code>：CAS 决定，事务提交后 complete Future。</p></article>
+      <article><h3><span class="stepno">8</span>原线程恢复</h3><p><code>future.get</code> 返回 APPROVED，原调用栈继续，绝不是“重新启动一个 Agent”。</p></article>
+      <article><h3><span class="stepno">9</span>一次性执行</h3><p><code>WorkflowPersistenceService.beginExecution</code> 先抢执行权，再进入 JSch Channel。</p></article>
+      <article><h3><span class="stepno">10</span>验证和总结</h3><p>保存执行结果、只读验证，工具结果回灌模型，最后写 SUCCEEDED 和 summary。</p></article>
+    </div>
+    <div class="callout warn"><b>调试技巧：</b>每个断点只回答四件事：谁调用我？传入什么？我修改了什么状态？返回后调用方拿到什么？遇到异步时再加两问：当前是哪条线程？恢复靠内存信号还是数据库状态？</div>
+  </section>
+
+  <section id="boot" data-search="启动 spring application yaml schema">
+    <h2>04. 项目如何启动和搭建</h2>
+    <p>Spring Boot 启动后扫描 Controller、Service、Mapper 和定时任务；<code>SchemaInitializer</code> 建表/迁移；配置从 <code>application.yml</code> 与环境变量合并；SSH Session 只在用户连接主机后创建。</p>
+    <table>
+      <tr><th>启动步骤</th><th>发生的事</th><th>配置/文件</th></tr>
+      <tr><td>1. Maven 构建</td><td>按 Java 17 编译，装配 Spring Boot Jar</td><td><code>pom.xml</code></td></tr>
+      <tr><td>2. Spring Context</td><td>依赖注入 Controller/Service/Mapper/Scheduler</td><td><code>LowenSshApplication.java</code></td></tr>
+      <tr><td>3. 数据源</td><td>连接 MySQL lowenssh</td><td><code>spring.datasource.*</code></td></tr>
+      <tr><td>4. Schema</td><td>建立并迁移任务、Step、审批、事件、幂等表</td><td><code>schema.sql</code>、<code>SchemaInitializer.java</code></td></tr>
+      <tr><td>5. 模型</td><td>OpenAI 兼容协议连接 GLM，可换 DeepSeek/Qwen</td><td><code>spring.ai.openai.*</code></td></tr>
+      <tr><td>6. 安全启动</td><td>未提供加密 Key 时生产启动失败</td><td><code>XWSSH_CRYPTO_KEY(S)</code></td></tr>
+      <tr><td>7. 定时器</td><td>扫描审批过期、任务超时、重启恢复</td><td><code>xwssh.agent.*-interval</code></td></tr>
+    </table>
+  </section>
+
+  <section id="create" data-search="创建任务 strict idempotency 幂等 key hash">
+    <h2>05. 第一个断点：创建任务与严格幂等</h2>
+    <div class="reader">
+      <div class="source"><span class="file">TaskController.java · 40–50 → TaskCommandService.java · 66–118</span><pre>@PostMapping
+public ResponseEntity&lt;CreateTaskResponse&gt; create(
+    @RequestHeader("Idempotency-Key") String key,
+    @RequestBody CreateTaskRequest request) {
+  CreateResult result = commandService.create(key, request);
+  if (!result.replayed()) {
+    orchestrator.start(result.response().taskId());
+  }
+  return ResponseEntity.accepted()
+      .header("Idempotency-Replayed",
+              Boolean.toString(result.replayed()))
+      .body(result.response());
+}
+
+@Transactional
+public CreateResult create(String key, CreateTaskRequest request) {
+  String requestHash = RequestFingerprint.sha256(...);
+  idempotencyMapper.insertPlaceholder(scope, key, requestHash, expiresAt);
+  IdempotencyRecordEntity record =
+      idempotencyMapper.selectForUpdate(scope, key);
+  if (!requestHash.equals(record.getRequestHash())) throw conflict;
+  if (record.getResponseJson() != null) return replay(record);
+  taskMapper.insert(task);
+  eventService.append(taskId, "task_created", ...);
+  idempotencyMapper.saveResponse(...);
+  return new CreateResult(response, false);
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>进入 Controller：</b>要求客户端提供 Idempotency-Key。网络超时后客户端可以安全重试。</li>
+          <li><b>跳入 Service：</b>把 sessionId、hostId、任务文本规范化后做 SHA-256。Key 一样而请求不同，会返回冲突。</li>
+          <li><b>抢数据库唯一键：</b>并发请求只有一个 Key 记录；随后 <code>SELECT FOR UPDATE</code> 串行处理。</li>
+          <li><b>同一事务：</b>任务、task_created 事件、首次 HTTP 响应一起提交，不会出现“Key 占了但任务没建”的半成品。</li>
+          <li><b>跳回 Controller：</b>首次请求才启动编排器；重放请求只返回之前保存的相同 body，不会启动第二份 Agent Loop。</li>
+        </ol>
+        <div class="returns"><b>返回：</b>202 + taskId/status/phase。是否重放只放在响应头，首次和重放的响应体完全相同。</div>
+      </div>
+    </div>
+    <h3>为什么只用 UUID 不算严格幂等？</h3>
+    <p>UUID 只能降低 ID 冲突概率，不能识别“同一个业务请求重试”。严格幂等必须保存 <code>scope + idempotencyKey + requestHash + response</code>，并利用唯一键和事务处理并发。</p>
+  </section>
+
+  <section id="orchestrator" data-search="编排器 异步 worker thread runtime">
+    <h2>06. HTTP 返回后，Agent 在哪里运行？</h2>
+    <div class="reader">
+      <div class="source"><span class="file">TaskWorkflowOrchestrator.java · 107–183</span><pre>public boolean start(String taskId) {
+  return schedule(taskId, RunMode.NORMAL);
+}
+
+private boolean schedule(String taskId, RunMode mode) {
+  if (!scheduled.add(taskId) || runtimeRegistry.isRunning(taskId)) {
+    return false;
+  }
+  workers.execute(() -&gt; run(taskId, mode));
+  return true;
+}
+
+private void run(String taskId, RunMode mode) {
+  try (Registration ignored = runtimeRegistry.register(taskId)) {
+    AgentTaskEntity task = taskMapper.selectById(taskId);
+    LiveSession live = sessionManager.get(task.getSessionId());
+    runtimeRegistry.bindSsh(taskId, live.ssh());
+    transitionService.transition(taskId, PLANNING, PLAN, ...);
+    agentService.run(..., confirmationFactory.create(taskId), observer);
+  } catch (TaskCancelledException e) {
+    cancellationFinalizer.finalizeIfCancelling(taskId);
+  } catch (DuplicateToolExecutionException e) {
+    persistence.needsReview(taskId, e.getMessage());
+  } finally {
+    scheduled.remove(taskId);
+  }
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>Controller 不跑 Agent：</b><code>workers.execute</code> 把工作交给固定线程池，HTTP 可以立即返回。</li>
+          <li><b>双重去重：</b><code>scheduled</code> 防止排队重复，<code>runtimeRegistry</code> 防止运行重复。</li>
+          <li><b>登记运行句柄：</b>记录工作线程和 SSH Client，取消 API 才知道该中断谁。</li>
+          <li><b>按 taskId 创建 confirmer/observer：</b>审批上下文和持久化观察者不会跨任务共享。</li>
+          <li><b>异常分流：</b>取消、重复执行、限额、普通异常分别收敛到不同持久化状态。</li>
+        </ol>
+        <div class="returns"><b>线程关系：</b>HTTP 线程只建任务；agent-task-N 工作线程执行 Loop；审批 HTTP 使用另一条容器线程；SSE 又是独立订阅。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="function-calling" data-search="function calling tool call spring ai 工具调用">
+    <h2>07. 什么是 Function Calling？项目已经用了</h2>
+    <p>Function Calling 不是模型直接执行 Java 方法。Java 把工具名称、参数 Schema 和描述发给模型；模型返回结构化 <code>tool_call</code> 意图；应用校验后才决定是否执行对应方法，并把结果作为 <code>tool_result</code> 回灌。</p>
+    <div class="reader">
+      <div class="source"><span class="file">AgentService.java · 131–200</span><pre>ToolCallback[] callbacks = ToolCallbacks.from(tools);
+OpenAiChatOptions options = OpenAiChatOptions.builder()
+    .toolCallbacks(callbacks)
+    .internalToolExecutionEnabled(false)
+    .build();
+
+for (int round = 1; round &lt;= maxRounds; round++) {
+  messages = contextManager.truncateToolResponses(messages);
+  messages = contextManager.compressIfNeeded(messages);
+  ChatResponse response = chatModel.call(new Prompt(messages, options));
+
+  if (!response.hasToolCalls()) return finalText;
+
+  AssistantMessage assistant = response.getResult().getOutput();
+  List&lt;ToolResponse&gt; rejected = screen(...);
+  if (!rejected.isEmpty()) {
+    messages.add(assistant);
+    messages.add(rejectedToolMessage);
+    continue;
+  }
+  observer.beforeToolExecution(assistant.getToolCalls());
+  ToolExecutionResult result =
+      toolCallingManager.executeToolCalls(prompt, response);
+  observer.afterToolExecution(lastToolResponses(result));
+  messages = new ArrayList&lt;&gt;(result.conversationHistory());
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>ToolCallbacks.from：</b>扫描 <code>SshTools</code> 的 <code>@Tool</code>，生成模型能理解的函数描述。</li>
+          <li><b>关闭内部自动执行：</b>这是最重要的开关。否则 Spring AI 收到 tool_call 就执行，安全门禁和审批插不进去。</li>
+          <li><b>模型返回两类数据：</b>没有 tool_call 就是最终回答；有 tool_call 就是结构化工具意图。</li>
+          <li><b>先 screen：</b>DENY/ASK 在 Java 确定性代码里执行，不信任 Prompt 里的“模型自觉”。</li>
+          <li><b>结果回灌：</b>模型读取 stdout/exitCode 后决定下一步，直到没有工具调用或达到最大轮数。</li>
+        </ol>
+        <div class="returns"><b>一句话：</b>模型拥有建议权，Java 状态机拥有执行权。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="risk" data-search="risk policy 规则链 deny ask allow">
+    <h2>08. Risk Check：规则链如何决定 ALLOW / ASK / DENY</h2>
+    <div class="reader">
+      <div class="source"><span class="file">CommandPolicyEngine.java · 23–45</span><pre>List&lt;PolicyMatch&gt; matches = policies.stream()
+    .map(policy -&gt; policy.evaluate(context))
+    .flatMap(Optional::stream)
+    .toList();
+
+PolicyMatch winner = matches.stream()
+    .min(comparing(decision.ordinal())
+      .thenComparing(match -&gt; -match.riskLevel().ordinal()))
+    .orElse(new PolicyMatch(
+      ASK, MEDIUM,
+      "命令不在只读白名单，需要人工确认",
+      "ask.unknown_command"));
+
+return new PolicyResult(
+    winner.decision(), winner.riskLevel(),
+    winner.reason(), ruleIds, policyVersion);</pre></div>
+      <div class="explain">
+        <ol>
+          <li>每条 <code>CommandPolicy</code> 独立检查一种风险，便于测试和扩展。</li>
+          <li>合并时“最严格决定获胜”：DENY 优先 ASK，ASK 优先 ALLOW；同决定选更高风险。</li>
+          <li>未知命令默认 ASK，而不是默认 ALLOW。</li>
+          <li>返回的不只是决定，还包含风险、原因、命中规则和策略版本；这些字段会写进 Step/Approval。</li>
+        </ol>
+      </div>
+    </div>
+    <table>
+      <tr><th>规则类型</th><th>例子</th><th>结果</th></tr>
+      <tr><td>绝对破坏</td><td><code>rm -rf</code>、<code>mkfs</code>、<code>dd</code>、重启机器</td><td><span class="tag deny">DENY</span></td></tr>
+      <tr><td>间接执行/混淆</td><td><code>bash -c</code>、Python/Node 执行、base64 | shell、变量替换</td><td><span class="tag deny">DENY</span></td></tr>
+      <tr><td>提权和写操作</td><td><code>sudo</code>、重启服务、修改权限、重定向写文件</td><td><span class="tag ask">ASK</span></td></tr>
+      <tr><td>明确只读</td><td><code>df</code>、<code>ps</code>、<code>ss</code>、<code>systemctl status</code></td><td><span class="tag">ALLOW</span></td></tr>
+      <tr><td>未知命令</td><td>未命中白名单也未命中禁止规则</td><td><span class="tag ask">ASK</span></td></tr>
+    </table>
+  </section>
+
+  <section id="ask" data-search="ask approval completablefuture 暂停 等待 唤醒">
+    <h2>09. ASK 的完整断点跟踪：如何暂停，又如何继续</h2>
+    <div class="callout"><b>先给结论：</b>Agent 没有被销毁，也没有轮询前端。它的专用工作线程停在 <code>CompletableFuture.get(timeout)</code>；数据库保存审批真相；另一条审批 HTTP 线程更新数据库并在事务提交后调用 <code>future.complete</code>，原线程从原调用栈下一行继续。</div>
+    <div class="reader">
+      <div class="source"><span class="file">PersistentConfirmationHandler.java · 48–78 → ApprovalCoordinator.java · 29–64</span><pre>public boolean confirm(ConfirmationRequest request) {
+  AgentStepEntity step = stepService.createOrGet(...);
+  ApprovalDecision decision = coordinator.requestAndAwait(
+      new ApprovalRequest(taskId, stepId, ..., timeout));
+  if (decision == APPROVED) {
+    transition(taskId, RISK_CHECKING, RISK_CHECK, ...);
+  }
+  return decision == APPROVED;
+}
+
+public ApprovalDecision requestAndAwait(ApprovalRequest request) {
+  ApprovalView approval = approvalService.request(request);
+  CompletableFuture&lt;ApprovalDecision&gt; future =
+      waitRegistry.register(approval.approvalId());
+  try {
+    ApprovalView latest = approvalService.get(approvalId);
+    if (latest.isTerminal()) return from(latest.status());
+    return future.get(remainingMillis, MILLISECONDS);
+  } catch (TimeoutException e) {
+    return approvalService.expire(approvalId);
+  } finally {
+    waitRegistry.remove(approvalId, future);
+  }
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>断点 A：</b><code>confirm</code> 收到完整 toolCallId/toolName/arguments/风险信息。</li>
+          <li><b>断点 B：</b><code>createOrGet</code> 用 actionDigest 取得稳定 Step；同一动作不会创建多个逻辑 Step。</li>
+          <li><b>断点 C：</b><code>approvalService.request</code> 先完成数据库事务，状态变成 WAITING_APPROVAL。</li>
+          <li><b>断点 D：</b>按 approvalId 注册 Future。注册后立即再读数据库，封住“用户审批比 Future 注册更快”的竞态。</li>
+          <li><b>断点 E：</b><code>future.get</code> 阻塞的是 agent-task-N 工作线程，不是审批 HTTP 线程，也不是 SSE 线程。</li>
+          <li><b>断点 F：</b>Future 返回 APPROVED 后跳回 <code>confirm</code>，再返回 true 给 <code>screen</code>，原 Loop 继续。</li>
+        </ol>
+        <div class="returns"><b>重要：</b>“继续”不是重新创建任务；正常情况下是原线程原调用栈恢复。只有服务重启导致 JVM 调用栈丢失时，才由 RecoveryScheduler 按数据库恢复。</div>
+      </div>
+    </div>
+    <h3>审批请求的持久化事务</h3>
+    <div class="reader">
+      <div class="source"><span class="file">ApprovalService.java · 62–120</span><pre>@Transactional
+public ApprovalView request(ApprovalRequest request) {
+  AgentTaskEntity task = taskMapper.selectForUpdate(taskId);
+  AgentStepEntity step = stepMapper.selectForUpdate(stepId);
+  AgentApprovalEntity existing =
+      approvalMapper.selectByActionForUpdate(
+          taskId, toolCallId, actionDigest);
+  if (existing != null) return toView(existing);
+
+  approval.setApprovalId(UUID.randomUUID().toString());
+  approval.setStatus("PENDING");
+  approvalMapper.insertOrKeepExisting(approval);
+  stepMapper.markApprovalState(stepId, "WAITING_APPROVAL", ...);
+  transition(taskId, WAITING_APPROVAL, APPROVE, ...);
+  eventService.append(taskId, "approval_required", view);
+  return view;
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li>先锁 Task，再锁 Step/Approval，所有审批写路径保持相同锁顺序，降低死锁风险。</li>
+          <li>唯一业务键是 <code>(taskId, toolCallId, actionDigest)</code>。首次生成 UUID，以后复用，因此 approvalId 稳定。</li>
+          <li>Approval=PENDING、Step=WAITING_APPROVAL、Task=WAITING_APPROVAL、approval_required 事件同事务提交。</li>
+          <li>事务失败时全部回滚；客户端不会看到数据库不存在的“幽灵审批”。</li>
+        </ol>
+      </div>
+    </div>
+    <h3>审批通过时的另一条线程</h3>
+    <div class="reader">
+      <div class="source"><span class="file">ApprovalDecisionService.java · 75–158；ApprovalService.java · 202–213</span><pre>@Transactional
+public DecisionResult decide(...) {
+  // 幂等 Key + requestHash + 响应回放
+  AgentApprovalEntity approval =
+      approvalMapper.selectForUpdate(approvalId);
+  int updated = approvalMapper.decidePending(
+      approvalId, target, now, approval.getVersion());
+  if (updated != 1) return existingTerminal(...);
+
+  stepMapper.markApprovalState(
+      stepId, "READY_TO_EXECUTE", ...);
+  eventService.append(taskId, "approval_decided", view);
+  approvalService.completeAfterCommit(approvalId, decision);
+  return persist(idempotency, 200, body, approvalId);
+}
+
+void completeAfterCommit(String id, ApprovalDecision decision) {
+  registerSynchronization(new TransactionSynchronization() {
+    public void afterCommit() {
+      waitRegistry.complete(id, decision);
+    }
+  });
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li>审批接口本身也严格幂等：相同 Key/相同 body 回放；相同 Key/不同 body 返回 409。</li>
+          <li><code>decidePending</code> 带 status/version 条件，只有一个并发请求能把 PENDING 改成终态。</li>
+          <li>批准后 Step 只到 READY_TO_EXECUTE，还没有执行。执行还要再过一次 CAS。</li>
+          <li><code>completeAfterCommit</code> 非常关键：先提交数据库，再唤醒线程。若先唤醒，工作线程可能读取到旧状态甚至执行后审批事务又回滚。</li>
+        </ol>
+      </div>
+    </div>
+    <h3>审批超时和重复审批</h3>
+    <table>
+      <tr><th>场景</th><th>处理</th></tr>
+      <tr><td>等待达到 expiresAt</td><td><code>future.get</code> 抛 TimeoutException，调用 <code>expire</code> 做 PENDING→EXPIRED CAS。</td></tr>
+      <tr><td>定时扫描先到</td><td>ExpiryScheduler 同样做 CAS，并 complete Future；两条路径只有一个成功。</td></tr>
+      <tr><td>50 个并发“批准”</td><td>只有一个 CAS 改状态；其余读取同一终态，不重复推进。</td></tr>
+      <tr><td>先批准后注册 Future</td><td>注册后再次读库，发现终态立即返回，不会永远等待。</td></tr>
+      <tr><td>已批准又拒绝</td><td>409 APPROVAL_ALREADY_DECIDED。</td></tr>
+      <tr><td>进程重启</td><td>Future 消失，但 Approval/Task/Step 仍在数据库；RecoveryScheduler 重建流程。</td></tr>
+    </table>
+  </section>
+
+  <section id="sse" data-search="sse server sent event http 单向 审批接口">
+    <h2>10. 为什么 SSE 只能推送，审批必须另一个 HTTP</h2>
+    <div class="two">
+      <div class="card"><b>SSE 的职责</b><p>一条普通 HTTP 长连接，服务器持续向客户端发送事件。浏览器端不能沿同一 SSE 通道反向发送审批命令。适合 task_created、approval_required、执行结果和总结。</p></div>
+      <div class="card"><b>审批 HTTP 的职责</b><p>客户端向服务器发送有副作用的决定。独立 POST 便于事务、Idempotency-Key、请求体哈希、409 冲突、审计、超时和重试。</p></div>
+    </div>
+    <div class="reader">
+      <div class="source"><span class="file">TaskEventService.java · 42–87，129–139；TaskController.java · 69–80</span><pre>@Transactional
+public TaskEventView append(...) {
+  AgentTaskEntity task = taskMapper.selectForUpdate(taskId);
+  long sequence = task.getNextEventSequence();
+  taskMapper.advanceEventSequence(...);
+  eventMapper.insert(event);
+  publishAfterCommit(view);
+  return view;
+}
+
+public Flux&lt;TaskEventView&gt; stream(String taskId, long afterId) {
+  Flux&lt;TaskEventView&gt; history = Flux.fromIterable(replay(taskId, afterId));
+  return Flux.concat(history, publisher.live(taskId))
+      .filter(event -&gt; advance(lastSeen, event.id()));
+}
+
+GET /api/agent/tasks/{taskId}/events
+Last-Event-ID: 17</pre></div>
+      <div class="explain">
+        <ol>
+          <li>事件先落库，再在事务提交后发布到实时 Sink。</li>
+          <li>每个任务的 sequence 单调递增，SSE id 可用于断线续传。</li>
+          <li>重连带 Last-Event-ID，服务先查询历史遗漏事件，再衔接实时流。</li>
+          <li>AtomicLong 去掉“历史查询”和“实时缓冲”交界处的重复事件。</li>
+          <li>用户关掉 SSE 只代表“不再看进度”，不会取消后台任务。</li>
+          <li>应用关闭事件会主动 complete 全部实时 Sink，让无限 SSE 在 Web Server 停止前结束。</li>
+        </ol>
+      </div>
+    </div>
+    <div class="callout"><b>旧接口边界：</b><code>/api/agent/run</code> 和 <code>/api/agent/stream</code> 没有审批回传通道，现已标记弃用并使用 <code>RejectingConfirmationHandler</code>：ALLOW 仍可执行，ASK 一律失败关闭。需要人工审批的调用必须迁移到 <code>/api/agent/tasks</code>、任务事件 SSE 和独立审批 POST。</div>
+    <p><strong>为什么不用 WebSocket？</strong>WebSocket 可以双向，但本机单用户第一版不值得增加连接状态、重连、消息确认和协议复杂度。SSE + 幂等 POST 的职责更清晰。</p>
+  </section>
+
+  <section id="execute" data-search="execute cas once exactly once 工具执行">
+    <h2>11. 批准不等于执行：Step 如何保证只执行一次</h2>
+    <div class="reader">
+      <div class="source"><span class="file">WorkflowPersistenceService.java · 115–152</span><pre>@Transactional
+public void beginExecution(String taskId,
+                           List&lt;ExecutionClaim&gt; claims) {
+  AgentTaskEntity task = requireActiveTask(taskId);
+  if (task.toolCalls + claims.size() &gt; maxToolCalls) throw limit;
+
+  for (ExecutionClaim claim : orderedClaims) {
+    AgentStepEntity step = stepMapper.selectForUpdate(claim.stepId());
+    if (!RISK_CHECKED.equals(step.status)
+        &amp;&amp; !READY_TO_EXECUTE.equals(step.status)) {
+      throw new DuplicateToolExecutionException(...);
+    }
+  }
+  taskMapper.addToolCalls(taskId, claims.size(), task.version);
+  for (ExecutionClaim claim : orderedClaims) {
+    stepMapper.claimExecution(
+        stepId, preSnapshot, step.version);
+  }
+  transition(taskId, EXECUTING, EXECUTE, "task_executing");
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li><b>先检查整批：</b>模型一次可能返回多个工具调用。任一 Step 不合法，整个事务回滚，不产生半批执行。</li>
+          <li><b>先扣预算：</b>最大工具次数 30，防模型绕路或死循环。</li>
+          <li><b>执行权 CAS：</b>Step 只有从 RISK_CHECKED/READY_TO_EXECUTE 才能变 EXECUTING。</li>
+          <li><b>事务提交后才调用 SSH：</b>数据库已经明确记录“谁取得执行权”。重复请求无法再次取得。</li>
+        </ol>
+        <div class="returns"><b>严格表述：</b>项目保证应用层不重复领取同一 Step；无法宣称跨本地数据库与远端 Linux 的数学意义 exactly-once，因为两边没有分布式事务。</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="ssh" data-search="ssh channel timeout output jsch session">
+    <h2>12. SSH 命令为什么不会再无限等待</h2>
+    <div class="reader">
+      <div class="source"><span class="file">SshClient.java · 171–252</span><pre>ChannelExec channel = (ChannelExec) session.openChannel("exec");
+OutputBudget budget = new OutputBudget(maxOutputBytes);
+ActiveCommand execution = new ActiveCommand(channel);
+activeCommand.compareAndSet(null, execution);
+
+channel.connect(connectTimeout);
+long deadline = now + commandTimeout;
+while (true) {
+  while (stdout.available() &gt; 0) drainIntoBoundedBuffer();
+  if (execution.cancelRequested.get()) { cancelled = true; break; }
+  if (channel.isClosed()) { exitCode = channel.getExitStatus(); break; }
+  if (now &gt;= deadline) { timedOut = true; break; }
+  Thread.sleep(50);
+}
+channel.disconnect();
+if (timedOut || cancelled) verifySessionAfterForcedChannelClose();
+return new ExecResult(stdout, stderr, exitCode,
+    timedOut, cancelled, budget.truncated());</pre></div>
+      <div class="explain">
+        <ol>
+          <li>每条命令记录 deadline，默认 30 秒。<code>tail -f</code>、<code>ping</code>、<code>top</code> 到点退出。</li>
+          <li>stdout 和 stderr 共用 1MB 预算，避免两边各占 1MB。</li>
+          <li>超出预算后仍继续排空远端输出，只丢弃额外字节。若不排空，远端可能因管道缓冲写满而卡死。</li>
+          <li>取消/超时只关闭当前 exec Channel；随后 keepalive 检查 Session，健康则继续复用，不健康才关闭。</li>
+          <li>同一 SshClient 禁止并发命令，上层 LiveSession.lock 串行化。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="cancel" data-search="取消 cancelling cancelled flux subscription">
+    <h2>13. 用户取消：为什么取消 Flux 不等于取消任务</h2>
+    <div class="flow"><span>RUNNING</span><i>POST cancel</i><span>CANCELLING</span><i>资源退出</i><span>CANCELLED</span></div>
+    <div class="reader">
+      <div class="source"><span class="file">TaskCancellationService.java · 59–117 → TaskRuntimeRegistry.java · 48–61</span><pre>@Transactional
+public CancelResult cancel(String taskId, String key) {
+  // 幂等记录 + requestHash + response replay
+  taskMapper.requestCancellation(
+      taskId, "CANCELLING", task.version);
+  eventService.append(taskId, "task_cancelling", ...);
+  idempotencyMapper.saveResponse(...);
+  afterCommit(() -&gt; runtimeRegistry.signalCancellation(taskId));
+}
+
+Future&lt;ChatResponse&gt; future =
+    modelCalls.submit(() -&gt; chatModel.call(prompt));
+observer.onModelCallStarted(future);
+
+public CancellationSignal signalCancellation(String taskId) {
+  handle.cancelRequested.set(true);
+  boolean model = handle.modelCall != null
+      &amp;&amp; handle.modelCall.cancel(true);
+  boolean ssh = handle.sshClient != null
+      &amp;&amp; handle.sshClient.cancelActiveCommand();
+  handle.worker.interrupt();
+  return new CancellationSignal(true, model, ssh);
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li>先持久化“应当取消”，再提交事务，保证重启后也看得到取消意图。</li>
+          <li>主决策和历史摘要两类同步模型调用都经过同一个可取消入口；Observer 把真实 Future 绑定到当前 taskId。</li>
+          <li>提交后向三处发信号：模型 Future、SSH Channel、工作线程 interrupt。取消先到而 Future 后绑定时，绑定动作会立即补发取消。</li>
+          <li><code>Future.cancel(true)</code> 只是尽力中断，第三方 HTTP 客户端不一定立即停，所以不虚报“模型已终止”。</li>
+          <li>后台资源真正退出后，Finalizer 才把 CANCELLING 收敛到 CANCELLED。</li>
+          <li>SSE Subscription 从未登记到 RuntimeRegistry，因此关闭浏览器不会误取消任务。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="verify" data-search="snapshot verify rollback 回滚 验证">
+    <h2>14. 执行前快照、执行后验证与回滚边界</h2>
+    <p>第一版不自动回滚。支持明确验证器的动作先拍状态快照，执行后做只读检查；无法通用验证时明确写 UNSUPPORTED；失败只给回滚建议。用户真要回滚时，新建 Step，重新经过 Risk Check 和 Approve。</p>
+    <table>
+      <tr><th>阶段</th><th>保存内容</th><th>原则</th></tr>
+      <tr><td>执行前</td><td>例如 systemctl 服务 active/inactive 状态</td><td>只读快照，不伪造完整系统快照</td></tr>
+      <tr><td>执行后</td><td>exitCode、timeout、cancelled、truncated、摘要</td><td>结果先持久化</td></tr>
+      <tr><td>Verify</td><td>只读命令验证服务/进程/端口等</td><td>验证本身仍经过安全约束</td></tr>
+      <tr><td>失败</td><td>原因、验证结果、回滚建议文本</td><td>不自动执行高风险回滚</td></tr>
+    </table>
+  </section>
+
+  <section id="recovery" data-search="restart recovery needs review 恢复 重启">
+    <h2>15. 服务重启后怎么恢复</h2>
+    <div class="reader">
+      <div class="source"><span class="file">TaskRecoveryScheduler.java · 72–126</span><pre>switch (status) {
+  case CREATED, PLANNING -&gt; orchestrator.start(taskId);
+  case VERIFYING, SUMMARIZING -&gt;
+      orchestrator.continueAfterRestart(taskId);
+  case RISK_CHECKING -&gt; recoverRiskChecking(task);
+  case WAITING_APPROVAL -&gt; recoverApproval(task);
+  case EXECUTING -&gt; persistence.needsReview(
+      taskId,
+      "无法证明远端动作是否已经发生，禁止自动重放");
+  case CANCELLING -&gt; finalizer.finalizeIfCancelling(taskId);
+}
+
+switch (approval.status) {
+  case PENDING -&gt; { /* 保持等待 */ }
+  case APPROVED -&gt; orchestrator.resumeApprovedStep(taskId);
+  case REJECTED -&gt; continueWithRejectedToolResult();
+  case EXPIRED -&gt; failTask();
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li>定时扫描非终态任务，跳过本 JVM 已经运行的 taskId。</li>
+          <li>WAITING + PENDING 不需要内存 Future 才能保存状态，数据库继续等待 HTTP 决定或过期扫描。</li>
+          <li>WAITING + APPROVED 按数据库里的精确 Step 参数恢复，仍要执行权 CAS，不重新让模型猜一个相似命令。</li>
+          <li>EXECUTING 是最危险状态：可能远端已成功、也可能未执行。自动重试可能造成第二次副作用，所以进入 NEEDS_REVIEW。</li>
+        </ol>
+      </div>
+    </div>
+    <div class="callout danger"><b>面试高分点：</b>承认本地事务与远端 SSH 之间存在不可原子提交的窗口。成熟设计不是声称“绝对 exactly once”，而是识别不确定状态并停止自动化。</div>
+  </section>
+
+  <section id="persistence" data-search="mysql table schema persistence 表">
+    <h2>16. 每一步如何持久化</h2>
+    <table>
+      <thead><tr><th>表</th><th>保存什么</th><th>关键约束</th><th>恢复作用</th></tr></thead>
+      <tbody>
+        <tr><td><code>t_agent_task</code></td><td>任务文本、status/phase、deadline、取消标志、计数器、summary/error、version</td><td>task_id 主键，乐观锁 version</td><td>知道整项任务停在哪</td></tr>
+        <tr><td><code>t_agent_step</code></td><td>Plan、Tool、风险、参数、actionDigest、快照、执行和验证结果</td><td>(taskId, toolCallId, actionDigest) 唯一</td><td>精确恢复动作并防重</td></tr>
+        <tr><td><code>t_agent_approval</code></td><td>approvalId、PENDING/APPROVED 等、风险、理由、到期时间</td><td>(taskId, toolCallId, actionDigest) 唯一</td><td>Future 丢失后仍有真相</td></tr>
+        <tr><td><code>t_agent_event</code></td><td>任务内单调 sequence、事件类型、JSON payload</td><td>(taskId, sequenceNo) 唯一</td><td>SSE Last-Event-ID 回放</td></tr>
+        <tr><td><code>t_idempotency_record</code></td><td>scope、Key、requestHash、resourceId、HTTP status/body、过期时间</td><td>(scope, key) 唯一</td><td>网络重试原样回放</td></tr>
+        <tr><td><code>t_message</code></td><td>用户、assistant、tool call/result 历史</td><td>按 session 顺序</td><td>重启后继续模型上下文</td></tr>
+      </tbody>
+    </table>
+    <h3>三层幂等必须同时存在</h3>
+    <ol>
+      <li><b>API 层：</b>Idempotency-Key + requestHash + 原响应回放，处理用户重复点击、代理重试和网络超时。</li>
+      <li><b>业务层：</b>Step/Approval 唯一业务键，处理同一 Tool Call 重入。</li>
+      <li><b>执行层：</b>Step status/version CAS，处理并发线程和恢复扫描器抢同一执行权。</li>
+    </ol>
+  </section>
+
+  <section id="security" data-search="known hosts strict key sftp aes gcm">
+    <h2>17. SSH 生产安全</h2>
+    <div class="grid">
+      <div class="card"><b>Host Key</b><span>生产默认 StrictHostKeyChecking=yes。首次通过管理 API 预览 SHA256 指纹，用户核对后信任；Key 变化拒绝覆盖。</span></div>
+      <div class="card"><b>认证</b><span>支持密码、私钥路径、私钥口令。SSH Agent 因当前 JSch 缺少可靠连接器明确延期，不伪装完成。</span></div>
+      <div class="card"><b>文件读取</b><span>readRemoteFile/tailLog 改用 SFTP，恶意路径不进入 Shell 语法；tail 使用固定环形缓冲。</span></div>
+      <div class="card"><b>SFTP 写审批</b><span>deleteFile/makeDir/moveFile 先由 ToolRiskCommand 转成等价命令，与 execCommand 共用 DENY/ASK/ALLOW、持久化审批和重启恢复。</span></div>
+      <div class="card"><b>凭据加密</b><span>AES-GCM，随机 12 字节 IV，自带完整性校验；生产无 Key 拒绝启动。</span></div>
+      <div class="card"><b>密钥轮换</b><span>密文带 v1:/v2: 前缀，Key Ring 同时保留新旧密钥，活动版本加密、对应版本解密。</span></div>
+      <div class="card"><b>纵深防御</b><span>代码门禁不是唯一边界。生产还需要最小权限 Linux 用户、sudo 白名单、容器/主机隔离和日志脱敏。</span></div>
+    </div>
+    <div class="reader">
+      <div class="source"><span class="file">SshClient.java · 94–148；KnownHostsService.java · 40–75</span><pre>if (strictHostKeyChecking) {
+  prepareKnownHosts();
+  config.put("StrictHostKeyChecking", "yes");
+}
+
+public synchronized KnownHostPreview trust(
+    String hostToken, String line, String expectedFingerprint) {
+  String actual = fingerprint(parsed.keyBytes());
+  if (!MessageDigest.isEqual(actual, expected)) throw mismatch;
+  for (String existing : knownHosts) {
+    if (sameHost &amp;&amp; sameLine) return alreadyTrusted;
+    if (sameHost) throw new KnownHostConflictException(hostToken);
+  }
+  append(line);
+}</pre></div>
+      <div class="explain">
+        <ol>
+          <li>连接时要求 known_hosts 中已有匹配 Key，防止中间人攻击。</li>
+          <li>首次信任不是程序替用户信任网络，用户必须通过可信渠道核对指纹。</li>
+          <li>同一 Key 重复导入幂等；同一主机出现不同 Key 直接冲突，不能静默覆盖。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="metrics" data-search="micrometer prometheus metrics eval token">
+    <h2>18. 可观测性与评测</h2>
+    <table>
+      <tr><th>指标</th><th>名称/标签</th><th>回答的问题</th></tr>
+      <tr><td>模型调用</td><td><code>lowenssh.agent.model.calls/duration</code></td><td>模型调用几次、P95 多慢</td></tr>
+      <tr><td>Token</td><td><code>tokens.input/output/cached</code></td><td>成本多少、上下文缓存是否命中</td></tr>
+      <tr><td>策略</td><td>decision、risk 标签</td><td>ALLOW/ASK/DENY 分布</td></tr>
+      <tr><td>工具</td><td>success、timed_out、cancelled</td><td>Agent 是否绕路、失败在哪里</td></tr>
+      <tr><td>SSH</td><td>outcome + duration</td><td>慢命令、超时、失败率</td></tr>
+      <tr><td>任务</td><td>status + duration</td><td>成功率和用户总等待时间</td></tr>
+      <tr><td>上下文</td><td><code>context.compressions</code></td><td>压缩触发频率</td></tr>
+    </table>
+    <p>指标只使用低基数状态标签，不把命令正文、密码、私钥或 API Key 放进指标。Actuator 暴露 <code>/actuator/metrics</code> 和 <code>/actuator/prometheus</code>。</p>
+    <h3>固定评测结果</h3>
+    <table>
+      <tr><th>类别</th><th>场景数</th><th>期望</th><th>实测</th></tr>
+      <tr><td>正常只读</td><td>10</td><td>ALLOW</td><td>10/10</td></tr>
+      <tr><td>高风险操作</td><td>10</td><td>ASK</td><td>10/10</td></tr>
+      <tr><td>对抗/绕过</td><td>10</td><td>DENY</td><td>10/10</td></tr>
+      <tr><td colspan="2">危险误放行</td><td>0</td><td>0</td></tr>
+      <tr><td colspan="2">安全误拦截</td><td>0</td><td>0</td></tr>
+    </table>
+    <div class="callout warn"><b>不要夸大：</b>100% 只代表这 30 个固定离线样例，不代表任意 Shell 输入都安全，也不代表模型端到端任务成功率 100%。</div>
+  </section>
+
+  <section id="rag-mcp" data-search="rag mcp knowledge 知识库">
+    <h2>19. RAG 和 MCP：能用，但本期为什么没硬接</h2>
+    <h3>RAG</h3>
+    <p>RAG 是“先从知识库检索相关片段，再把片段放进模型上下文”。适合公司 SOP、部署文档、故障案例、服务拓扑。当前没有已确认的真实私有知识源，硬接向量库只会增加切分、Embedding、召回评测和提示注入面，不会提升 SSH 执行可靠性。</p>
+    <p><strong>将来接入原则：</strong>RAG 只能增强 Plan，不能赋予执行权限；知识片段里的命令仍要经过 Risk Check/Approve/Execute；回答必须显示来源，并建立离线召回评测。</p>
+    <h3>MCP</h3>
+    <p>MCP 是统一连接外部工具/数据源的协议。Prometheus、Grafana、GitHub、CMDB 很适合做 MCP 工具；核心 SSH 远程执行本期保留本地 ToolCallback，因为策略、审批、超时、取消和审计都在同一进程边界内，更容易证明。</p>
+    <table>
+      <tr><th>能力</th><th>当前选择</th><th>原因</th></tr>
+      <tr><td>SSH 命令</td><td>本地 ToolCallback</td><td>安全控制强，避免远程 MCP 成为第二条执行通道</td></tr>
+      <tr><td>Prometheus/GitHub/CMDB</td><td>后续可接 MCP</td><td>外围或只读能力，统一 Schema/鉴权有价值</td></tr>
+      <tr><td>RAG</td><td>当前不实现</td><td>无真实知识源，不做演示性堆栈</td></tr>
+    </table>
+  </section>
+
+  <section id="config" data-search="application yml 配置 环境变量">
+    <h2>20. 配置文件和内容速查</h2>
+    <table>
+      <tr><th>配置</th><th>默认值</th><th>作用</th></tr>
+      <tr><td><code>xwssh.agent.max-rounds</code></td><td>25</td><td>Agent Loop 最大轮数</td></tr>
+      <tr><td><code>idempotency-retention</code></td><td>24h</td><td>幂等响应保存时间</td></tr>
+      <tr><td><code>approval-timeout</code></td><td>2m</td><td>ASK 最长等待</td></tr>
+      <tr><td><code>task-timeout</code></td><td>10m</td><td>整体任务截止时间</td></tr>
+      <tr><td><code>max-tool-calls</code></td><td>30</td><td>工具调用预算</td></tr>
+      <tr><td><code>max-consecutive-failures</code></td><td>3</td><td>连续失败熔断</td></tr>
+      <tr><td><code>xwssh.ssh.connect-timeout</code></td><td>10s</td><td>Session/Channel 建连超时</td></tr>
+      <tr><td><code>command-timeout</code></td><td>30s</td><td>单命令超时</td></tr>
+      <tr><td><code>max-output-bytes</code></td><td>1,048,576</td><td>stdout/stderr 共享上限</td></tr>
+      <tr><td><code>strict-host-key-checking</code></td><td>true</td><td>生产严格校验 Host Key</td></tr>
+      <tr><td><code>known-hosts-path</code></td><td>~/.lowenssh/known_hosts</td><td>可信 Host Key 文件</td></tr>
+      <tr><td><code>policy-version</code></td><td>v1</td><td>审批/actionDigest 绑定策略语义</td></tr>
+      <tr><td><code>max-command-length</code></td><td>4096</td><td>拒绝过长混淆命令</td></tr>
+      <tr><td><code>context.max-context-tokens</code></td><td>12000</td><td>触发历史摘要压缩</td></tr>
+    </table>
+    <h3>必须通过环境变量提供的秘密</h3>
+    <pre class="source">MYSQL_PASSWORD=...
+GLM_API_KEY=...
+XWSSH_CRYPTO_KEY=...
+# 轮换时：
+XWSSH_CRYPTO_KEYS=v2=new-secret,v1=old-secret
+XWSSH_ACTIVE_CRYPTO_KEY_VERSION=v2
+XWSSH_KNOWN_HOSTS=/secure/path/known_hosts</pre>
+    <p><code>docker-compose.yml</code> 已透传上述加密配置，并把容器内 <code>/app/security/known_hosts</code> 挂载到 <code>ssh-security</code> 命名卷。复制 <code>.env.example</code> 为本地 <code>.env</code> 后填写真实值；<code>.env</code> 禁止提交。</p>
+  </section>
+
+  <section id="tests" data-search="test mvn verification 99">
+    <h2>21. 验证证据</h2>
+    <div class="grid">
+      <div class="card"><span class="metric">99</span><b>Tests run</b><span>0 failures，0 errors，2 skipped。</span></div>
+      <div class="card"><span class="metric">50</span><b>并发审批/取消</b><span>验证只有一个请求推进状态。</span></div>
+      <div class="card"><span class="metric">100</span><b>并发创建</b><span>相同 Idempotency-Key 只生成一个任务。</span></div>
+    </div>
+    <table>
+      <tr><th>测试</th><th>覆盖</th></tr>
+      <tr><td><code>TaskPersistenceIntegrationTest</code></td><td>创建幂等、冲突 Key、事件回放、状态与预算</td></tr>
+      <tr><td><code>ApprovalIntegrationTest</code></td><td>稳定 approvalId、等待唤醒、竞态、超时、并发决定</td></tr>
+      <tr><td><code>TaskWorkflowOrchestratorIntegrationTest</code></td><td>完整状态流、ASK、审批后执行、重启恢复、NEEDS_REVIEW</td></tr>
+      <tr><td><code>SshClientIntegrationTest</code></td><td>真实 SSH 协议的超时、取消、输出截断、Session 复用</td></tr>
+      <tr><td><code>SshToolsSftpSafetyTest</code></td><td>恶意路径不进入 Shell exec</td></tr>
+      <tr><td><code>KnownHostsServiceTest</code></td><td>指纹、重复导入、Host Key 冲突</td></tr>
+      <tr><td><code>CryptoUtilTest</code></td><td>AES-GCM、密钥轮换、旧密文兼容</td></tr>
+      <tr><td><code>AgentSecurityEvaluationTest</code></td><td>30 个正常/高风险/对抗场景并输出 JSON</td></tr>
+      <tr><td><code>RejectingConfirmationHandlerTest</code></td><td>旧 REST/SSE 的两种 ASK 入口都失败关闭</td></tr>
+      <tr><td><code>TaskRuntimeRegistryTest</code></td><td>模型 Future、SSH Channel、工作线程取消以及先取消后绑定竞态</td></tr>
+      <tr><td><code>TaskEventPublisherTest</code></td><td>应用关闭时完成无限 SSE，关闭后不再创建实时流</td></tr>
+      <tr><td><code>ContextManagerTest</code></td><td>历史摘要同样使用可取消模型入口，取消信号不会被熔断逻辑吞掉</td></tr>
+    </table>
+    <pre class="source">./mvnw -q test
+# Tests run: 99, Failures: 0, Errors: 0, Skipped: 2
+
+./mvnw -q -DskipTests package
+git diff --check
+# 均通过
+
+# 真实 Tomcat + MySQL，保持 SSE 订阅时发送 SIGINT
+# graceful shutdown: 约 57ms（不再等待 30s）</pre>
+  </section>
+
+  <section id="limits" data-search="局限 缺点 production limitations">
+    <h2>22. 主动承认的边界</h2>
+    <ul>
+      <li>规则链不能解析任意 Shell 的完整语义，不能证明命令绝对安全。</li>
+      <li>数据库与远端 Linux 没有分布式事务，EXECUTING 崩溃只能进入 NEEDS_REVIEW。</li>
+      <li>模型 Future.cancel(true) 是否真正中断网络请求取决于底层客户端。</li>
+      <li>当前是本机单用户、固定 2 个工作线程，不是多租户分布式调度平台。</li>
+      <li>SSH Agent 认证未实现；当前可靠支持密码和私钥。</li>
+      <li>OpenTelemetry Collector、Grafana Dashboard 未部署；已经暴露 Prometheus 指标。</li>
+      <li>30 场景评测是安全策略离线集，不是完整的模型端到端效果评测。</li>
+      <li>RAG 未实现，因为没有真实私有知识源；MCP 未接入核心 SSH 工具。</li>
+    </ul>
+    <p>这些不是“项目做得差”，而是清楚划定第一版的可信边界。面试时主动说明，比声称“正则保证安全、幂等保证绝对一次”更成熟。</p>
+  </section>
+
+  <section id="interview" data-search="面试 问答 讲解">
+    <h2>23. 面试官追问时怎么回答</h2>
+    <div class="interview"><div class="q">Q：为什么审批用 SSE + HTTP，不直接 WebSocket？</div><div>A：事件是服务器到客户端的单向通知，SSE 天然支持事件 ID 和断线重连；审批是有副作用的命令，需要事务、幂等 Key、冲突码和审计，所以独立 POST 更清晰。本机单用户版本用 WebSocket 会增加连接状态复杂度但没有明显收益。</div></div>
+    <div class="interview"><div class="q">Q：CompletableFuture 等待时会不会占用 Tomcat 请求线程？</div><div>A：不会。创建任务的 HTTP 已返回 202，Agent Loop 在专用 agent-task 线程池。Future.get 阻塞的是工作线程；审批 HTTP 使用另一条请求线程。Future 只负责 JVM 内唤醒，数据库才是持久化真相。</div></div>
+    <div class="interview"><div class="q">Q：approvalId 是 UUID，为什么还要 actionDigest？</div><div>A：UUID 只是外部标识。actionDigest 表示工具名、规范化参数、主机和策略版本对应的业务动作。唯一键阻止同一动作创建多份审批，approvalId 才能稳定复用。</div></div>
+    <div class="interview"><div class="q">Q：你能保证命令 exactly once 吗？</div><div>A：能保证同一 Step 在应用内只领取一次执行权，但不能跨 MySQL 与远端 Linux 宣称绝对 exactly once。若远端执行后进程在本地记结果前崩溃，状态不确定，所以重启后进入 NEEDS_REVIEW，绝不自动重放。</div></div>
+    <div class="interview"><div class="q">Q：为什么只取消 Flux 订阅不够？</div><div>A：SSE 只是观察通道，后台 Loop 和 SSH Channel 在别的线程。取消必须持久化 CANCELLING，并向模型 Future、工作线程和当前 Channel 分别传播信号。</div></div>
+    <div class="interview"><div class="q">Q：为什么不自动回滚？</div><div>A：回滚同样可能是高风险副作用，而且原状态未必能完整恢复。第一版只保存支持范围内的快照、执行后只读验证、生成回滚建议；真正回滚作为新 Step 再审批。</div></div>
+    <div class="interview"><div class="q">Q：为什么没有 RAG/MCP，会不会技术不够新？</div><div>A：项目的核心问题是安全执行治理，不是知识问答。没有真实 SOP 时加 RAG 没有可评测收益；核心 SSH 放远程 MCP 反而新增第二条执行边界。后续外围只读工具适合 MCP，有真实知识源后再用 RAG 增强 Plan。</div></div>
+    <h3>三分钟完整讲述模板</h3>
+    <p>“用户先通过幂等 POST 创建任务，同一个 Key 和请求体永远返回相同 taskId。HTTP 返回后，专用线程运行 Agent Loop。Spring AI 把 SshTools 暴露成 Function Schema，但我关闭自动工具执行，让模型只能返回意图。每个 Tool Call 先被规则链评估，ALLOW 直接进入执行准备，DENY 回灌拒绝结果让模型换方案，ASK 则在同一事务写 Task、Step、Approval 和 approval_required 事件。SSE 在事务提交后推给前端，用户通过独立幂等 HTTP 审批。Agent 工作线程停在 CompletableFuture.get，审批事务提交后 complete，原调用栈恢复。批准还不够，Step 必须用 CAS 从 READY_TO_EXECUTE 变成 EXECUTING，防止重复执行。SSH 有 30 秒命令超时、1MB 输出上限和主动 Channel 取消，执行后保存结果并做只读验证。服务重启时从数据库恢复；如果崩溃前 Step 已经 EXECUTING，就进入 NEEDS_REVIEW，避免不确定副作用被重放。最后用 Micrometer 和固定评测集看成本、延迟、工具效率和安全误放行。”</p>
+  </section>
+
+  <footer>
+    <p>源码基线：LowenSSH Java 端，文档生成日期 2026-07-31。代码行号以生成时工作区为准。</p>
+    <p>建议复习顺序：先背 30 秒开场，再画 ASK 时序，最后掌握“为什么不能宣称绝对 exactly-once”这一条。</p>
+  </footer>
+</main>
+<script>
+  const menu=document.querySelector('.menu'), aside=document.querySelector('aside');
+  menu.addEventListener('click',()=>{const open=aside.classList.toggle('open');menu.setAttribute('aria-expanded',open)});
+  document.querySelectorAll('nav a').forEach(a=>a.addEventListener('click',()=>aside.classList.remove('open')));
+  const progress=document.querySelector('.progress');
+  function updateProgress(){const d=document.documentElement;const max=d.scrollHeight-d.clientHeight;progress.style.width=(max?d.scrollTop/max*100:0)+'%'}
+  addEventListener('scroll',updateProgress,{passive:true});updateProgress();
+  const sections=[...document.querySelectorAll('main section[id]')], links=[...document.querySelectorAll('nav a')];
+  const observer=new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)links.forEach(a=>a.classList.toggle('active',a.hash==='#'+e.target.id))})},{rootMargin:'-20% 0px -70%'});
+  sections.forEach(s=>observer.observe(s));
+  document.querySelector('.search').addEventListener('input',e=>{
+    const q=e.target.value.trim().toLowerCase();
+    sections.forEach(s=>s.classList.toggle('hidden-by-search',q&&!s.innerText.toLowerCase().includes(q)&&!(s.dataset.search||'').includes(q)));
+  });
+</script>
+</body>
+</html>
