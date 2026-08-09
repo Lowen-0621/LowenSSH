@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Flutter](https://img.shields.io/badge/Flutter-macOS%20%7C%20Windows-02569B.svg)](https://flutter.dev)
+[![CI](https://github.com/Lowen-0621/LowenSSH/actions/workflows/ci.yml/badge.svg)](https://github.com/Lowen-0621/LowenSSH/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 AI 驱动的 SSH 智能运维 Agent。用户给出运维目标和目标服务器后，Agent 会自主选择工具、读取执行结果并持续调整方案；危险命令在实际执行前经过安全门禁。
@@ -24,18 +25,62 @@ Java 后端与 Node CLI 为本地实现，不再包含在远程仓库当前版�
 
 Flutter · Dart · Riverpod · dartssh2 · Dio · PointyCastle · Secure Storage · xterm · docking
 
-## 快速开始
+## 本地启动
 
-环境要求：Flutter SDK 3.12+；macOS 构建需要 Xcode，Windows 构建需要 Visual Studio 桌面开发组件。
+### 1. 准备环境
+
+- Flutter SDK 3.12+（Dart 3.12+）
+- macOS：安装 Xcode
+- Windows：安装 Visual Studio，并勾选“使用 C++ 的桌面开发”
+
+```bash
+flutter doctor
+```
+
+### 2. 安装依赖
 
 ```bash
 cd clients/app
 flutter pub get
+```
+
+### 3. 配置大模型
+
+启动后可以在“设置”中填写 API Key、模型名称和 OpenAI 兼容接口地址。也可以通过环境变量临时注入默认 GLM Key：
+
+macOS / Linux：
+
+```bash
+export GLM_API_KEY='你的 API Key'
+```
+
+Windows PowerShell：
+
+```powershell
+$env:GLM_API_KEY='你的 API Key'
+```
+
+环境变量只在当前进程中使用，不会被写回配置文件。
+
+### 4. 运行桌面端
+
+```bash
+cd clients/app
 flutter run -d macos      # macOS
 flutter run -d windows    # Windows
 ```
 
-更多配置、打包方式和模型接入说明见 [`clients/app/README.md`](clients/app/README.md)。
+### 5. 检查与打包
+
+```bash
+cd clients/app
+flutter analyze
+flutter test
+flutter build macos --release       # macOS
+flutter build windows --release     # Windows
+```
+
+更多模型配置和产物目录说明见 [`clients/app/README.md`](clients/app/README.md)。
 
 ## 项目结构
 
