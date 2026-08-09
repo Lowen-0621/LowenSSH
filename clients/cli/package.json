@@ -1,0 +1,38 @@
+{
+  "name": "lowenssh",
+  "version": "0.1.0",
+  "description": "LowenSSH —— 终端里的 AI SSH 运维 Agent（类 Claude Code 的 CLI）",
+  "type": "module",
+  "bin": {
+    "lowenssh": "dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.tsx",
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ink": "^5.1.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^18.3.1",
+    "ssh2": "^1.16.0",
+    "openai": "^4.77.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.1",
+    "@types/ssh2": "^1.15.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "files": [
+    "dist"
+  ]
+}
