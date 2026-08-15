@@ -1,4 +1,4 @@
-/// AI 会话历史归档 —— 关闭智能体面板时，把当前会话整段存档，
+/// AI 会话历史归档 —— 首次发送时创建记录，执行完成时更新快照，
 /// 之后可在历史列表里翻看/恢复。与 chat_store(当前会话) 分开存。
 ///
 /// 存 `$HOME/.lowenssh/agent_history/<hostId>.json`，内容是一个数组，
@@ -33,12 +33,12 @@ class AgentHistoryEntry {
   });
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'ts': ts,
-        'items': items.map((e) => e.toJson()).toList(),
-        'history': history.map((e) => e.toJson()).toList(),
-      };
+    'id': id,
+    'title': title,
+    'ts': ts,
+    'items': items.map((e) => e.toJson()).toList(),
+    'history': history.map((e) => e.toJson()).toList(),
+  };
 
   factory AgentHistoryEntry.fromJson(Map<String, dynamic> j) =>
       AgentHistoryEntry(
@@ -72,12 +72,29 @@ List<AgentHistoryEntry> loadAgentHistory(String hostId) {
 
 /// 追加一条历史会话存档（写整文件）。items 为空则跳过（不存空会话）。
 void appendAgentHistory(
-    String hostId, List<ChatItem> items, List<ChatMessage> history) {
+  String hostId,
+  List<ChatItem> items,
+  List<ChatMessage> history,
+) {
+  if (items.isEmpty) return;
+  final now = DateTime.now().millisecondsSinceEpoch;
+  upsertAgentHistory(hostId, '$now', items, history, createdAt: now);
+}
+
+/// 创建或更新一条会话记录。
+/// 首条消息发送时创建，任务结束时用相同 conversationId 更新，避免重复记录。
+void upsertAgentHistory(
+  String hostId,
+  String conversationId,
+  List<ChatItem> items,
+  List<ChatMessage> history, {
+  int? createdAt,
+}) {
   if (items.isEmpty) return;
   final dir = Directory(_historyDir);
   if (!dir.existsSync()) dir.createSync(recursive: true);
 
-  final now = DateTime.now().millisecondsSinceEpoch;
+  final now = createdAt ?? DateTime.now().millisecondsSinceEpoch;
   // 标题取首条用户消息，截断 30 字；无则用「未命名会话」
   String title = '';
   for (final it in items) {
@@ -90,7 +107,7 @@ void appendAgentHistory(
   if (title.length > 30) title = '${title.substring(0, 30)}…';
 
   final entry = AgentHistoryEntry(
-    id: '$now',
+    id: conversationId,
     title: title,
     ts: now,
     items: items,
@@ -98,9 +115,11 @@ void appendAgentHistory(
   );
 
   final existing = loadAgentHistory(hostId);
+  existing.removeWhere((e) => e.id == conversationId);
   existing.insert(0, entry); // 最新在前
-  File(_historyFile(hostId))
-      .writeAsStringSync(jsonEncode(existing.map((e) => e.toJson()).toList()));
+  File(
+    _historyFile(hostId),
+  ).writeAsStringSync(jsonEncode(existing.map((e) => e.toJson()).toList()));
 }
 
 /// 删除某主机某条历史会话。
@@ -109,6 +128,7 @@ void deleteAgentHistoryEntry(String hostId, String entryId) {
   existing.removeWhere((e) => e.id == entryId);
   final dir = Directory(_historyDir);
   if (!dir.existsSync()) dir.createSync(recursive: true);
-  File(_historyFile(hostId))
-      .writeAsStringSync(jsonEncode(existing.map((e) => e.toJson()).toList()));
+  File(
+    _historyFile(hostId),
+  ).writeAsStringSync(jsonEncode(existing.map((e) => e.toJson()).toList()));
 }

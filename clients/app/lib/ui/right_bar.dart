@@ -7,6 +7,7 @@ import '../state/connection_provider.dart';
 import '../state/monitor_provider.dart';
 import '../state/sftp_provider.dart';
 import '../state/settings_provider.dart';
+import 'app_hover_surface.dart';
 
 /// 右栏 —— 安全 / 文件 / 监控 三 Tab（宽 300px）
 /// 对应设计稿 .rightbar。安全面板是差异化核心，重点还原。
@@ -33,7 +34,10 @@ class _RightBarState extends ConsumerState<RightBar> {
               padding: const EdgeInsets.all(12),
               // Tab 切换 cross-fade；KeyedSubtree 让 AnimatedSwitcher 识别内容变化
               child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
+                duration: AppMotion.switcher,
+                switchInCurve: AppMotion.standard,
+                transitionBuilder: (child, animation) =>
+                    FadeTransition(opacity: animation, child: child),
                 child: KeyedSubtree(
                   key: ValueKey(_tab),
                   child: switch (_tab) {
@@ -56,34 +60,37 @@ class _RightBarState extends ConsumerState<RightBar> {
     Widget tab(String id, IconData icon, String label) {
       final active = _tab == id;
       return Expanded(
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: () => setState(() => _tab = id),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: active ? AppColors.blue : Colors.transparent,
-                    width: 2,
-                  ),
+        child: AppHoverSurface(
+          onTap: () => setState(() => _tab = id),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+          hoverColor: AppColors.text.withValues(alpha: .055),
+          borderRadius: BorderRadius.circular(9),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(
+                  color: active ? AppColors.blue : Colors.transparent,
+                  width: 2,
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon,
-                      size: 14,
-                      color: active ? AppColors.text : AppColors.subtext),
-                  const SizedBox(width: 5),
-                  Text(label,
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          color: active ? AppColors.text : AppColors.subtext)),
-                ],
-              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: active ? AppColors.text : AppColors.subtext,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: active ? AppColors.text : AppColors.subtext,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -96,7 +103,7 @@ class _RightBarState extends ConsumerState<RightBar> {
       ),
       child: Row(
         children: [
-          tab('sec', Icons.shield_outlined, l.t('right.tabSec')),
+          tab('sec', Icons.rule_rounded, l.t('right.tabSec')),
           tab('files', Icons.folder_outlined, l.t('right.tabFiles')),
           tab('mon', Icons.monitor_heart_outlined, l.t('right.tabMon')),
         ],
@@ -125,10 +132,10 @@ class _SecurityPanel extends ConsumerWidget {
     final l = ref.watch(l10nProvider);
     // 每条规则末尾显示对应三态的累计命中次数
     String hitsFor(String level) => switch (level) {
-          'deny' => l.t('right.hits', {'n': '${stats.denyCount}'}),
-          'ask' => l.t('right.hits', {'n': '${stats.askCount}'}),
-          _ => l.t('right.hits', {'n': '${stats.allowCount}'}),
-        };
+      'deny' => l.t('right.hits', {'n': '${stats.denyCount}'}),
+      'ask' => l.t('right.hits', {'n': '${stats.askCount}'}),
+      _ => l.t('right.hits', {'n': '${stats.allowCount}'}),
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -151,13 +158,18 @@ class _SecurityPanel extends ConsumerWidget {
         if (stats.blocked.isEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Text(l.t('right.noBlock'),
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            child: Text(
+              l.t('right.noBlock'),
+              style: TextStyle(fontSize: 11, color: AppColors.overlay),
+            ),
           )
         else
           for (final b in stats.blocked)
-            _logItem(b.command,
-                '${_fmtTime(b.time)} · ${b.level.toUpperCase()}', l),
+            _logItem(
+              b.command,
+              '${_fmtTime(b.time)} · ${b.level.toUpperCase()}',
+              l,
+            ),
       ],
     );
   }
@@ -170,54 +182,56 @@ class _SecurityPanel extends ConsumerWidget {
 
   // 统计卡
   Widget _stat(String num, String label, Color color) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.surface0),
-            borderRadius: BorderRadius.circular(8),
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.surface0),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            num,
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
-          child: Column(
-            children: [
-              Text(num,
-                  style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: color)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 10, color: AppColors.overlay)),
-            ],
-          ),
-        ),
-      );
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, color: AppColors.overlay)),
+        ],
+      ),
+    ),
+  );
 
   // 规则行：tag + 模式 + 命中次数
   Widget _ruleRow(String level, String pattern, String hits) => Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.base,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Row(
-          children: [
-            _tag(level),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(pattern,
-                  style: TextStyle(
-                      fontFamily: kMonoFont,
-                      fontSize: 11,
-                      color: AppColors.subtext)),
+    margin: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(
+      color: AppColors.base,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Row(
+      children: [
+        _tag(level),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            pattern,
+            style: TextStyle(
+              fontFamily: kMonoFont,
+              fontSize: 11,
+              color: AppColors.subtext,
             ),
-            const SizedBox(width: 6),
-            Text(hits,
-                style:
-                    TextStyle(fontSize: 10, color: AppColors.overlay)),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 6),
+        Text(hits, style: TextStyle(fontSize: 10, color: AppColors.overlay)),
+      ],
+    ),
+  );
 
   // 三态 tag（deny红 / ask黄 / allow绿，带半透明背景）
   Widget _tag(String level) {
@@ -232,46 +246,55 @@ class _SecurityPanel extends ConsumerWidget {
         color: c.withValues(alpha: .18),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: .5,
-              color: c)),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: .5,
+          color: c,
+        ),
+      ),
     );
   }
 
   // 拦截历史项（左边红条 + 命令 + 时间/可临时放行）
   Widget _logItem(String cmd, String meta, L10n l) => Container(
-        margin: const EdgeInsets.only(bottom: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-        decoration: BoxDecoration(
-          color: AppColors.base,
-          borderRadius: BorderRadius.all(Radius.circular(6)),
-          border: Border(left: BorderSide(color: AppColors.red, width: 2)),
+    margin: const EdgeInsets.only(bottom: 5),
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+    decoration: BoxDecoration(
+      color: AppColors.base,
+      borderRadius: BorderRadius.all(Radius.circular(6)),
+      border: Border(left: BorderSide(color: AppColors.red, width: 2)),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          cmd,
+          style: TextStyle(
+            fontFamily: kMonoFont,
+            fontSize: 11,
+            color: AppColors.peach,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        const SizedBox(height: 3),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(cmd,
-                style: TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 11,
-                    color: AppColors.peach)),
-            const SizedBox(height: 3),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(meta,
-                    style: TextStyle(
-                        fontSize: 10, color: AppColors.overlay)),
-                Text(l.t('right.tempAllow'),
-                    style: TextStyle(fontSize: 10, color: AppColors.blue)),
-              ],
+            Text(
+              meta,
+              style: TextStyle(fontSize: 10, color: AppColors.overlay),
+            ),
+            Text(
+              l.t('right.tempAllow'),
+              style: TextStyle(fontSize: 10, color: AppColors.blue),
             ),
           ],
         ),
-      );
+      ],
+    ),
+  );
 }
 
 // ============ 文件面板（轻量 SFTP，真实数据）============
@@ -318,9 +341,11 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
     if (!conn.isConnected) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Text(l.t('right.filesEmpty'),
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+        child: Text(
+          l.t('right.filesEmpty'),
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: AppColors.overlay),
+        ),
       );
     }
 
@@ -337,17 +362,19 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
           child: Row(
             children: [
               Expanded(
-                child: Text(sftp.path,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontFamily: kMonoFont,
-                        fontSize: 11,
-                        color: AppColors.subtext)),
+                child: Text(
+                  sftp.path,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: kMonoFont,
+                    fontSize: 11,
+                    color: AppColors.subtext,
+                  ),
+                ),
               ),
               InkWell(
                 onTap: () => ref.read(sftpProvider.notifier).load(),
-                child: Icon(Icons.refresh,
-                    size: 13, color: AppColors.blue),
+                child: Icon(Icons.refresh, size: 13, color: AppColors.blue),
               ),
             ],
           ),
@@ -361,15 +388,19 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
                 width: 16,
                 height: 16,
                 child: CircularProgressIndicator(
-                    strokeWidth: 2, color: AppColors.blue),
+                  strokeWidth: 2,
+                  color: AppColors.blue,
+                ),
               ),
             ),
           )
         else if (sftp.error != null)
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(l.t('right.loadFail', {'err': '${sftp.error}'}),
-                style: TextStyle(fontSize: 11, color: AppColors.red)),
+            child: Text(
+              l.t('right.loadFail', {'err': '${sftp.error}'}),
+              style: TextStyle(fontSize: 11, color: AppColors.red),
+            ),
           )
         else ...[
           // 顶部 .. 返回上级（非根目录时）
@@ -384,9 +415,7 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
                   ? () => ref.read(sftpProvider.notifier).enter(f)
                   : null,
               child: _fileRow(
-                f.isDir
-                    ? Icons.folder_outlined
-                    : Icons.description_outlined,
+                f.isDir ? Icons.folder_outlined : Icons.description_outlined,
                 f.name,
                 f.isDir ? f.perms : _fmtSize(f.size),
                 f.isDir,
@@ -395,8 +424,10 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
           if (sftp.files.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(l.t('right.emptyDir'),
-                  style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+              child: Text(
+                l.t('right.emptyDir'),
+                style: TextStyle(fontSize: 11, color: AppColors.overlay),
+              ),
             ),
         ],
       ],
@@ -413,28 +444,32 @@ class _FilesPanelState extends ConsumerState<_FilesPanel> {
     return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(1)}G';
   }
 
-  Widget _fileRow(IconData icon, String name, String? meta, bool isDir) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-        child: Row(
-          children: [
-            Icon(icon,
-                size: 15, color: isDir ? AppColors.blue : AppColors.subtext),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Text(name,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: isDir ? AppColors.blue : AppColors.text)),
+  Widget _fileRow(
+    IconData icon,
+    String name,
+    String? meta,
+    bool isDir,
+  ) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+    child: Row(
+      children: [
+        Icon(icon, size: 15, color: isDir ? AppColors.blue : AppColors.subtext),
+        const SizedBox(width: 9),
+        Expanded(
+          child: Text(
+            name,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: isDir ? AppColors.blue : AppColors.text,
             ),
-            if (meta != null)
-              Text(meta,
-                  style: TextStyle(
-                      fontSize: 10, color: AppColors.overlay)),
-          ],
+          ),
         ),
-      );
+        if (meta != null)
+          Text(meta, style: TextStyle(fontSize: 10, color: AppColors.overlay)),
+      ],
+    ),
+  );
 }
 
 // ============ 监控面板 ============
@@ -471,9 +506,11 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
     if (!conn.isConnected) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 20),
-        child: Text(l.t('right.monEmpty'),
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+        child: Text(
+          l.t('right.monEmpty'),
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11, color: AppColors.overlay),
+        ),
       );
     }
 
@@ -484,21 +521,35 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _panelTitle(l.t('right.resUsage')),
-        _metric('CPU', m.cpuPct, '${(m.cpuPct * 100).toStringAsFixed(0)}%',
-            m.cpuPct > 0.9),
+        _metric(
+          'CPU',
+          m.cpuPct,
+          '${(m.cpuPct * 100).toStringAsFixed(0)}%',
+          m.cpuPct > 0.9,
+        ),
         _metric(l.t('right.mem'), m.memPct, m.memText, m.memPct > 0.9),
-        _metric(l.t('right.disk'), m.diskPct,
-            '${(m.diskPct * 100).toStringAsFixed(0)}%', m.diskPct > 0.9),
-        _metric(l.t('right.load'), loadPct, m.load1.toStringAsFixed(2),
-            loadPct > 0.9),
+        _metric(
+          l.t('right.disk'),
+          m.diskPct,
+          '${(m.diskPct * 100).toStringAsFixed(0)}%',
+          m.diskPct > 0.9,
+        ),
+        _metric(
+          l.t('right.load'),
+          loadPct,
+          m.load1.toStringAsFixed(2),
+          loadPct > 0.9,
+        ),
         const SizedBox(height: 6),
         _panelTitle(l.t('right.network')),
         _netRow(l.t('right.netIn'), humanBps(m.netRxBps)),
         _netRow(l.t('right.netOut'), humanBps(m.netTxBps)),
         if (m.error != null) ...[
           const SizedBox(height: 8),
-          Text(l.t('right.sampleFail', {'err': '${m.error}'}),
-              style: TextStyle(fontSize: 10, color: AppColors.red)),
+          Text(
+            l.t('right.sampleFail', {'err': '${m.error}'}),
+            style: TextStyle(fontSize: 10, color: AppColors.red),
+          ),
         ],
       ],
     );
@@ -506,66 +557,77 @@ class _MonitorPanelState extends ConsumerState<_MonitorPanel> {
 
   // 资源条：标签 + 进度条(warn红) + 数值
   Widget _metric(String label, double pct, String val, bool warn) => Padding(
-        padding: const EdgeInsets.only(bottom: 9),
-        child: Row(
-          children: [
-            SizedBox(
-                width: 48,
-                child: Text(label,
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.subtext))),
-            const SizedBox(width: 9),
-            Expanded(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: pct,
-                  minHeight: 7,
-                  backgroundColor: AppColors.base,
-                  valueColor: AlwaysStoppedAnimation(
-                      warn ? AppColors.red : AppColors.blue),
-                ),
+    padding: const EdgeInsets.only(bottom: 9),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 48,
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 11, color: AppColors.subtext),
+          ),
+        ),
+        const SizedBox(width: 9),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 7,
+              backgroundColor: AppColors.base,
+              valueColor: AlwaysStoppedAnimation(
+                warn ? AppColors.red : AppColors.blue,
               ),
             ),
-            const SizedBox(width: 9),
-            SizedBox(
-                width: 64,
-                child: Text(val,
-                    textAlign: TextAlign.right,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 10.5, color: AppColors.text))),
-          ],
+          ),
         ),
-      );
+        const SizedBox(width: 9),
+        SizedBox(
+          width: 64,
+          child: Text(
+            val,
+            textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 10.5, color: AppColors.text),
+          ),
+        ),
+      ],
+    ),
+  );
 
   Widget _netRow(String label, String val) => Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        decoration: BoxDecoration(
-          color: AppColors.base,
-          borderRadius: BorderRadius.circular(6),
+    margin: const EdgeInsets.only(bottom: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(
+      color: AppColors.base,
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontFamily: kMonoFont,
+            fontSize: 11,
+            color: AppColors.subtext,
+          ),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label,
-                style: TextStyle(
-                    fontFamily: kMonoFont,
-                    fontSize: 11,
-                    color: AppColors.subtext)),
-            Text(val,
-                style:
-                    TextStyle(fontSize: 10, color: AppColors.overlay)),
-          ],
-        ),
-      );
+        Text(val, style: TextStyle(fontSize: 10, color: AppColors.overlay)),
+      ],
+    ),
+  );
 }
 
 // 面板小标题（大写灰字）—— 顶层共用
 Widget _panelTitle(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(text.toUpperCase(),
-          style: TextStyle(
-              fontSize: 10.5, letterSpacing: 1, color: AppColors.overlay)),
-    );
+  padding: const EdgeInsets.only(bottom: 8),
+  child: Text(
+    text.toUpperCase(),
+    style: TextStyle(
+      fontSize: 10.5,
+      letterSpacing: 1,
+      color: AppColors.overlay,
+    ),
+  ),
+);

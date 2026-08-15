@@ -28,8 +28,8 @@ class _LowenSshAppState extends ConsumerState<LowenSshApp> {
     super.initState();
     // 连接池 LRU 踢人时跳过「AI 任务正在跑」的主机：注入查询回调，
     // 避免 connectionProvider 反向依赖 agentProvider。
-    ref.read(connectionProvider.notifier).isHostBusy =
-        (hostId) => ref.read(agentProvider.notifier).isBusy(hostId);
+    ref.read(connectionProvider.notifier).isHostBusy = (hostId) =>
+        ref.read(agentProvider.notifier).isBusy(hostId);
   }
 
   @override
@@ -40,19 +40,13 @@ class _LowenSshAppState extends ConsumerState<LowenSshApp> {
       title: 'LowenSSH',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
-      // 解锁 → 主界面转场：旧页淡出，新页淡入 + 轻微缩放浮现
+      // 解锁后使用短淡入，避免进入工具时出现明显的页面缩放。
       home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 520),
-        switchInCurve: Curves.easeOutCubic,
+        duration: AppMotion.page,
+        switchInCurve: AppMotion.standard,
         switchOutCurve: Curves.easeIn,
-        transitionBuilder: (child, anim) => FadeTransition(
-          opacity: anim,
-          child: ScaleTransition(
-            // 新页从 0.98 放大到 1，细微浮现感；不喧宾夺主
-            scale: Tween<double>(begin: 0.98, end: 1.0).animate(anim),
-            child: child,
-          ),
-        ),
+        transitionBuilder: (child, anim) =>
+            FadeTransition(opacity: anim, child: child),
         child: _unlocked
             ? const AppShell(key: ValueKey('shell'))
             : LockScreen(

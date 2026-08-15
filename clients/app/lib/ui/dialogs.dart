@@ -6,6 +6,7 @@ import '../core/i18n.dart';
 import '../state/config_provider.dart';
 import '../state/key_provider.dart';
 import '../state/settings_provider.dart';
+import 'app_hover_surface.dart';
 
 /// 暗色对话框统一外壳
 Future<T?> _showDark<T>(BuildContext context, Widget child) {
@@ -48,8 +49,10 @@ class _FieldState extends State<_Field> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.label,
-              style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+          Text(
+            widget.label,
+            style: TextStyle(fontSize: 11, color: AppColors.subtext),
+          ),
           const SizedBox(height: 4),
           TextField(
             controller: widget.controller,
@@ -58,12 +61,13 @@ class _FieldState extends State<_Field> {
             decoration: InputDecoration(
               isDense: true,
               hintText: widget.hint,
-              hintStyle:
-                  TextStyle(fontSize: 12, color: AppColors.overlay),
+              hintStyle: TextStyle(fontSize: 12, color: AppColors.overlay),
               filled: true,
               fillColor: AppColors.base,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 9,
+              ),
               // 密码框右侧眼睛：点击切换明文/密文
               suffixIcon: widget.obscure
                   ? IconButton(
@@ -95,45 +99,57 @@ class _FieldState extends State<_Field> {
 }
 
 /// 兼容旧调用点的简写
-Widget _field(TextEditingController c, String label,
-        {String? hint, bool obscure = false}) =>
-    _Field(c, label, hint: hint, obscure: obscure);
+Widget _field(
+  TextEditingController c,
+  String label, {
+  String? hint,
+  bool obscure = false,
+}) => _Field(c, label, hint: hint, obscure: obscure);
 
 Widget _title(IconData icon, String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: AppColors.blue),
-          const SizedBox(width: 8),
-          Text(text,
-              style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.text)),
-        ],
+  padding: const EdgeInsets.only(bottom: 16),
+  child: Row(
+    children: [
+      Icon(icon, size: 18, color: AppColors.blue),
+      const SizedBox(width: 8),
+      Text(
+        text,
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+          color: AppColors.text,
+        ),
       ),
-    );
+    ],
+  ),
+);
 
-Widget _actions(BuildContext context, L10n l,
-        {required VoidCallback onOk, String? okLabel}) =>
-    Row(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text(l.t('common.cancel'),
-              style: TextStyle(color: AppColors.subtext)),
-        ),
-        const SizedBox(width: 8),
-        FilledButton(
-          onPressed: onOk,
-          style: FilledButton.styleFrom(
-              backgroundColor: AppColors.blue,
-              foregroundColor: AppColors.crust),
-          child: Text(okLabel ?? l.t('common.save')),
-        ),
-      ],
-    );
+Widget _actions(
+  BuildContext context,
+  L10n l, {
+  required VoidCallback onOk,
+  String? okLabel,
+}) => Row(
+  mainAxisAlignment: MainAxisAlignment.end,
+  children: [
+    TextButton(
+      onPressed: () => Navigator.pop(context),
+      child: Text(
+        l.t('common.cancel'),
+        style: TextStyle(color: AppColors.subtext),
+      ),
+    ),
+    const SizedBox(width: 8),
+    FilledButton(
+      onPressed: onOk,
+      style: FilledButton.styleFrom(
+        backgroundColor: AppColors.blue,
+        foregroundColor: AppColors.crust,
+      ),
+      child: Text(okLabel ?? l.t('common.save')),
+    ),
+  ],
+);
 
 /// 新建主机对话框
 Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
@@ -163,16 +179,26 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
           // 认证方式切换
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text(l.t('host.authMode'),
-                style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+            child: Text(
+              l.t('host.authMode'),
+              style: TextStyle(fontSize: 11, color: AppColors.subtext),
+            ),
           ),
           Row(
             children: [
-              _authTab('password', l.t('host.password'), authMode,
-                  () => setState(() => authMode = 'password')),
+              _authTab(
+                'password',
+                l.t('host.password'),
+                authMode,
+                () => setState(() => authMode = 'password'),
+              ),
               const SizedBox(width: 8),
-              _authTab('key', l.t('host.key'), authMode,
-                  () => setState(() => authMode = 'key')),
+              _authTab(
+                'key',
+                l.t('host.key'),
+                authMode,
+                () => setState(() => authMode = 'key'),
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -180,25 +206,36 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
           if (authMode == 'password')
             _field(pwd, l.t('host.password'), obscure: true)
           else
-            _keyDropdown(l, keys, selectedKeyId,
-                (id) => setState(() => selectedKeyId = id)),
+            _keyDropdown(
+              l,
+              keys,
+              selectedKeyId,
+              (id) => setState(() => selectedKeyId = id),
+            ),
           const SizedBox(height: 4),
-          _actions(ctx, l, okLabel: l.t('common.add'), onOk: () {
-            if (host.text.trim().isEmpty) return;
-            // 密钥模式必须选中一把密钥
-            if (authMode == 'key' && selectedKeyId == null) return;
-            ref.read(configProvider.notifier).addHostEntry(
-                  alias: alias.text.trim().isEmpty ? null : alias.text.trim(),
-                  host: host.text.trim(),
-                  port: int.tryParse(port.text.trim()) ?? 22,
-                  user: user.text.trim().isEmpty ? 'root' : user.text.trim(),
-                  password: authMode == 'password' && pwd.text.isNotEmpty
-                      ? pwd.text
-                      : null,
-                  keyId: authMode == 'key' ? selectedKeyId : null,
-                );
-            Navigator.pop(ctx);
-          }),
+          _actions(
+            ctx,
+            l,
+            okLabel: l.t('common.add'),
+            onOk: () {
+              if (host.text.trim().isEmpty) return;
+              // 密钥模式必须选中一把密钥
+              if (authMode == 'key' && selectedKeyId == null) return;
+              ref
+                  .read(configProvider.notifier)
+                  .addHostEntry(
+                    alias: alias.text.trim().isEmpty ? null : alias.text.trim(),
+                    host: host.text.trim(),
+                    port: int.tryParse(port.text.trim()) ?? 22,
+                    user: user.text.trim().isEmpty ? 'root' : user.text.trim(),
+                    password: authMode == 'password' && pwd.text.isNotEmpty
+                        ? pwd.text
+                        : null,
+                    keyId: authMode == 'key' ? selectedKeyId : null,
+                  );
+              Navigator.pop(ctx);
+            },
+          ),
         ],
       ),
     ),
@@ -208,32 +245,34 @@ Future<void> showAddHostDialog(BuildContext context, WidgetRef ref) {
 // 认证方式切换标签
 Widget _authTab(String id, String label, String current, VoidCallback onTap) =>
     Expanded(
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: onTap,
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: current == id ? AppColors.surface1 : AppColors.base,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                  color: current == id ? AppColors.blue : AppColors.surface0),
+      child: AppHoverSurface(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        color: current == id ? AppColors.surface1 : AppColors.base,
+        hoverColor: AppColors.text.withValues(alpha: .065),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: current == id ? AppColors.blue : AppColors.surface0,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              color: current == id ? AppColors.text : AppColors.subtext,
             ),
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 12.5,
-                    color:
-                        current == id ? AppColors.text : AppColors.subtext)),
           ),
         ),
       ),
     );
 
 // 密钥下拉选择
-Widget _keyDropdown(L10n l,
-    List<SshKey> keys, String? selectedId, ValueChanged<String?> onChanged) {
+Widget _keyDropdown(
+  L10n l,
+  List<SshKey> keys,
+  String? selectedId,
+  ValueChanged<String?> onChanged,
+) {
   if (keys.isEmpty) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
@@ -242,8 +281,10 @@ Widget _keyDropdown(L10n l,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(color: AppColors.surface0),
       ),
-      child: Text(l.t('host.keyEmpty'),
-          style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+      child: Text(
+        l.t('host.keyEmpty'),
+        style: TextStyle(fontSize: 11.5, color: AppColors.overlay),
+      ),
     );
   }
   return Column(
@@ -251,8 +292,10 @@ Widget _keyDropdown(L10n l,
     children: [
       Padding(
         padding: const EdgeInsets.only(bottom: 4),
-        child: Text(l.t('host.selectKey'),
-            style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+        child: Text(
+          l.t('host.selectKey'),
+          style: TextStyle(fontSize: 11, color: AppColors.subtext),
+        ),
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -266,8 +309,10 @@ Widget _keyDropdown(L10n l,
             value: selectedId,
             isExpanded: true,
             dropdownColor: AppColors.mantle,
-            hint: Text(l.t('host.pleaseSelect'),
-                style: TextStyle(fontSize: 12, color: AppColors.overlay)),
+            hint: Text(
+              l.t('host.pleaseSelect'),
+              style: TextStyle(fontSize: 12, color: AppColors.overlay),
+            ),
             style: TextStyle(fontSize: 13, color: AppColors.text),
             items: [
               for (final k in keys)

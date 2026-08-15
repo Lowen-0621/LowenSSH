@@ -9,6 +9,7 @@ import '../core/ssh.dart';
 import '../core/settings_store.dart';
 import '../state/connection_provider.dart';
 import '../state/settings_provider.dart';
+import 'connection_empty_state.dart';
 
 /// 一台主机的终端会话：独立的 xterm 缓冲 + PTY shell + 选区控制器。
 /// 按主机保活，切主机切显示对应 Terminal，旧的 PTY 留在后台不断。
@@ -123,7 +124,6 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
   Widget build(BuildContext context) {
     final conn = ref.watch(connectionProvider);
     final cfg = ref.watch(settingsProvider); // 终端设置
-    final l = ref.watch(l10nProvider);
     final hostId = conn.host?.id;
 
     // 池里已不存在的主机（被 LRU 踢掉/断开），清理其终端会话
@@ -135,12 +135,7 @@ class _TerminalPaneState extends ConsumerState<TerminalPane> {
     });
 
     if (!conn.isConnected || hostId == null) {
-      return Container(
-        color: AppColors.crust,
-        alignment: Alignment.center,
-        child: Text(l.t('term.connectFirst'),
-            style: TextStyle(fontSize: 12, color: AppColors.overlay)),
-      );
+      return const ConnectionEmptyState();
     }
 
     // 当前主机：没 shell 就开一个（按主机隔离，互不影响）

@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="LowenSSH 源码级面试手册与 Claude Code 设计学习对照的统一阅读入口">
+  <title>LowenSSH 源码与设计学习整合手册</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-2: #1c2128;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --model: #58a6ff;
+      --tool: #d29922;
+      --ok: #3fb950;
+      --danger: #f85149;
+      --sidebar: 286px;
+      --topbar: 64px;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", system-ui, sans-serif;
+      --font-mono: ui-monospace, "SF Mono", Menlo, "Cascadia Code", Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    html { color-scheme: dark; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.65 var(--font-ui);
+    }
+    button, a { font: inherit; }
+    button { color: inherit; }
+    a { color: var(--model); text-underline-offset: 3px; }
+    :focus-visible { outline: 3px solid var(--tool); outline-offset: 3px; }
+
+    .skip {
+      position: fixed;
+      top: -60px;
+      left: 12px;
+      z-index: 100;
+      padding: 8px 12px;
+      background: var(--text);
+      color: var(--bg);
+    }
+    .skip:focus { top: 10px; }
+
+    .topbar {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 50;
+      height: var(--topbar);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 18px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(13, 17, 23, .97);
+    }
+    .menu {
+      display: none;
+      min-width: 44px;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface);
+      cursor: pointer;
+    }
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .brand strong {
+      font: 750 17px/1 var(--font-mono);
+      letter-spacing: -.03em;
+    }
+    .brand span {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+    .status {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font: 12px/1 var(--font-mono);
+    }
+    .status::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      content: "";
+    }
+
+    aside {
+      position: fixed;
+      inset: var(--topbar) auto 0 0;
+      z-index: 40;
+      width: var(--sidebar);
+      padding: 20px 14px;
+      overflow: auto;
+      border-right: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .nav-label {
+      margin: 0 8px 10px;
+      color: var(--muted);
+      font: 700 10px/1 var(--font-mono);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .nav-button {
+      width: 100%;
+      min-height: 48px;
+      margin: 0 0 6px;
+      padding: 10px 12px;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+    .nav-button:hover { background: var(--surface-2); }
+    .nav-button.active {
+      border-color: var(--border);
+      background: var(--surface-2);
+      box-shadow: inset 3px 0 var(--model);
+    }
+    .nav-button b {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 13px;
+    }
+    .nav-button span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .aside-note {
+      margin: 22px 7px 0;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .aside-note a { display: inline-block; margin-top: 8px; }
+
+    main {
+      height: 100%;
+      margin-left: var(--sidebar);
+      padding-top: var(--topbar);
+      background: var(--bg);
+    }
+    .panel { display: none; height: 100%; }
+    .panel.active { display: block; }
+
+    .overview {
+      height: 100%;
+      overflow: auto;
+      padding: clamp(28px, 5vw, 72px);
+    }
+    .overview-inner {
+      width: min(1050px, 100%);
+      margin: 0 auto;
+    }
+    .eyebrow {
+      color: var(--model);
+      font: 750 11px/1 var(--font-mono);
+      letter-spacing: .14em;
+    }
+    h1 {
+      max-width: 900px;
+      margin: 20px 0;
+      font-size: clamp(38px, 6vw, 72px);
+      line-height: 1.02;
+      letter-spacing: -.055em;
+    }
+    .lead {
+      max-width: 830px;
+      color: #bac3ca;
+      font-size: clamp(17px, 2vw, 21px);
+    }
+    .flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 30px 0;
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+    .flow span {
+      flex: 0 0 auto;
+      padding: 8px 11px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font: 700 12px/1.3 var(--font-mono);
+    }
+    .flow i { color: var(--muted); font-style: normal; }
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      margin: 34px 0;
+      border: 1px solid var(--border);
+      background: var(--border);
+    }
+    .card {
+      min-width: 0;
+      padding: 24px;
+      background: var(--surface);
+    }
+    .card .number {
+      color: var(--tool);
+      font: 800 12px/1 var(--font-mono);
+    }
+    .card h2 { margin: 12px 0 8px; font-size: 20px; }
+    .card p { margin: 0; color: var(--muted); }
+    .card button {
+      min-height: 44px;
+      margin-top: 18px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--surface-2);
+      cursor: pointer;
+    }
+    .card button:hover { border-color: var(--model); }
+    .notice {
+      margin: 32px 0;
+      padding: 18px 20px;
+      border-left: 4px solid var(--tool);
+      background: rgba(210, 153, 34, .1);
+    }
+    .notice h2 { margin: 0 0 8px; font-size: 17px; }
+    .notice p { margin: 7px 0; color: #c4cbd0; }
+    .notice code { font-family: var(--font-mono); color: var(--tool); }
+    .updated {
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr);
+      border-top: 1px solid var(--border);
+    }
+    .updated dt, .updated dd {
+      margin: 0;
+      padding: 11px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .updated dt { color: var(--muted); font: 700 11px/1.5 var(--font-mono); }
+    .updated dd { color: #cbd2d7; }
+
+    .reader {
+      position: relative;
+      height: 100%;
+      background: #fff;
+    }
+    .reader iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: #fff;
+    }
+    .reader-toolbar {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      z-index: 5;
+    }
+    .reader-toolbar a {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(13, 17, 23, .93);
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    @media (max-width: 768px) {
+      :root { --sidebar: 286px; }
+      .menu { display: inline-grid; place-items: center; }
+      .status { display: none; }
+      aside {
+        transform: translateX(-102%);
+        transition: transform .2s ease;
+      }
+      aside.open { transform: none; }
+      main { margin-left: 0; }
+      .cards { grid-template-columns: 1fr; }
+      .updated { grid-template-columns: 1fr; }
+      .updated dt { padding-bottom: 2px; border-bottom: 0; }
+      .updated dd { padding-top: 2px; }
+      .reader-toolbar { right: 10px; bottom: 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      aside { transition: none; }
+    }
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">跳到正文</a>
+<header class="topbar">
+  <button class="menu" type="button" aria-label="打开目录" aria-expanded="false">目录</button>
+  <div class="brand">
+    <strong>LowenSSH</strong>
+    <span>源码与设计学习整合手册</span>
+  </div>
+  <div class="status">两份原文无损保留</div>
+</header>
+
+<aside aria-label="整合手册目录">
+  <p class="nav-label">阅读路径</p>
+  <button class="nav-button active" type="button" data-panel="overview">
+    <b>00 阅读说明</b>
+    <span>顺序、范围与版本校正</span>
+  </button>
+  <button class="nav-button" type="button" data-panel="panorama">
+    <b>01 源码级全景手册</b>
+    <span>架构、断点、面试题、风险</span>
+  </button>
+  <button class="nav-button" type="button" data-panel="comparison">
+    <b>02 Claude Code 设计对照</b>
+    <span>安全门禁与上下文治理</span>
+  </button>
+  <div class="aside-note">
+    当前 Java 生产化实现已有单独的最新手册。
+    <a href="LowenSSH-Java生产化升级与面试手册.html">打开 Java 升级手册</a>
+  </div>
+</aside>
+
+<main id="content">
+  <section class="panel active overview" id="overview" aria-labelledby="overview-title">
+    <div class="overview-inner">
+      <div class="eyebrow">INTERVIEW READING MAP · 2026-07-31</div>
+      <h1 id="overview-title">先理解程序怎么跑，再解释为什么这样设计。</h1>
+      <p class="lead" data-pretext>
+        这份整合页不压缩原材料，也不把源码分析改写成结论摘要。它把两份手册放到同一条阅读路径中：
+        先沿断点跟踪真实调用栈，再用 Claude Code 的公开设计原则对照 LowenSSH 的取舍与边界。
+      </p>
+
+      <div class="flow" aria-label="推荐阅读顺序">
+        <span>项目总览</span><i>→</i><span>架构</span><i>→</i><span>单步执行</span>
+        <i>→</i><span>安全门禁</span><i>→</i><span>上下文治理</span><i>→</i><span>面试表达</span>
+      </div>
+
+      <div class="cards">
+        <article class="card">
+          <span class="number">01 / EXECUTION</span>
+          <h2>源码级全景手册</h2>
+          <p data-pretext>以人类调试顺序阅读：设置断点、查看参数与调用栈、Step Into 业务边界、Step Out 记录返回值，并在异步切换后重建线程与状态。</p>
+          <button type="button" data-open="panorama">开始读执行链</button>
+        </article>
+        <article class="card">
+          <span class="number">02 / DESIGN</span>
+          <h2>Claude Code 设计学习对照</h2>
+          <p data-pretext>区分“借鉴公开原则”和“复制实现”，重点比较模型无执行权、确定性安全裁决、工具结果预算化和历史压缩。</p>
+          <button type="button" data-open="comparison">开始读设计对照</button>
+        </article>
+      </div>
+
+      <section class="notice" aria-labelledby="version-note">
+        <h2 id="version-note">版本校正：旧手册中的部分“待改进项”已经完成</h2>
+        <p>两份原文记录的是升级前的阅读快照，因此保留历史描述，但面试时必须以当前 Java 实现为准。</p>
+        <dl class="updated">
+          <dt>ASK 审批</dt>
+          <dd>已从 Web 自动批准升级为持久化审批：SSE 推送 <code>approval_required</code>，独立幂等 HTTP 提交决定，<code>CompletableFuture</code> 等待与恢复。</dd>
+          <dt>执行状态机</dt>
+          <dd>已升级为 Plan → Risk Check → Approve → Execute → Verify → Summary，并持久化任务、Step、审批和事件。</dd>
+          <dt>SSH 稳定性</dt>
+          <dd>已增加 30 秒命令超时、1MB 输出上限、主动取消 Channel、严格 <code>known_hosts</code> 校验与私钥认证。</dd>
+          <dt>严格幂等</dt>
+          <dd>已覆盖 HTTP 响应回放、业务唯一键和 Step 执行权 CAS；执行中崩溃进入 <code>NEEDS_REVIEW</code>，不自动重放副作用。</dd>
+        </dl>
+        <p><a href="LowenSSH-Java生产化升级与面试手册.html">查看当前 Java 实现、配置、测试证据与面试讲法</a></p>
+      </section>
+    </div>
+  </section>
+
+  <section class="panel reader" id="panorama" aria-label="源码级全景手册">
+    <iframe
+      title="LowenSSH 源码级面试全景手册"
+      data-src="LowenSSH-面试全景手册.html"
+      loading="lazy"></iframe>
+    <div class="reader-toolbar">
+      <a href="LowenSSH-面试全景手册.html" target="_blank" rel="noopener">新窗口打开</a>
+    </div>
+  </section>
+
+  <section class="panel reader" id="comparison" aria-label="Claude Code 设计学习对照">
+    <iframe
+      title="LowenSSH 与 Claude Code 设计学习对照"
+      data-src="LowenSSH-Claude-Code设计学习对照.html"
+      loading="lazy"></iframe>
+    <div class="reader-toolbar">
+      <a href="LowenSSH-Claude-Code设计学习对照.html" target="_blank" rel="noopener">新窗口打开</a>
+    </div>
+  </section>
+</main>
+
+<!-- FALLBACK: 使用 CDN 版 Pretext；加载失败不影响文档阅读。 -->
+<script type="module">
+  const prepared = new Map();
+
+  async function setupPretext() {
+    try {
+      const { prepare, layout } = await import("https://esm.sh/@chenglou/pretext");
+      await document.fonts.ready;
+      const elements = document.querySelectorAll("[data-pretext]");
+      for (const element of elements) {
+        prepared.set(element, prepare(element.textContent, getComputedStyle(element).font));
+      }
+      const relayout = () => {
+        for (const [element, handle] of prepared) {
+          const style = getComputedStyle(element);
+          const result = layout(handle, element.clientWidth, parseFloat(style.lineHeight));
+          element.style.minHeight = `${result.height}px`;
+        }
+      };
+      new ResizeObserver(relayout).observe(document.querySelector(".overview-inner"));
+      relayout();
+    } catch {
+      // 纯本地或离线环境中使用浏览器原生排版。
+    }
+  }
+
+  setupPretext();
+</script>
+<script>
+  const menu = document.querySelector(".menu");
+  const sidebar = document.querySelector("aside");
+  const navButtons = [...document.querySelectorAll(".nav-button")];
+  const panels = [...document.querySelectorAll(".panel")];
+
+  function openPanel(id) {
+    panels.forEach(panel => panel.classList.toggle("active", panel.id === id));
+    navButtons.forEach(button => {
+      const active = button.dataset.panel === id;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-current", active ? "page" : "false");
+    });
+    const frame = document.querySelector(`#${id} iframe[data-src]`);
+    if (frame && !frame.getAttribute("src")) {
+      frame.src = frame.dataset.src;
+    }
+    sidebar.classList.remove("open");
+    menu.setAttribute("aria-expanded", "false");
+    history.replaceState(null, "", `#${id}`);
+  }
+
+  navButtons.forEach(button => button.addEventListener("click", () => openPanel(button.dataset.panel)));
+  document.querySelectorAll("[data-open]").forEach(button =>
+    button.addEventListener("click", () => openPanel(button.dataset.open))
+  );
+  menu.addEventListener("click", () => {
+    const open = sidebar.classList.toggle("open");
+    menu.setAttribute("aria-expanded", String(open));
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") {
+      sidebar.classList.remove("open");
+      menu.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  const initial = location.hash.slice(1);
+  if (panels.some(panel => panel.id === initial)) {
+    openPanel(initial);
+  } else {
+    navButtons[0].setAttribute("aria-current", "page");
+  }
+</script>
+</body>
+</html>

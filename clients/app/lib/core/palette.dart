@@ -58,10 +58,38 @@ class AppPalette {
 /// 内置配色方案。均来自 Catppuccin 官方色板，结构一致只是色号不同。
 /// Mocha = 当前默认（暗）；Macchiato/Frappe 是偏暖的暗色；Latte 是亮色。
 class Palettes {
+  /// 珍珠白：LowenSSH 默认界面。中性灰白底、石墨文字，只在状态与交互处使用彩色。
+  static const pearl = AppPalette(
+    id: 'pearl',
+    nameZh: '珍珠白',
+    nameEn: 'Pearl Light',
+    brightness: Brightness.light,
+    base: Color(0xFFF3F4F4),
+    mantle: Color(0xFFFAFAF9),
+    crust: Color(0xFFF7F7F6),
+    surface0: Color(0xFFE0E2E3),
+    surface1: Color(0xFFD2D5D7),
+    surface2: Color(0xFFB8BDC1),
+    text: Color(0xFF202225),
+    subtext: Color(0xFF686D72),
+    overlay: Color(0xFF92979C),
+    blue: Color(0xFF2F6FED),
+    lavender: Color(0xFF6C79F5),
+    sapphire: Color(0xFF30B8C4),
+    green: Color(0xFF22A875),
+    yellow: Color(0xFFD99028),
+    peach: Color(0xFFF27A3F),
+    red: Color(0xFFE44855),
+    mauve: Color(0xFF9B4DE3),
+    teal: Color(0xFF18A99A),
+    pink: Color(0xFFD94FA0),
+  );
+
   /// Catppuccin Mocha（深暗，原默认）
   static const mocha = AppPalette(
     id: 'mocha',
-    nameZh: 'Mocha 深暗', nameEn: 'Mocha Dark',
+    nameZh: 'Mocha 深暗',
+    nameEn: 'Mocha Dark',
     brightness: Brightness.dark,
     base: Color(0xFF1E1E2E),
     mantle: Color(0xFF181825),
@@ -87,7 +115,8 @@ class Palettes {
   /// Catppuccin Macchiato（暗，比 Mocha 略亮偏暖）
   static const macchiato = AppPalette(
     id: 'macchiato',
-    nameZh: 'Macchiato 暖暗', nameEn: 'Macchiato Warm',
+    nameZh: 'Macchiato 暖暗',
+    nameEn: 'Macchiato Warm',
     brightness: Brightness.dark,
     base: Color(0xFF24273A),
     mantle: Color(0xFF1E2030),
@@ -113,7 +142,8 @@ class Palettes {
   /// Catppuccin Frappé（暗，更柔和的中间调）
   static const frappe = AppPalette(
     id: 'frappe',
-    nameZh: 'Frappé 柔暗', nameEn: 'Frappé Soft',
+    nameZh: 'Frappé 柔暗',
+    nameEn: 'Frappé Soft',
     brightness: Brightness.dark,
     base: Color(0xFF303446),
     mantle: Color(0xFF292C3C),
@@ -139,7 +169,8 @@ class Palettes {
   /// Catppuccin Latte（亮色）
   static const latte = AppPalette(
     id: 'latte',
-    nameZh: 'Latte 亮色', nameEn: 'Latte Light',
+    nameZh: 'Latte 亮色',
+    nameEn: 'Latte Light',
     brightness: Brightness.light,
     base: Color(0xFFEFF1F5),
     mantle: Color(0xFFE6E9EF),
@@ -217,9 +248,9 @@ class Palettes {
   );
 
   /// 全部内置方案，按显示顺序
-  static const all = [mocha, macchiato, frappe, latte, neon, cherry];
+  static const all = [pearl, mocha, macchiato, frappe, latte, neon, cherry];
 
-  /// 按 id 取，找不到回退 Mocha
+  /// 按 id 取，找不到回退默认珍珠白。
   static AppPalette byId(String? id) =>
-      all.firstWhere((p) => p.id == id, orElse: () => mocha);
+      all.firstWhere((p) => p.id == id, orElse: () => pearl);
 }

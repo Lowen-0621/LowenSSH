@@ -14,6 +14,7 @@ import 'audit_dialog.dart';
 import 'security_dialog.dart';
 import 'keys_dialog.dart';
 import 'forward_dialog.dart';
+import 'app_hover_surface.dart';
 import '../state/key_provider.dart';
 import '../state/forward_provider.dart';
 
@@ -21,7 +22,9 @@ import '../state/forward_provider.dart';
 /// 对应设计稿 .leftbar。图标统一 Material 线性图标。
 /// 主机数据来自 configProvider，点击触发连接。
 class LeftBar extends ConsumerWidget {
-  const LeftBar({super.key});
+  const LeftBar({super.key, this.immersive = false});
+
+  final bool immersive;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,66 +36,91 @@ class LeftBar extends ConsumerWidget {
     final hosts = query.isEmpty
         ? allHosts
         : allHosts
-            .where((h) =>
-                (h.alias ?? '').toLowerCase().contains(query) ||
-                h.host.toLowerCase().contains(query))
-            .toList();
+              .where(
+                (h) =>
+                    (h.alias ?? '').toLowerCase().contains(query) ||
+                    h.host.toLowerCase().contains(query),
+              )
+              .toList();
 
-    return Container(
-      color: AppColors.mantle,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 10),
-            _navTitle(context, ref, l.t('panel.hosts')),
-            if (hosts.isEmpty)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-                child: Text(
+    return RepaintBoundary(
+      child: Container(
+        color: immersive
+            ? AppColors.mantle.withValues(alpha: .94)
+            : AppColors.mantle,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 20),
+              _navTitle(context, ref, l.t('panel.hosts')),
+              if (hosts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+                  child: Text(
                     query.isEmpty
                         ? l.t('left.noHosts')
                         : l.t('left.noMatch', {'q': query}),
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.overlay)),
-              )
-            else
-              for (final h in hosts) _hostItem(context, ref, h, conn),
-            // 连接错误显示（定位失败原因）
-            if (conn.phase == ConnPhase.error && conn.error != null)
-              Container(
-                margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.red.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(6),
+                    style: TextStyle(fontSize: 11, color: AppColors.overlay),
+                  ),
+                )
+              else
+                for (final h in hosts) _hostItem(context, ref, h, conn),
+              // 连接错误显示（定位失败原因）
+              if (conn.phase == ConnPhase.error && conn.error != null)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.red.withValues(alpha: .07),
+                    borderRadius: BorderRadius.circular(AppRadius.small),
+                    border: Border.all(
+                      color: AppColors.red.withValues(alpha: .16),
+                    ),
+                  ),
+                  child: Text(
+                    l.t('left.connectFail', {'err': '${conn.error}'}),
+                    style: TextStyle(fontSize: 10.5, color: AppColors.red),
+                  ),
                 ),
-                child: Text(l.t('left.connectFail', {'err': '${conn.error}'}),
-                    style: TextStyle(
-                        fontSize: 10.5, color: AppColors.red)),
-              ),
-            _divider(),
-            // 命令片段：真实功能，点击弹片段面板，badge 显示真实数量
-            _navLink(Icons.content_paste_outlined, l.t('left.snippets'),
+              _divider(),
+              // 命令片段：真实功能，点击弹片段面板，badge 显示真实数量
+              _navLink(
+                Icons.content_paste_outlined,
+                l.t('left.snippets'),
                 '${ref.watch(snippetProvider).length}',
-                onTap: () => showSnippetsDialog(context)),
-            // 密钥库：真实功能，点击弹密钥管理，badge 显示真实数量
-            _navLink(Icons.vpn_key_outlined, l.t('left.keys'),
+                onTap: () => showSnippetsDialog(context),
+              ),
+              // 密钥库：真实功能，点击弹密钥管理，badge 显示真实数量
+              _navLink(
+                Icons.vpn_key_outlined,
+                l.t('left.keys'),
                 _keyBadge(ref),
-                onTap: () => showKeysDialog(context)),
-            // 端口转发：真实功能，点击弹隧道管理，badge 显示运行中隧道数
-            _navLink(Icons.swap_horiz_outlined, l.t('left.forward'),
+                onTap: () => showKeysDialog(context),
+              ),
+              // 端口转发：真实功能，点击弹隧道管理，badge 显示运行中隧道数
+              _navLink(
+                Icons.swap_horiz_outlined,
+                l.t('left.forward'),
                 _forwardBadge(ref),
-                onTap: () => showForwardDialog(context)),
-            // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
-            _navLink(Icons.shield_outlined, l.t('left.security'),
+                onTap: () => showForwardDialog(context),
+              ),
+              // 安全策略：真实功能，点击弹策略面板，badge 显示累计拦截数（deny+ask）
+              _navLink(
+                Icons.rule_rounded,
+                l.t('left.security'),
                 _guardBadge(ref),
-                onTap: () => showSecurityDialog(context)),
-            // 审计日志：真实功能，点击弹审计面板，badge 显示总条数
-            _navLink(Icons.receipt_long_outlined, l.t('left.audit'),
+                onTap: () => showSecurityDialog(context),
+              ),
+              // 审计日志：真实功能，点击弹审计面板，badge 显示总条数
+              _navLink(
+                Icons.receipt_long_outlined,
+                l.t('left.audit'),
                 '${ref.watch(auditProvider).length}',
-                onTap: () => showAuditDialog(context)),
-          ],
+                onTap: () => showAuditDialog(context),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -101,18 +129,31 @@ class LeftBar extends ConsumerWidget {
   // 区块标题（带 + 添加主机）
   Widget _navTitle(BuildContext context, WidgetRef ref, String title) =>
       Padding(
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+        padding: const EdgeInsets.fromLTRB(18, 4, 16, 10),
         child: Row(
           children: [
-            Text(title.toUpperCase(),
-                style: TextStyle(
-                    fontSize: 10.5,
-                    letterSpacing: 1,
-                    color: AppColors.overlay)),
+            Text(
+              title.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11,
+                letterSpacing: .7,
+                fontWeight: FontWeight.w600,
+                color: AppColors.overlay,
+              ),
+            ),
             const Spacer(),
-            InkWell(
-              onTap: () => showAddHostDialog(context, ref),
-              child: Icon(Icons.add, size: 15, color: AppColors.subtext),
+            SizedBox(
+              width: 26,
+              height: 26,
+              child: AppHoverSurface(
+                onTap: () => showAddHostDialog(context, ref),
+                borderRadius: BorderRadius.circular(AppRadius.compact),
+                child: Icon(
+                  Icons.add_rounded,
+                  size: 16,
+                  color: AppColors.subtext,
+                ),
+              ),
             ),
           ],
         ),
@@ -120,17 +161,19 @@ class LeftBar extends ConsumerWidget {
 
   // 主机条目：点击连接。当前主机左侧蓝条高亮，已连绿点/连接中转圈。右键删除。
   Widget _hostItem(
-          BuildContext context, WidgetRef ref, Host h, ConnState conn) =>
-      _HostItem(
-        host: h,
-        conn: conn,
-        onTap: () => ref.read(connectionProvider.notifier).connect(h),
-        onSecondaryTap: (pos) => _showHostMenu(context, ref, h, pos),
-      );
+    BuildContext context,
+    WidgetRef ref,
+    Host h,
+    ConnState conn,
+  ) => _HostItem(
+    host: h,
+    conn: conn,
+    onTap: () => ref.read(connectionProvider.notifier).connect(h),
+    onSecondaryTap: (pos) => _showHostMenu(context, ref, h, pos),
+  );
 
   // 主机右键菜单：目前仅删除
-  void _showHostMenu(
-      BuildContext context, WidgetRef ref, Host h, Offset pos) {
+  void _showHostMenu(BuildContext context, WidgetRef ref, Host h, Offset pos) {
     final l = ref.read(l10nProvider);
     showMenu<String>(
       context: context,
@@ -144,8 +187,10 @@ class LeftBar extends ConsumerWidget {
             children: [
               Icon(Icons.delete_outline, size: 15, color: AppColors.red),
               const SizedBox(width: 8),
-              Text(l.t('left.deleteHost'),
-                  style: TextStyle(fontSize: 13, color: AppColors.text)),
+              Text(
+                l.t('left.deleteHost'),
+                style: TextStyle(fontSize: 13, color: AppColors.text),
+              ),
             ],
           ),
         ),
@@ -169,22 +214,30 @@ class LeftBar extends ConsumerWidget {
           borderRadius: BorderRadius.circular(10),
           side: BorderSide(color: AppColors.surface0),
         ),
-        title: Text(l.t('left.deleteHost'),
-            style: TextStyle(fontSize: 15, color: AppColors.text)),
+        title: Text(
+          l.t('left.deleteHost'),
+          style: TextStyle(fontSize: 15, color: AppColors.text),
+        ),
         content: Text(
-            l.t('left.deleteHostConfirm',
-                {'name': name, 'addr': '${h.host}:${h.port}'}),
-            style: TextStyle(fontSize: 13, color: AppColors.subtext)),
+          l.t('left.deleteHostConfirm', {
+            'name': name,
+            'addr': '${h.host}:${h.port}',
+          }),
+          style: TextStyle(fontSize: 13, color: AppColors.subtext),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(l.t('common.cancel'),
-                style: TextStyle(color: AppColors.subtext)),
+            child: Text(
+              l.t('common.cancel'),
+              style: TextStyle(color: AppColors.subtext),
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-                backgroundColor: AppColors.red,
-                foregroundColor: AppColors.crust),
+              backgroundColor: AppColors.red,
+              foregroundColor: AppColors.crust,
+            ),
             onPressed: () {
               // 正连着这台就先断开，避免操作已删主机
               final conn = ref.read(connectionProvider);
@@ -202,10 +255,10 @@ class LeftBar extends ConsumerWidget {
   }
 
   Widget _divider() => Container(
-        height: 1,
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        color: AppColors.surface0,
-      );
+    height: 1,
+    margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    color: AppColors.surface0,
+  );
 
   // 安全策略 badge：累计拦截数（deny+ask），为 0 时不显示
   String? _guardBadge(WidgetRef ref) {
@@ -227,15 +280,22 @@ class LeftBar extends ConsumerWidget {
   }
 
   // 导航链接（图标 + 标题 + 可选 badge）。传 onTap 则可点击。
-  Widget _navLink(IconData icon, String label, String? badge,
-          {VoidCallback? onTap}) =>
-      _NavLink(icon: icon, label: label, badge: badge, onTap: onTap);
+  Widget _navLink(
+    IconData icon,
+    String label,
+    String? badge, {
+    VoidCallback? onTap,
+  }) => _NavLink(icon: icon, label: label, badge: badge, onTap: onTap);
 }
 
 /// 左栏导航链接 —— 悬停淡背景渐变 + 手型光标
-class _NavLink extends StatefulWidget {
-  const _NavLink(
-      {required this.icon, required this.label, this.badge, this.onTap});
+class _NavLink extends StatelessWidget {
+  const _NavLink({
+    required this.icon,
+    required this.label,
+    this.badge,
+    this.onTap,
+  });
 
   final IconData icon;
   final String label;
@@ -243,50 +303,36 @@ class _NavLink extends StatefulWidget {
   final VoidCallback? onTap;
 
   @override
-  State<_NavLink> createState() => _NavLinkState();
-}
-
-class _NavLinkState extends State<_NavLink> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-          decoration: BoxDecoration(
-            color: _hover ? AppColors.surface1 : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: Row(
-            children: [
-              Icon(widget.icon, size: 16, color: AppColors.subtext),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(widget.label,
-                    style: TextStyle(fontSize: 13, color: AppColors.subtext)),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      child: AppHoverSurface(
+        onTap: onTap,
+        hoverColor: AppColors.text.withValues(alpha: .065),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        child: Row(
+          children: [
+            Icon(icon, size: 17, color: AppColors.subtext),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 13, color: AppColors.subtext),
               ),
-              if (widget.badge != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface0,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(widget.badge!,
-                      style: TextStyle(fontSize: 10, color: AppColors.subtext)),
+            ),
+            if (badge != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.surface0,
+                  borderRadius: BorderRadius.circular(10),
                 ),
-            ],
-          ),
+                child: Text(
+                  badge!,
+                  style: TextStyle(fontSize: 10, color: AppColors.subtext),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -294,12 +340,13 @@ class _NavLinkState extends State<_NavLink> {
 }
 
 /// 左栏主机条目 —— 悬停淡背景渐变 + 手型光标；当前项左侧蓝条高亮
-class _HostItem extends StatefulWidget {
-  const _HostItem(
-      {required this.host,
-      required this.conn,
-      required this.onTap,
-      required this.onSecondaryTap});
+class _HostItem extends StatelessWidget {
+  const _HostItem({
+    required this.host,
+    required this.conn,
+    required this.onTap,
+    required this.onSecondaryTap,
+  });
 
   final Host host;
   final ConnState conn;
@@ -307,45 +354,39 @@ class _HostItem extends StatefulWidget {
   final ValueChanged<Offset> onSecondaryTap;
 
   @override
-  State<_HostItem> createState() => _HostItemState();
-}
-
-class _HostItemState extends State<_HostItem> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
-    final h = widget.host;
-    final conn = widget.conn;
-    final isCurrent = conn.host?.id == h.id;
+    final h = host;
+    final currentConn = conn;
+    final isCurrent = currentConn.host?.id == h.id;
     // 多连接并存：已连接看整池 connectedIds，不只看当前主机
-    final connected = conn.connectedIds.contains(h.id);
-    final connecting = isCurrent && conn.phase == ConnPhase.connecting;
-    final failed = isCurrent && conn.phase == ConnPhase.error;
+    final connected = currentConn.connectedIds.contains(h.id);
+    final connecting = isCurrent && currentConn.phase == ConnPhase.connecting;
+    final failed = isCurrent && currentConn.phase == ConnPhase.error;
     final name = h.alias?.isNotEmpty == true ? h.alias! : h.host;
 
     // 背景：当前项蓝色淡染药丸；否则悬停时柔和高亮
     final Color bg = isCurrent
-        ? AppColors.blue.withValues(alpha: .15)
-        : (_hover ? AppColors.surface1 : Colors.transparent);
+        ? AppColors.blue.withValues(alpha: .07)
+        : Colors.transparent;
 
-    return MouseRegion(
-      cursor: connecting ? SystemMouseCursors.basic : SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: GestureDetector(
         // 右键弹出删除菜单（桌面交互习惯）
-        onSecondaryTapDown: (d) => widget.onSecondaryTap(d.globalPosition),
-        onTap: connecting ? null : widget.onTap,
-        behavior: HitTestBehavior.opaque,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(6),
+        onSecondaryTapDown: (d) => onSecondaryTap(d.globalPosition),
+        child: AppHoverSurface(
+          onTap: connecting ? null : onTap,
+          enabled: !connecting,
+          color: bg,
+          hoverColor: isCurrent
+              ? AppColors.blue.withValues(alpha: .035)
+              : AppColors.text.withValues(alpha: .05),
+          border: Border.all(
+            color: isCurrent
+                ? AppColors.blue.withValues(alpha: .13)
+                : Colors.transparent,
           ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
           child: Row(
             children: [
               // 状态：连接中转圈 / error红点 / 已连绿点 / 未连灰点
@@ -354,14 +395,18 @@ class _HostItemState extends State<_HostItem> {
                   width: 9,
                   height: 9,
                   child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: AppColors.blue),
+                    strokeWidth: 1.5,
+                    color: AppColors.blue,
+                  ),
                 )
               else if (failed)
                 Container(
                   width: 7,
                   height: 7,
                   decoration: BoxDecoration(
-                      color: AppColors.red, shape: BoxShape.circle),
+                    color: AppColors.red,
+                    shape: BoxShape.circle,
+                  ),
                 )
               else
                 _onlineDot(connected),
@@ -372,25 +417,30 @@ class _HostItemState extends State<_HostItem> {
                 child: Row(
                   children: [
                     Flexible(
-                      child: Text(name,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 13,
-                              // 当前项文字提亮 + 加粗，替代原左侧蓝条
-                              fontWeight: isCurrent
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: isCurrent
-                                  ? AppColors.blue
-                                  : AppColors.text)),
+                      child: Text(
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13,
+                          // 当前项文字提亮 + 加粗，替代原左侧蓝条
+                          fontWeight: isCurrent
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: isCurrent ? AppColors.blue : AppColors.text,
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 6),
                     // IP:端口 也用 Flexible+省略，避免主机名+IP 过长时 Row 溢出
                     Flexible(
-                      child: Text('${h.host}:${h.port}',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 10.5, color: AppColors.overlay)),
+                      child: Text(
+                        '${h.host}:${h.port}',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: AppColors.overlay,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -402,20 +452,13 @@ class _HostItemState extends State<_HostItem> {
     );
   }
 
-  // 在线状态点（绿色带辉光 / 灰色）
+  // 在线状态点。状态色本身已经足够，不再叠加发光效果。
   Widget _onlineDot(bool online) => Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(
-          color: online ? AppColors.green : AppColors.overlay,
-          shape: BoxShape.circle,
-          boxShadow: online
-              ? [
-                  BoxShadow(
-                      color: AppColors.green.withValues(alpha: .6),
-                      blurRadius: 6)
-                ]
-              : null,
-        ),
-      );
+    width: 7,
+    height: 7,
+    decoration: BoxDecoration(
+      color: online ? AppColors.green : AppColors.overlay,
+      shape: BoxShape.circle,
+    ),
+  );
 }

@@ -4,25 +4,16 @@ import '../theme.dart';
 import '../core/audit_store.dart';
 import '../state/guard_provider.dart';
 import '../state/settings_provider.dart';
+import 'app_hover_surface.dart';
+import 'app_side_panel.dart';
 
 /// 审计日志对话框 —— 全局命令审计列表，支持按决策筛选 + 清空。
 Future<void> showAuditDialog(BuildContext context) {
-  return showDialog<void>(
+  return showAppSidePanel<void>(
     context: context,
-    builder: (_) => Dialog(
-      backgroundColor: AppColors.mantle,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: AppColors.surface0),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 600),
-        child: const Padding(
-          padding: EdgeInsets.all(18),
-          child: _AuditBody(),
-        ),
-      ),
-    ),
+    width: 560,
+    maxHeight: 600,
+    child: const _AuditBody(),
   );
 }
 
@@ -51,23 +42,29 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
         // 标题 + 清空
         Row(
           children: [
-            Icon(Icons.receipt_long_outlined,
-                size: 16, color: AppColors.text),
+            Icon(Icons.receipt_long_outlined, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            Text(l.t('audit.title'),
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text)),
+            Text(
+              l.t('audit.title'),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
+            ),
             const SizedBox(width: 8),
-            Text(l.t('audit.count', {'n': '${all.length}'}),
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            Text(
+              l.t('audit.count', {'n': '${all.length}'}),
+              style: TextStyle(fontSize: 11, color: AppColors.overlay),
+            ),
             const Spacer(),
             if (all.isNotEmpty)
               TextButton(
                 onPressed: () => ref.read(auditProvider.notifier).clear(),
-                child: Text(l.t('common.clear'),
-                    style: TextStyle(fontSize: 12, color: AppColors.red)),
+                child: Text(
+                  l.t('common.clear'),
+                  style: TextStyle(fontSize: 12, color: AppColors.red),
+                ),
               ),
           ],
         ),
@@ -87,10 +84,11 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
           child: list.isEmpty
               ? Padding(
                   padding: const EdgeInsets.symmetric(vertical: 30),
-                  child: Text(l.t('audit.empty'),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 12, color: AppColors.overlay)),
+                  child: Text(
+                    l.t('audit.empty'),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: AppColors.overlay),
+                  ),
                 )
               : ListView.separated(
                   shrinkWrap: true,
@@ -108,22 +106,18 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
     final active = _filter == id;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          onTap: () => setState(() => _filter = id),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
-            decoration: BoxDecoration(
-              color: active ? AppColors.surface1 : AppColors.base,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: active ? AppColors.blue : AppColors.surface0),
-            ),
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 11.5,
-                    color: active ? AppColors.text : AppColors.subtext)),
+      child: AppHoverSurface(
+        onTap: () => setState(() => _filter = id),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+        color: active ? AppColors.surface1 : AppColors.base,
+        hoverColor: AppColors.text.withValues(alpha: .065),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: active ? AppColors.blue : AppColors.surface0),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            color: active ? AppColors.text : AppColors.subtext,
           ),
         ),
       ),
@@ -132,61 +126,68 @@ class _AuditBodyState extends ConsumerState<_AuditBody> {
 
   // 决策对应的标记色
   Color _color(String d) => switch (d) {
-        'deny' => AppColors.red,
-        'ask' => AppColors.yellow,
-        _ => AppColors.green,
-      };
+    'deny' => AppColors.red,
+    'ask' => AppColors.yellow,
+    _ => AppColors.green,
+  };
   String _label(String d) => switch (d) {
-        'deny' => 'DENY',
-        'ask' => 'ASK',
-        _ => 'ALLOW',
-      };
+    'deny' => 'DENY',
+    'ask' => 'ASK',
+    _ => 'ALLOW',
+  };
 
   Widget _row(AuditEntry e) {
     final l = ref.watch(l10nProvider);
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppColors.base,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.surface0),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 决策徽标
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: _color(e.decision).withValues(alpha: .15),
-                borderRadius: BorderRadius.circular(6),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.base,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.surface0),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 决策徽标
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: _color(e.decision).withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              _label(e.decision),
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
+                color: _color(e.decision),
               ),
-              child: Text(_label(e.decision),
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  e.command,
                   style: TextStyle(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w600,
-                      color: _color(e.decision))),
+                    fontFamily: kMonoFont,
+                    fontSize: 11.5,
+                    color: AppColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${e.host} · ${_fmtTime(e.time)}${e.executed ? '' : l.t('audit.notExecuted')}',
+                  style: TextStyle(fontSize: 10, color: AppColors.overlay),
+                ),
+              ],
             ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(e.command,
-                      style: TextStyle(
-                          fontFamily: kMonoFont,
-                          fontSize: 11.5,
-                          color: AppColors.text)),
-                  const SizedBox(height: 2),
-                  Text('${e.host} · ${_fmtTime(e.time)}${e.executed ? '' : l.t('audit.notExecuted')}',
-                      style: TextStyle(
-                          fontSize: 10, color: AppColors.overlay)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 
   static String _fmtTime(DateTime t) {
