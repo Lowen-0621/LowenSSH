@@ -44,28 +44,28 @@ class ChatItem {
 
   /// 持久化序列化。reasoningStart 是运行时计时用，不存（存结果 reasoningSec 即可）。
   Map<String, dynamic> toJson() => {
-        'kind': kind.name,
-        'text': text,
-        if (toolName != null) 'toolName': toolName,
-        if (toolArgs != null) 'toolArgs': toolArgs,
-        if (toolResult != null) 'toolResult': toolResult,
-        'toolExecuted': toolExecuted,
-        if (command != null) 'command': command,
-        if (reason != null) 'reason': reason,
-        if (reasoningSec != null) 'reasoningSec': reasoningSec,
-      };
+    'kind': kind.name,
+    'text': text,
+    if (toolName != null) 'toolName': toolName,
+    if (toolArgs != null) 'toolArgs': toolArgs,
+    if (toolResult != null) 'toolResult': toolResult,
+    'toolExecuted': toolExecuted,
+    if (command != null) 'command': command,
+    if (reason != null) 'reason': reason,
+    if (reasoningSec != null) 'reasoningSec': reasoningSec,
+  };
 
   factory ChatItem.fromJson(Map<String, dynamic> j) => ChatItem(
-        kind: ChatItemKind.values.byName(j['kind'] as String),
-        text: j['text'] as String? ?? '',
-        toolName: j['toolName'] as String?,
-        toolArgs: j['toolArgs'] as String?,
-        toolResult: j['toolResult'] as String?,
-        toolExecuted: j['toolExecuted'] as bool? ?? false,
-        command: j['command'] as String?,
-        reason: j['reason'] as String?,
-        reasoningSec: (j['reasoningSec'] as num?)?.toInt(),
-      );
+    kind: ChatItemKind.values.byName(j['kind'] as String),
+    text: j['text'] as String? ?? '',
+    toolName: j['toolName'] as String?,
+    toolArgs: j['toolArgs'] as String?,
+    toolResult: j['toolResult'] as String?,
+    toolExecuted: j['toolExecuted'] as bool? ?? false,
+    command: j['command'] as String?,
+    reason: j['reason'] as String?,
+    reasoningSec: (j['reasoningSec'] as num?)?.toInt(),
+  );
 }
 
 /// 待确认请求（ASK 态）—— Completer 桥接 loop 与 UI
@@ -96,13 +96,12 @@ class AgentState {
     PendingAsk? pendingAsk,
     bool clearPending = false,
     String? error,
-  }) =>
-      AgentState(
-        items: items ?? this.items,
-        running: running ?? this.running,
-        pendingAsk: clearPending ? null : (pendingAsk ?? this.pendingAsk),
-        error: error,
-      );
+  }) => AgentState(
+    items: items ?? this.items,
+    running: running ?? this.running,
+    pendingAsk: clearPending ? null : (pendingAsk ?? this.pendingAsk),
+    error: error,
+  );
 }
 
 /// 单台主机的会话状态（内存隔离的最小单元）。
@@ -115,6 +114,7 @@ class _HostSession {
   String? error;
   StreamSubscription<AgentEvent>? sub;
   int undoMark = 0; // 本轮发送前的 items 长度，中断时撤回到此
+  String? conversationId;
 }
 
 /// 会话 Notifier —— 按主机分桶隔离对话。
@@ -142,21 +142,31 @@ class AgentNotifier extends Notifier<AgentState> {
   }
 
   /// 取某主机会话（不存在则从磁盘加载存档建一份）
-  _HostSession _session(String hostId) =>
-      _sessions.putIfAbsent(hostId, () {
-        final s = _HostSession();
-        // 懒加载：首次访问该主机时恢复落盘的对话 + 多轮历史
-        final archive = loadChat(hostId);
-        s.items.addAll(archive.items);
-        s.history.addAll(archive.history);
-        return s;
-      });
+  _HostSession _session(String hostId) => _sessions.putIfAbsent(hostId, () {
+    final s = _HostSession();
+    // 每次启动默认进入新对话；旧的当前会话先安全归档，仍可从历史恢复。
+    final archive = loadChat(hostId);
+    if (archive.items.isNotEmpty) {
+      appendAgentHistory(hostId, archive.items, archive.history);
+      saveChat(hostId, const [], const []);
+    }
+    return s;
+  });
 
   /// 把某主机会话落盘（每轮结束/中断后调用）
   void _persist(String hostId) {
     final s = _sessions[hostId];
     if (s == null) return;
     saveChat(hostId, s.items, s.history);
+    final conversationId = s.conversationId;
+    if (conversationId != null && s.items.isNotEmpty) {
+      upsertAgentHistory(
+        hostId,
+        conversationId,
+        List.of(s.items),
+        List.of(s.history),
+      );
+    }
   }
 
   /// 某主机是否有 AI 任务正在运行（供连接池 LRU 判断「忙的不踢」）
@@ -219,10 +229,13 @@ class AgentNotifier extends Notifier<AgentState> {
       // 未连接：临时挂一条阻断提示到当前会话（若有），否则忽略
       if (hostId != null) {
         final s = _session(hostId);
-        s.items.add(ChatItem(
+        s.items.add(
+          ChatItem(
             kind: ChatItemKind.blocked,
             command: task,
-            reason: '尚未连接主机，请先在左栏选择并连接一台主机。'));
+            reason: '尚未连接主机，请先在左栏选择并连接一台主机。',
+          ),
+        );
         _refreshIfCurrent(hostId);
       }
       return;
@@ -234,15 +247,19 @@ class AgentNotifier extends Notifier<AgentState> {
     final cfg = ref.read(configProvider);
     // 记录撤回点（user 气泡之前），中断时回到这里
     s.undoMark = s.items.length;
+    s.conversationId ??= '${DateTime.now().millisecondsSinceEpoch}';
     s.items.add(ChatItem(kind: ChatItemKind.user, text: task));
     s.running = true;
     s.error = null;
+    // 首条用户消息出现时立即创建历史记录，应用意外退出也不会丢会话入口。
+    _persist(hostId);
     _refreshIfCurrent(hostId);
 
     final deps = AgentDeps(
       llm: GlmClient(cfg.llm),
       ssh: conn.client!,
-      confirmer: (cmd, reason) => _confirm(hostId, cmd, reason), // ASK 桥接（绑定 hostId）
+      confirmer: (cmd, reason) =>
+          _confirm(hostId, cmd, reason), // ASK 桥接（绑定 hostId）
       history: s.history,
     );
 
@@ -302,6 +319,10 @@ class AgentNotifier extends Notifier<AgentState> {
     if (s.undoMark <= s.items.length) {
       s.items.removeRange(s.undoMark, s.items.length);
     }
+    if (s.items.isEmpty && s.conversationId != null) {
+      deleteAgentHistoryEntry(hostId, s.conversationId!);
+      s.conversationId = null;
+    }
     s.running = false;
     _refreshIfCurrent(hostId);
     _persist(hostId); // 撤回后落盘（与磁盘保持一致）
@@ -319,8 +340,9 @@ class AgentNotifier extends Notifier<AgentState> {
       case TokenEvent(:final text):
         _appendOrExtend(hostId, s, ChatItemKind.assistant, text);
       case ToolCallEvent(:final name, :final args):
-        s.items.add(ChatItem(
-            kind: ChatItemKind.tool, toolName: name, toolArgs: args));
+        s.items.add(
+          ChatItem(kind: ChatItemKind.tool, toolName: name, toolArgs: args),
+        );
         _refreshIfCurrent(hostId);
       case ToolResultEvent(:final name, :final summary, :final executed):
         // 回填最近一个同名 tool 卡，并取出其命令文本用于审计
@@ -337,17 +359,22 @@ class AgentNotifier extends Notifier<AgentState> {
         }
         if (executed) {
           // 成功执行计入已放行 + 落审计（带具体命令）
-          ref.read(guardProvider.notifier).recordAllow(
-              auditCmd ?? name,
-              host: _hostName(hostId));
+          ref
+              .read(guardProvider.notifier)
+              .recordAllow(auditCmd ?? name, host: _hostName(hostId));
         }
         _refreshIfCurrent(hostId);
       case BlockedEvent(:final command, :final reason):
         ref
             .read(guardProvider.notifier)
             .recordDeny(command, host: _hostName(hostId)); // 计入已阻止+历史+审计
-        s.items.add(ChatItem(
-            kind: ChatItemKind.blocked, command: command, reason: reason));
+        s.items.add(
+          ChatItem(
+            kind: ChatItemKind.blocked,
+            command: command,
+            reason: reason,
+          ),
+        );
         _refreshIfCurrent(hostId);
       case DoneEvent(:final finalText):
         final t = finalText.trim();
@@ -389,40 +416,49 @@ class AgentNotifier extends Notifier<AgentState> {
   /// 同类型连续增量（reasoning/assistant 流式 token）拼到末尾同类项。
   /// reasoning 额外记录开始时刻并实时更新耗时（秒）。
   void _appendOrExtend(
-      String hostId, _HostSession s, ChatItemKind kind, String delta) {
+    String hostId,
+    _HostSession s,
+    ChatItemKind kind,
+    String delta,
+  ) {
     final items = s.items;
     if (items.isNotEmpty && items.last.kind == kind) {
       items.last.text += delta;
       if (kind == ChatItemKind.reasoning && items.last.reasoningStart != null) {
-        items.last.reasoningSec =
-            DateTime.now().difference(items.last.reasoningStart!).inSeconds;
+        items.last.reasoningSec = DateTime.now()
+            .difference(items.last.reasoningStart!)
+            .inSeconds;
       }
     } else {
-      items.add(ChatItem(
-        kind: kind,
-        text: delta,
-        reasoningStart:
-            kind == ChatItemKind.reasoning ? DateTime.now() : null,
-        reasoningSec: kind == ChatItemKind.reasoning ? 0 : null,
-      ));
+      items.add(
+        ChatItem(
+          kind: kind,
+          text: delta,
+          reasoningStart: kind == ChatItemKind.reasoning
+              ? DateTime.now()
+              : null,
+          reasoningSec: kind == ChatItemKind.reasoning ? 0 : null,
+        ),
+      );
     }
     _refreshIfCurrent(hostId);
   }
 
   /// 关闭智能体面板：把当前展示主机的会话归档到历史，然后清空当前会话。
   /// 当前会话存盘(chat_store)也一并清空，重启后当前会话为空（历史仍在）。
-  void archiveAndClear() {
+  void archiveAndClear() => newConversation();
+
+  /// 新建对话：当前内容已通过 conversationId 持续写入历史，这里只需最后更新一次并清空草稿。
+  void newConversation() {
     final hostId = _currentHostId;
     if (hostId == null) return;
     final s = _sessions[hostId];
     if (s == null) return;
     if (s.running) return; // 任务运行中不归档，避免截断
-    // 有内容才归档
-    if (s.items.isNotEmpty) {
-      appendAgentHistory(hostId, List.of(s.items), List.of(s.history));
-    }
+    _persist(hostId);
     s.items.clear();
     s.history.clear();
+    s.conversationId = null;
     s.error = null;
     _persist(hostId); // 清空当前会话存档
     _refreshIfCurrent(hostId);
@@ -450,16 +486,15 @@ class AgentNotifier extends Notifier<AgentState> {
       }
     }
     if (target == null) return;
-    // 当前会话非空则先归档，再载入历史
-    if (s.items.isNotEmpty) {
-      appendAgentHistory(hostId, List.of(s.items), List.of(s.history));
-    }
+    // 当前会话先更新到原 history id，再载入目标会话继续对话。
+    _persist(hostId);
     s.items
       ..clear()
       ..addAll(target.items);
     s.history
       ..clear()
       ..addAll(target.history);
+    s.conversationId = target.id;
     s.error = null;
     _persist(hostId);
     _refreshIfCurrent(hostId);
@@ -474,5 +509,6 @@ class AgentNotifier extends Notifier<AgentState> {
   }
 }
 
-final agentProvider =
-    NotifierProvider<AgentNotifier, AgentState>(AgentNotifier.new);
+final agentProvider = NotifierProvider<AgentNotifier, AgentState>(
+  AgentNotifier.new,
+);

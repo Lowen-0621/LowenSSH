@@ -8,6 +8,7 @@ import '../core/lock_store.dart';
 import '../core/settings_store.dart';
 import '../state/config_provider.dart';
 import '../state/settings_provider.dart';
+import 'app_hover_surface.dart';
 
 /// 应用版本号（与 pubspec version 对齐，手工维护）
 const String kAppVersion = '1.0.0';
@@ -15,13 +16,19 @@ const String kAppVersion = '1.0.0';
 /// 设置中心 —— 左栏索引 + 右栏内容的大窗口（仿 Termius）。
 /// 各页：AI 模型 / 通用 / 终端 / 终端主题 / 快捷键（后三者后续批次填充）。
 Future<void> showSettingsCenter(BuildContext context) {
-  return showDialog<void>(
+  return showGeneralDialog<void>(
     context: context,
-    builder: (_) => Dialog(
+    barrierDismissible: true,
+    barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+    barrierColor: AppColors.text.withValues(alpha: .16),
+    transitionDuration: AppMotion.panel,
+    pageBuilder: (_, _, _) => Dialog(
       backgroundColor: AppColors.base,
+      surfaceTintColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(40),
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.large),
         side: BorderSide(color: AppColors.surface0),
       ),
       child: ConstrainedBox(
@@ -29,6 +36,20 @@ Future<void> showSettingsCenter(BuildContext context) {
         child: const _SettingsCenter(),
       ),
     ),
+    transitionBuilder: (_, animation, _, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: AppMotion.standard,
+        reverseCurve: Curves.easeInCubic,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: .985, end: 1).animate(curved),
+          child: child,
+        ),
+      );
+    },
   );
 }
 
@@ -63,36 +84,53 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
                 decoration: BoxDecoration(
-                  border:
-                      Border(bottom: BorderSide(color: AppColors.surface0)),
+                  border: Border(bottom: BorderSide(color: AppColors.surface0)),
                 ),
                 child: Row(
                   children: [
-                    Text(l.t('settings.title'),
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.text)),
+                    Text(
+                      l.t('settings.title'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.text,
+                      ),
+                    ),
                     const Spacer(),
-                    InkWell(
-                      onTap: () => Navigator.pop(context),
-                      child: Icon(Icons.close,
-                          size: 18, color: AppColors.subtext),
+                    SizedBox(
+                      width: 30,
+                      height: 30,
+                      child: AppHoverSurface(
+                        onTap: () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
+                        child: Icon(
+                          Icons.close_rounded,
+                          size: 17,
+                          color: AppColors.subtext,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: switch (_active) {
-                    _Nav.aiModel => const _AiModelPage(),
-                    _Nav.common => const _CommonPage(),
-                    _Nav.terminal => const _TerminalPage(),
-                    _Nav.theme => const _ThemePage(),
-                    _Nav.security => const _SecurityPage(),
-                    _ => _placeholder(l),
-                  },
+                child: AnimatedSwitcher(
+                  duration: AppMotion.switcher,
+                  switchInCurve: AppMotion.standard,
+                  transitionBuilder: (child, animation) =>
+                      FadeTransition(opacity: animation, child: child),
+                  child: SingleChildScrollView(
+                    key: ValueKey(_active),
+                    padding: const EdgeInsets.all(20),
+                    child: switch (_active) {
+                      _Nav.aiModel => const _AiModelPage(),
+                      _Nav.common => const _CommonPage(),
+                      _Nav.terminal => const _TerminalPage(),
+                      _Nav.theme => const _ThemePage(),
+                      _Nav.security => const _SecurityPage(),
+                      _ => _placeholder(l),
+                    },
+                  ),
                 ),
               ),
             ],
@@ -106,27 +144,31 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
   Widget _navBar(L10n l) {
     Widget item(_Nav nav, IconData icon, String label) {
       final active = _active == nav;
-      return InkWell(
+      return AppHoverSurface(
         onTap: () => setState(() => _active = nav),
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(8, 2, 8, 2),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            color: active ? AppColors.surface0 : null,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            children: [
-              Icon(icon,
-                  size: 16,
-                  color: active ? AppColors.text : AppColors.subtext),
-              const SizedBox(width: 10),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 13,
-                      color: active ? AppColors.text : AppColors.subtext)),
-            ],
-          ),
+        color: active
+            ? AppColors.text.withValues(alpha: .065)
+            : Colors.transparent,
+        hoverColor: AppColors.text.withValues(alpha: .045),
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: active ? AppColors.text : AppColors.subtext,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                color: active ? AppColors.text : AppColors.subtext,
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -137,17 +179,44 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const SizedBox(height: 14),
-          item(_Nav.aiModel, Icons.smart_toy_outlined,
-              l.t('settings.nav.aiModel')),
-          item(_Nav.common, Icons.tune, l.t('settings.nav.common')),
-          item(_Nav.terminal, Icons.terminal_outlined,
-              l.t('settings.nav.terminal')),
-          item(_Nav.theme, Icons.palette_outlined,
-              l.t('settings.nav.theme')),
-          item(_Nav.security, Icons.lock_outline,
-              l.t('settings.nav.security')),
-          item(_Nav.shortcuts, Icons.keyboard_outlined,
-              l.t('settings.nav.shortcuts')),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              children: [
+                item(
+                  _Nav.aiModel,
+                  Icons.smart_toy_outlined,
+                  l.t('settings.nav.aiModel'),
+                ),
+                const SizedBox(height: 4),
+                item(_Nav.common, Icons.tune, l.t('settings.nav.common')),
+                const SizedBox(height: 4),
+                item(
+                  _Nav.terminal,
+                  Icons.terminal_outlined,
+                  l.t('settings.nav.terminal'),
+                ),
+                const SizedBox(height: 4),
+                item(
+                  _Nav.theme,
+                  Icons.palette_outlined,
+                  l.t('settings.nav.theme'),
+                ),
+                const SizedBox(height: 4),
+                item(
+                  _Nav.security,
+                  Icons.lock_outline,
+                  l.t('settings.nav.security'),
+                ),
+                const SizedBox(height: 4),
+                item(
+                  _Nav.shortcuts,
+                  Icons.keyboard_outlined,
+                  l.t('settings.nav.shortcuts'),
+                ),
+              ],
+            ),
+          ),
           const Spacer(),
           // 版本号
           Padding(
@@ -155,12 +224,14 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(l.t('common.version'),
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.overlay)),
-                Text(kAppVersion,
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.overlay)),
+                Text(
+                  l.t('common.version'),
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay),
+                ),
+                Text(
+                  kAppVersion,
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay),
+                ),
               ],
             ),
           ),
@@ -170,11 +241,13 @@ class _SettingsCenterState extends ConsumerState<_SettingsCenter> {
   }
 
   Widget _placeholder(L10n l) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 40),
-        child: Text(l.t('settings.comingSoon'),
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: AppColors.overlay)),
-      );
+    padding: const EdgeInsets.symmetric(vertical: 40),
+    child: Text(
+      l.t('settings.comingSoon'),
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 13, color: AppColors.overlay),
+    ),
+  );
 }
 
 // ============ AI 模型页 ============
@@ -195,20 +268,24 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
     final l = ref.watch(l10nProvider);
     final cfg = ref.watch(configProvider);
     final editingId = _editingId ?? cfg.activeProviderId;
-    final editing =
-        cfg.providers.firstWhere((p) => p.id == editingId);
+    final editing = cfg.providers.firstWhere((p) => p.id == editingId);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.t('settings.ai.title'),
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text)),
+        Text(
+          l.t('settings.ai.title'),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
         const SizedBox(height: 4),
-        Text(l.t('settings.ai.hint'),
-            style: TextStyle(fontSize: 11.5, color: AppColors.overlay)),
+        Text(
+          l.t('settings.ai.hint'),
+          style: TextStyle(fontSize: 11.5, color: AppColors.overlay),
+        ),
         const SizedBox(height: 16),
         // 供应商选择行（横向卡片）
         Wrap(
@@ -216,10 +293,14 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
           runSpacing: 8,
           children: [
             for (final p in cfg.providers)
-              _providerChip(p, p.id == editingId,
-                  p.id == cfg.activeProviderId, () {
-                setState(() => _editingId = p.id);
-              }),
+              _providerChip(
+                p,
+                p.id == editingId,
+                p.id == cfg.activeProviderId,
+                () {
+                  setState(() => _editingId = p.id);
+                },
+              ),
           ],
         ),
         const SizedBox(height: 20),
@@ -231,7 +312,11 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
 
   // 供应商卡片：名称 + 配置状态 + 激活标记
   Widget _providerChip(
-      LlmProvider p, bool editing, bool active, VoidCallback onTap) {
+    LlmProvider p,
+    bool editing,
+    bool active,
+    VoidCallback onTap,
+  ) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -242,7 +327,8 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
           color: editing ? AppColors.surface0 : AppColors.mantle,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color: editing ? AppColors.blue : AppColors.surface0),
+            color: editing ? AppColors.blue : AppColors.surface0,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,16 +336,18 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
             Row(
               children: [
                 Expanded(
-                  child: Text(p.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text)),
+                  child: Text(
+                    p.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                  ),
                 ),
                 if (active)
-                  Icon(Icons.check_circle,
-                      size: 14, color: AppColors.green),
+                  Icon(Icons.check_circle, size: 14, color: AppColors.green),
               ],
             ),
             const SizedBox(height: 4),
@@ -275,10 +363,11 @@ class _AiModelPageState extends ConsumerState<_AiModelPage> {
                 ),
                 const SizedBox(width: 5),
                 Flexible(
-                  child: Text(p.model,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 10, color: AppColors.overlay)),
+                  child: Text(
+                    p.model,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 10, color: AppColors.overlay),
+                  ),
                 ),
               ],
             ),
@@ -305,23 +394,27 @@ class _ProviderForm extends ConsumerStatefulWidget {
   final LlmProvider provider;
   final bool isActive;
   final L10n l;
-  const _ProviderForm(
-      {super.key,
-      required this.provider,
-      required this.isActive,
-      required this.l});
+  const _ProviderForm({
+    super.key,
+    required this.provider,
+    required this.isActive,
+    required this.l,
+  });
 
   @override
   ConsumerState<_ProviderForm> createState() => _ProviderFormState();
 }
 
 class _ProviderFormState extends ConsumerState<_ProviderForm> {
-  late final TextEditingController _apiKey =
-      TextEditingController(text: widget.provider.apiKey);
-  late final TextEditingController _model =
-      TextEditingController(text: widget.provider.model);
-  late final TextEditingController _baseURL =
-      TextEditingController(text: widget.provider.baseURL);
+  late final TextEditingController _apiKey = TextEditingController(
+    text: widget.provider.apiKey,
+  );
+  late final TextEditingController _model = TextEditingController(
+    text: widget.provider.model,
+  );
+  late final TextEditingController _baseURL = TextEditingController(
+    text: widget.provider.baseURL,
+  );
 
   @override
   void dispose() {
@@ -332,7 +425,9 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
   }
 
   void _save() {
-    ref.read(configProvider.notifier).updateProvider(
+    ref
+        .read(configProvider.notifier)
+        .updateProvider(
           widget.provider.id,
           apiKey: _apiKey.text.trim(),
           model: _model.text.trim(),
@@ -355,25 +450,33 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
         children: [
           Row(
             children: [
-              Text(widget.provider.name,
-                  style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.text)),
+              Text(
+                widget.provider.name,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.text,
+                ),
+              ),
               const SizedBox(width: 8),
               if (widget.isActive)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.green.withValues(alpha: .18),
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text(l.t('settings.ai.active'),
-                      style: TextStyle(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.green)),
+                  child: Text(
+                    l.t('settings.ai.active'),
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.green,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -391,19 +494,21 @@ class _ProviderFormState extends ConsumerState<_ProviderForm> {
           Align(
             alignment: Alignment.centerLeft,
             child: widget.isActive
-                ? Text(l.t('settings.ai.active'),
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.green))
+                ? Text(
+                    l.t('settings.ai.active'),
+                    style: TextStyle(fontSize: 12, color: AppColors.green),
+                  )
                 : FilledButton(
                     onPressed: widget.provider.configured
                         ? () => ref
-                            .read(configProvider.notifier)
-                            .setActiveProvider(widget.provider.id)
+                              .read(configProvider.notifier)
+                              .setActiveProvider(widget.provider.id)
                         : null,
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.blue,
-                        foregroundColor: AppColors.crust,
-                        disabledBackgroundColor: AppColors.surface0),
+                      backgroundColor: AppColors.blue,
+                      foregroundColor: AppColors.crust,
+                      disabledBackgroundColor: AppColors.surface0,
+                    ),
                     child: Text(l.t('settings.ai.setActive')),
                   ),
           ),
@@ -426,11 +531,14 @@ class _CommonPage extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.t('settings.common.title'),
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text)),
+        Text(
+          l.t('settings.common.title'),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
@@ -441,15 +549,23 @@ class _CommonPage extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              Text(l.t('settings.common.language'),
-                  style: TextStyle(fontSize: 13, color: AppColors.text)),
+              Text(
+                l.t('settings.common.language'),
+                style: TextStyle(fontSize: 13, color: AppColors.text),
+              ),
               const Spacer(),
               // 语言切换
-              _langTab(l.t('settings.common.langZh'), lang == AppLang.zh,
-                  () => ref.read(settingsProvider.notifier).setLang(AppLang.zh)),
+              _langTab(
+                l.t('settings.common.langZh'),
+                lang == AppLang.zh,
+                () => ref.read(settingsProvider.notifier).setLang(AppLang.zh),
+              ),
               const SizedBox(width: 8),
-              _langTab(l.t('settings.common.langEn'), lang == AppLang.en,
-                  () => ref.read(settingsProvider.notifier).setLang(AppLang.en)),
+              _langTab(
+                l.t('settings.common.langEn'),
+                lang == AppLang.en,
+                () => ref.read(settingsProvider.notifier).setLang(AppLang.en),
+              ),
             ],
           ),
         ),
@@ -458,22 +574,24 @@ class _CommonPage extends ConsumerWidget {
   }
 
   Widget _langTab(String label, bool active, VoidCallback onTap) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: active ? AppColors.surface1 : AppColors.base,
         borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-          decoration: BoxDecoration(
-            color: active ? AppColors.surface1 : AppColors.base,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-                color: active ? AppColors.blue : AppColors.surface0),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 12.5,
-                  color: active ? AppColors.text : AppColors.subtext)),
+        border: Border.all(color: active ? AppColors.blue : AppColors.surface0),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12.5,
+          color: active ? AppColors.text : AppColors.subtext,
         ),
-      );
+      ),
+    ),
+  );
 }
 
 // ============ 终端设置页 ============
@@ -490,11 +608,14 @@ class _TerminalPage extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(l.t('settings.term.title'),
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                color: AppColors.text)),
+        Text(
+          l.t('settings.term.title'),
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
+        ),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -506,14 +627,18 @@ class _TerminalPage extends ConsumerWidget {
           child: Column(
             children: [
               // 选中即复制 / 右键粘贴
-              _switchRow(l.t('settings.term.selectToCopy'), s.selectToCopy,
-                  (v) {
+              _switchRow(l.t('settings.term.selectToCopy'), s.selectToCopy, (
+                v,
+              ) {
                 notifier.updateTerminal(selectToCopy: v, rightClickPaste: v);
               }),
               Divider(height: 1, color: AppColors.surface0),
               // 光标闪烁
-              _switchRow(l.t('settings.term.cursorBlink'), s.cursorBlink,
-                  (v) => notifier.updateTerminal(cursorBlink: v)),
+              _switchRow(
+                l.t('settings.term.cursorBlink'),
+                s.cursorBlink,
+                (v) => notifier.updateTerminal(cursorBlink: v),
+              ),
               Divider(height: 1, color: AppColors.surface0),
               // 光标样式（三选）
               _rowWrap(
@@ -521,20 +646,28 @@ class _TerminalPage extends ConsumerWidget {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _seg(l.t('settings.term.cursorBlock'),
-                        s.cursorStyle == CursorStyle.block,
-                        () => notifier.updateTerminal(
-                            cursorStyle: CursorStyle.block)),
+                    _seg(
+                      l.t('settings.term.cursorBlock'),
+                      s.cursorStyle == CursorStyle.block,
+                      () => notifier.updateTerminal(
+                        cursorStyle: CursorStyle.block,
+                      ),
+                    ),
                     const SizedBox(width: 6),
-                    _seg(l.t('settings.term.cursorUnderline'),
-                        s.cursorStyle == CursorStyle.underline,
-                        () => notifier.updateTerminal(
-                            cursorStyle: CursorStyle.underline)),
+                    _seg(
+                      l.t('settings.term.cursorUnderline'),
+                      s.cursorStyle == CursorStyle.underline,
+                      () => notifier.updateTerminal(
+                        cursorStyle: CursorStyle.underline,
+                      ),
+                    ),
                     const SizedBox(width: 6),
-                    _seg(l.t('settings.term.cursorBar'),
-                        s.cursorStyle == CursorStyle.bar,
-                        () => notifier.updateTerminal(
-                            cursorStyle: CursorStyle.bar)),
+                    _seg(
+                      l.t('settings.term.cursorBar'),
+                      s.cursorStyle == CursorStyle.bar,
+                      () =>
+                          notifier.updateTerminal(cursorStyle: CursorStyle.bar),
+                    ),
                   ],
                 ),
               ),
@@ -552,9 +685,10 @@ class _TerminalPage extends ConsumerWidget {
                     Container(
                       width: 44,
                       alignment: Alignment.center,
-                      child: Text(s.termFontSize.toStringAsFixed(0),
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.text)),
+                      child: Text(
+                        s.termFontSize.toStringAsFixed(0),
+                        style: TextStyle(fontSize: 13, color: AppColors.text),
+                      ),
                     ),
                     _stepBtn(Icons.add, () {
                       final n = (s.termFontSize + 1).clamp(8.0, 28.0);
@@ -577,8 +711,10 @@ class _TerminalPage extends ConsumerWidget {
         child: Row(
           children: [
             Expanded(
-              child: Text(label,
-                  style: TextStyle(fontSize: 13, color: AppColors.text)),
+              child: Text(
+                label,
+                style: TextStyle(fontSize: 13, color: AppColors.text),
+              ),
             ),
             Switch(
               value: value,
@@ -592,83 +728,87 @@ class _TerminalPage extends ConsumerWidget {
 
   // 标签 + 右侧自定义控件行
   Widget _rowWrap(String label, Widget trailing) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(label,
-                  style: TextStyle(fontSize: 13, color: AppColors.text)),
-            ),
-            trailing,
-          ],
+    padding: const EdgeInsets.symmetric(vertical: 10),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(fontSize: 13, color: AppColors.text),
+          ),
         ),
-      );
+        trailing,
+      ],
+    ),
+  );
 
   // 分段选择按钮
   Widget _seg(String label, bool active, VoidCallback onTap) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+      decoration: BoxDecoration(
+        color: active ? AppColors.surface1 : AppColors.base,
         borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-          decoration: BoxDecoration(
-            color: active ? AppColors.surface1 : AppColors.base,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-                color: active ? AppColors.blue : AppColors.surface0),
-          ),
-          child: Text(label,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: active ? AppColors.text : AppColors.subtext)),
+        border: Border.all(color: active ? AppColors.blue : AppColors.surface0),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: active ? AppColors.text : AppColors.subtext,
         ),
-      );
+      ),
+    ),
+  );
 
   // 步进按钮
   Widget _stepBtn(IconData icon, VoidCallback onTap) => InkWell(
-        onTap: onTap,
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(6),
+    child: Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: AppColors.surface0,
         borderRadius: BorderRadius.circular(6),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: AppColors.surface0,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(icon, size: 16, color: AppColors.text),
-        ),
-      );
+      ),
+      child: Icon(icon, size: 16, color: AppColors.text),
+    ),
+  );
 }
 
 // ============ 共用小部件 ============
 
 Widget _label(String text) => Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(text,
-          style: TextStyle(fontSize: 11, color: AppColors.subtext)),
-    );
+  padding: const EdgeInsets.only(bottom: 4),
+  child: Text(text, style: TextStyle(fontSize: 11, color: AppColors.subtext)),
+);
 
-Widget _input(TextEditingController c,
-        {bool obscure = false, ValueChanged<String>? onChanged}) =>
-    TextField(
-      controller: c,
-      obscureText: obscure,
-      onChanged: onChanged,
-      style: TextStyle(fontSize: 13, color: AppColors.text),
-      decoration: InputDecoration(
-        isDense: true,
-        filled: true,
-        fillColor: AppColors.base,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: BorderSide(color: AppColors.surface0),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
-          borderSide: BorderSide(color: AppColors.blue),
-        ),
-      ),
-    );
+Widget _input(
+  TextEditingController c, {
+  bool obscure = false,
+  ValueChanged<String>? onChanged,
+}) => TextField(
+  controller: c,
+  obscureText: obscure,
+  onChanged: onChanged,
+  style: TextStyle(fontSize: 13, color: AppColors.text),
+  decoration: InputDecoration(
+    isDense: true,
+    filled: true,
+    fillColor: AppColors.base,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(6),
+      borderSide: BorderSide(color: AppColors.surface0),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(6),
+      borderSide: BorderSide(color: AppColors.blue),
+    ),
+  ),
+);
 
 // ============ 外观（配色）页 ============
 
@@ -685,8 +825,10 @@ class _ThemePage extends ConsumerWidget {
       children: [
         _label(l.t('settings.theme.scheme')),
         const SizedBox(height: 4),
-        Text(l.t('settings.theme.hint'),
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+        Text(
+          l.t('settings.theme.hint'),
+          style: TextStyle(fontSize: 11, color: AppColors.overlay),
+        ),
         const SizedBox(height: 14),
         Wrap(
           spacing: 12,
@@ -706,8 +848,12 @@ class _ThemePage extends ConsumerWidget {
   }
 
   // 单张配色预览卡：迷你界面预览 + 名称 + 选中标记
-  Widget _paletteCard(AppPalette p,
-      {required bool zh, required bool selected, required VoidCallback onTap}) {
+  Widget _paletteCard(
+    AppPalette p, {
+    required bool zh,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(10),
@@ -731,11 +877,14 @@ class _ThemePage extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(zh ? p.nameZh : p.nameEn,
-                      style: TextStyle(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.text)),
+                  child: Text(
+                    zh ? p.nameZh : p.nameEn,
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
+                  ),
                 ),
                 if (selected)
                   Icon(Icons.check_circle, size: 16, color: AppColors.blue),
@@ -760,16 +909,20 @@ class _ThemePage extends ConsumerWidget {
       child: Row(
         children: [
           // 侧栏
-          Container(width: 30, color: p.mantle, child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _dot(p.blue),
-              const SizedBox(height: 4),
-              _dot(p.subtext),
-              const SizedBox(height: 4),
-              _dot(p.subtext),
-            ],
-          )),
+          Container(
+            width: 30,
+            color: p.mantle,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _dot(p.blue),
+                const SizedBox(height: 4),
+                _dot(p.subtext),
+                const SizedBox(height: 4),
+                _dot(p.subtext),
+              ],
+            ),
+          ),
           // 主区：几条彩色文字行
           Expanded(
             child: Padding(
@@ -794,17 +947,23 @@ class _ThemePage extends ConsumerWidget {
     );
   }
 
-  Widget _dot(Color c) =>
-      Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle));
+  Widget _dot(Color c) => Container(
+    width: 8,
+    height: 8,
+    decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+  );
 
   Widget _bar(Color c, double widthFactor) => FractionallySizedBox(
-        widthFactor: widthFactor,
-        alignment: Alignment.centerLeft,
-        child: Container(
-            height: 5,
-            decoration: BoxDecoration(
-                color: c, borderRadius: BorderRadius.circular(3))),
-      );
+    widthFactor: widthFactor,
+    alignment: Alignment.centerLeft,
+    child: Container(
+      height: 5,
+      decoration: BoxDecoration(
+        color: c,
+        borderRadius: BorderRadius.circular(3),
+      ),
+    ),
+  );
 }
 
 // ============ 安全（主密码）页 ============
@@ -831,11 +990,10 @@ class _SecurityPageState extends ConsumerState<_SecurityPage> {
     super.dispose();
   }
 
-  void _setMsg(String m, {bool error = false}) =>
-      setState(() {
-        _msg = m;
-        _isError = error;
-      });
+  void _setMsg(String m, {bool error = false}) => setState(() {
+    _msg = m;
+    _isError = error;
+  });
 
   bool get _zh => ref.read(settingsProvider).lang == AppLang.zh;
 
@@ -887,10 +1045,15 @@ class _SecurityPageState extends ConsumerState<_SecurityPage> {
         _label(zh ? '主密码' : 'Master Password'),
         const SizedBox(height: 4),
         Text(
-            hasPwd
-                ? (zh ? '已启用。启动应用时需输入主密码解锁。' : 'Enabled. Required to unlock on launch.')
-                : (zh ? '未设置。设置后启动需解锁，保护本地主机簿与密钥。' : 'Not set. Protects local hosts & keys.'),
-            style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+          hasPwd
+              ? (zh
+                    ? '已启用。启动应用时需输入主密码解锁。'
+                    : 'Enabled. Required to unlock on launch.')
+              : (zh
+                    ? '未设置。设置后启动需解锁，保护本地主机簿与密钥。'
+                    : 'Not set. Protects local hosts & keys.'),
+          style: TextStyle(fontSize: 11, color: AppColors.overlay),
+        ),
         const SizedBox(height: 16),
         if (hasPwd) ...[
           _label(zh ? '当前密码' : 'Current Password'),
@@ -904,10 +1067,13 @@ class _SecurityPageState extends ConsumerState<_SecurityPage> {
         _input(_confirmCtrl, obscure: true),
         if (_msg != null) ...[
           const SizedBox(height: 10),
-          Text(_msg!,
-              style: TextStyle(
-                  fontSize: 12,
-                  color: _isError ? AppColors.red : AppColors.green)),
+          Text(
+            _msg!,
+            style: TextStyle(
+              fontSize: 12,
+              color: _isError ? AppColors.red : AppColors.green,
+            ),
+          ),
         ],
         const SizedBox(height: 16),
         Row(
@@ -915,17 +1081,22 @@ class _SecurityPageState extends ConsumerState<_SecurityPage> {
             FilledButton(
               onPressed: _save,
               style: FilledButton.styleFrom(backgroundColor: AppColors.blue),
-              child: Text(hasPwd ? (zh ? '修改' : 'Change') : (zh ? '设置' : 'Set'),
-                  style: TextStyle(color: AppColors.crust)),
+              child: Text(
+                hasPwd ? (zh ? '修改' : 'Change') : (zh ? '设置' : 'Set'),
+                style: TextStyle(color: AppColors.crust),
+              ),
             ),
             if (hasPwd) ...[
               const SizedBox(width: 10),
               OutlinedButton(
                 onPressed: _clear,
                 style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.red)),
-                child: Text(zh ? '取消主密码' : 'Remove',
-                    style: TextStyle(color: AppColors.red)),
+                  side: BorderSide(color: AppColors.red),
+                ),
+                child: Text(
+                  zh ? '取消主密码' : 'Remove',
+                  style: TextStyle(color: AppColors.red),
+                ),
               ),
             ],
           ],

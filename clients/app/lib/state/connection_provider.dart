@@ -6,6 +6,9 @@ import '../core/ssh.dart';
 /// 连接阶段
 enum ConnPhase { idle, connecting, connected, error }
 
+/// 连接状态至少展示半秒，既保留操作反馈，也不让转场阻塞工作。
+const kConnectionTransitionDuration = Duration(milliseconds: 560);
+
 /// 连接状态：阶段 + 当前主机 + 错误信息 + 活动 SshClient
 /// 对外仍暴露「当前展示主机」的连接快照，UI 用法不变（conn.client/.isConnected/.host）。
 /// connectedIds：池中所有已连接主机的 id（多连接并存，左栏据此给每台标绿点）。
@@ -32,14 +35,13 @@ class ConnState {
     String? error,
     SshClient? client,
     Set<String>? connectedIds,
-  }) =>
-      ConnState(
-        phase: phase ?? this.phase,
-        host: host ?? this.host,
-        error: error,
-        client: client ?? this.client,
-        connectedIds: connectedIds ?? this.connectedIds,
-      );
+  }) => ConnState(
+    phase: phase ?? this.phase,
+    host: host ?? this.host,
+    error: error,
+    client: client ?? this.client,
+    connectedIds: connectedIds ?? this.connectedIds,
+  );
 }
 
 /// 连接池里的一台主机连接条目
@@ -50,10 +52,8 @@ class _ConnEntry {
   SshClient? client;
   DateTime lastUsed; // LRU：最近一次被选为当前主机的时刻
 
-  _ConnEntry({
-    required this.host,
-    this.phase = ConnPhase.connecting,
-  }) : lastUsed = DateTime.now();
+  _ConnEntry({required this.host, this.phase = ConnPhase.connecting})
+    : lastUsed = DateTime.now();
 }
 
 /// 同时最多保活的连接数（LRU 上限）
@@ -96,6 +96,14 @@ class ConnectionNotifier extends Notifier<ConnState> {
   Future<void> connect(Host host) async {
     final existing = _pool[host.id];
     if (existing != null && existing.phase == ConnPhase.connected) {
+      // 保活连接只保留极短的进入态，让用户看清连接对象，不拖慢返回工作台。
+      _currentId = host.id;
+      state = ConnState(
+        phase: ConnPhase.connecting,
+        host: existing.host,
+        connectedIds: connectedIds,
+      );
+      await Future<void>.delayed(kConnectionTransitionDuration);
       _select(host.id);
       return;
     }
@@ -109,6 +117,7 @@ class ConnectionNotifier extends Notifier<ConnState> {
     _publish(entry); // connecting
 
     try {
+      final visualStart = DateTime.now();
       final client = SshClient();
       // 优先密钥认证：主机指定了 keyId 且密钥仍存在则取私钥材料，否则回退密码
       String password = '';
@@ -123,8 +132,19 @@ class ConnectionNotifier extends Notifier<ConnState> {
       }
       // 没有可用私钥时才解密密码（密钥认证失败也保留密码兜底）
       password = decrypt(host.passwordEnc) ?? '';
-      await client.connect(host.host, host.port, host.user, password,
-          privateKeyPem: pem, passphrase: passphrase);
+      await client.connect(
+        host.host,
+        host.port,
+        host.user,
+        password,
+        privateKeyPem: pem,
+        passphrase: passphrase,
+      );
+      // 只为主页保留半秒左右的状态反馈；慢网络不会额外等待。
+      final elapsed = DateTime.now().difference(visualStart);
+      if (elapsed < kConnectionTransitionDuration) {
+        await Future<void>.delayed(kConnectionTransitionDuration - elapsed);
+      }
       entry
         ..client = client
         ..phase = ConnPhase.connected
@@ -160,13 +180,16 @@ class ConnectionNotifier extends Notifier<ConnState> {
   /// LRU 腾位：池满时踢掉最久未用、且 AI 任务不在跑、且非当前主机的一台
   void _evictIfNeeded({String? excludeId}) {
     while (_pool.length >= kMaxLiveConns) {
-      final candidates = _pool.entries
-          .where((e) =>
-              e.key != excludeId &&
-              e.key != _currentId &&
-              !(isHostBusy?.call(e.key) ?? false))
-          .toList()
-        ..sort((a, b) => a.value.lastUsed.compareTo(b.value.lastUsed));
+      final candidates =
+          _pool.entries
+              .where(
+                (e) =>
+                    e.key != excludeId &&
+                    e.key != _currentId &&
+                    !(isHostBusy?.call(e.key) ?? false),
+              )
+              .toList()
+            ..sort((a, b) => a.value.lastUsed.compareTo(b.value.lastUsed));
       if (candidates.isEmpty) break; // 没有可踢的（都在忙或就剩当前），放弃腾位
       final victim = candidates.first;
       victim.value.client?.close();
@@ -186,11 +209,27 @@ class ConnectionNotifier extends Notifier<ConnState> {
       state = const ConnState();
     } else {
       final next = _pool.entries.reduce(
-          (a, b) => a.value.lastUsed.isAfter(b.value.lastUsed) ? a : b);
+        (a, b) => a.value.lastUsed.isAfter(b.value.lastUsed) ? a : b,
+      );
       _select(next.key);
     }
   }
+
+  /// 主动断开当前主机并退出工作状态。
+  ///
+  /// 与 [disconnect] 不同：即使连接池还有其他主机，也不会自动切换过去，而是明确
+  /// 回到首页；其他已保活连接仍可从左栏再次选择，避免无意中关闭不相关会话。
+  void disconnectAndReturnHome() {
+    final id = _currentId;
+    if (id != null) {
+      _pool[id]?.client?.close();
+      _pool.remove(id);
+    }
+    _currentId = null;
+    state = ConnState(connectedIds: connectedIds);
+  }
 }
 
-final connectionProvider =
-    NotifierProvider<ConnectionNotifier, ConnState>(ConnectionNotifier.new);
+final connectionProvider = NotifierProvider<ConnectionNotifier, ConnState>(
+  ConnectionNotifier.new,
+);

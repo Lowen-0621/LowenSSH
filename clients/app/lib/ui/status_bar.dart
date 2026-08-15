@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../theme.dart';
-import '../state/connection_provider.dart';
-import '../state/config_provider.dart';
-import '../state/guard_provider.dart';
-import '../state/agent_provider.dart';
-import '../state/settings_provider.dart';
 import '../core/i18n.dart';
+import '../state/agent_provider.dart';
+import '../state/config_provider.dart';
+import '../state/connection_provider.dart';
+import '../state/guard_provider.dart';
+import '../state/settings_provider.dart';
+import '../theme.dart';
 
-/// 底部状态栏 —— 连接状态 / 门禁统计 / 模型 / 上下文（高 26px，等宽字体）
-/// 数据全部来自真实 provider，无可靠来源的指标不展示（不放假数据）。
+/// 只展示可验证的运行状态，悬浮在工作区底部，不再占据整条窗口。
 class StatusBar extends ConsumerWidget {
   const StatusBar({super.key});
 
@@ -20,81 +19,96 @@ class StatusBar extends ConsumerWidget {
     final llm = ref.watch(configProvider).llm;
     final agent = ref.watch(agentProvider);
     final l = ref.watch(l10nProvider);
-    // 上下文轮数：对话流里用户消息条数
-    final rounds =
-        agent.items.where((i) => i.kind == ChatItemKind.user).length;
+    final rounds = agent.items
+        .where((item) => item.kind == ChatItemKind.user)
+        .length;
 
     return Container(
-      height: 26,
+      height: 38,
+      constraints: const BoxConstraints(maxWidth: 600),
+      padding: const EdgeInsets.symmetric(horizontal: 15),
       decoration: BoxDecoration(
-        color: AppColors.crust,
-        border: Border(top: BorderSide(color: AppColors.surface0)),
+        color: AppColors.mantle.withValues(alpha: .94),
+        border: Border.all(color: AppColors.surface0),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        boxShadow: AppShadows.soft(opacity: .05),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12),
       child: DefaultTextStyle(
-        style: TextStyle(
-            fontFamily: kMonoFont, fontSize: 11, color: AppColors.subtext),
+        style: TextStyle(fontSize: 11.5, color: AppColors.subtext),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // 连接状态
-            _connSeg(conn, l),
-            const SizedBox(width: 16),
-            // 门禁：ON + 阻止/待确认实时计数
-            _seg([
-              Text(l.t('status.guard'),
-                  style: TextStyle(color: AppColors.overlay)),
-              Text(l.t('status.on'), style: TextStyle(color: AppColors.green)),
-              Text(' · ', style: TextStyle(color: AppColors.overlay)),
-              Text(l.t('status.blocked', {'n': '${guard.denyCount}'}),
-                  style: TextStyle(color: AppColors.red)),
-              Text(' · ', style: TextStyle(color: AppColors.overlay)),
-              Text(l.t('status.pending', {'n': '${guard.askCount}'}),
-                  style: TextStyle(color: AppColors.yellow)),
-            ]),
-            const Spacer(),
-            // 模型
-            _seg([
-              Text(l.t('status.model'),
-                  style: TextStyle(color: AppColors.overlay)),
-              Text(llm.model.isEmpty ? l.t('status.notConfigured') : llm.model,
-                  style: TextStyle(color: AppColors.text)),
-            ]),
-            const SizedBox(width: 16),
-            // 上下文轮数
-            _seg([
-              Text(l.t('status.context'),
-                  style: TextStyle(color: AppColors.overlay)),
-              Text(l.t('status.rounds', {'n': '$rounds'}),
-                  style: TextStyle(color: AppColors.text)),
-            ]),
+            _connection(conn, l),
+            _divider(),
+            Icon(Icons.rule_rounded, size: 15, color: AppColors.green),
+            const SizedBox(width: 6),
+            Text('${l.t('status.guard')} ${l.t('status.on')}'),
+            if (guard.denyCount > 0 || guard.askCount > 0) ...[
+              const SizedBox(width: 5),
+              Text(
+                '${guard.denyCount}/${guard.askCount}',
+                style: TextStyle(
+                  color: AppColors.yellow,
+                  fontFamily: kMonoFont,
+                ),
+              ),
+            ],
+            _divider(),
+            Icon(Icons.view_in_ar_outlined, size: 14, color: AppColors.overlay),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                llm.model.isEmpty ? l.t('status.notConfigured') : llm.model,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.text),
+              ),
+            ),
+            _divider(),
+            Text(
+              '${l.t('status.context')} $rounds ${l.t('status.rounds', {'n': ''}).trim()}',
+            ),
           ],
         ),
       ),
     );
   }
 
-  // 连接状态段：已连绿点+主机名 / 未连灰点
-  Widget _connSeg(ConnState conn, L10n l) {
-    final (Color c, String label) = switch (conn.phase) {
+  Widget _connection(ConnState conn, L10n l) {
+    final (color, label) = switch (conn.phase) {
       ConnPhase.connected => (
-          AppColors.green,
-          '${conn.host?.alias?.isNotEmpty == true ? conn.host!.alias! : conn.host?.host ?? ''} ${l.t('status.connected')}'
-        ),
+        AppColors.green,
+        conn.host?.alias?.isNotEmpty == true
+            ? conn.host!.alias!
+            : conn.host?.host ?? '',
+      ),
       ConnPhase.connecting => (AppColors.yellow, l.t('status.connecting')),
       ConnPhase.error => (AppColors.red, l.t('status.connFail')),
       _ => (AppColors.overlay, l.t('status.disconnected')),
     };
-    return _seg([
-      Container(
-        width: 7,
-        height: 7,
-        decoration: BoxDecoration(color: c, shape: BoxShape.circle),
+    return AnimatedSwitcher(
+      duration: AppMotion.quick,
+      transitionBuilder: (child, animation) =>
+          FadeTransition(opacity: animation, child: child),
+      child: Row(
+        key: ValueKey('${conn.phase}-$label'),
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 7),
+          Text(label, style: TextStyle(color: color)),
+        ],
       ),
-      const SizedBox(width: 6),
-      Text(label, style: TextStyle(color: c)),
-    ]);
+    );
   }
 
-  Widget _seg(List<Widget> children) =>
-      Row(mainAxisSize: MainAxisSize.min, children: children);
+  Widget _divider() => Container(
+    width: 1,
+    height: 16,
+    margin: const EdgeInsets.symmetric(horizontal: 14),
+    color: AppColors.surface0,
+  );
 }

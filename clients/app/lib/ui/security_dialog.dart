@@ -4,26 +4,16 @@ import '../theme.dart';
 import '../core/guard.dart';
 import '../state/guard_provider.dart';
 import '../state/settings_provider.dart';
+import 'app_side_panel.dart';
 
 /// 安全策略对话框 —— 完整列出门禁规则（deny/ask）+ 实时三态统计。
 /// 纯展示，规则来自 core/guard.dart，与实际判定同源。
 Future<void> showSecurityDialog(BuildContext context) {
-  return showDialog<void>(
+  return showAppSidePanel<void>(
     context: context,
-    builder: (_) => Dialog(
-      backgroundColor: AppColors.mantle,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: AppColors.surface0),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 560, maxHeight: 640),
-        child: const Padding(
-          padding: EdgeInsets.all(18),
-          child: _SecurityBody(),
-        ),
-      ),
-    ),
+    width: 560,
+    maxHeight: 640,
+    child: const _SecurityBody(),
   );
 }
 
@@ -42,16 +32,21 @@ class _SecurityBody extends ConsumerWidget {
         // 标题
         Row(
           children: [
-            Icon(Icons.shield_outlined, size: 16, color: AppColors.text),
+            Icon(Icons.rule_rounded, size: 16, color: AppColors.text),
             const SizedBox(width: 8),
-            Text(l.t('sec.title'),
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text)),
+            Text(
+              l.t('sec.title'),
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: AppColors.text,
+              ),
+            ),
             const SizedBox(width: 8),
-            Text(l.t('sec.subtitle'),
-                style: TextStyle(fontSize: 11, color: AppColors.overlay)),
+            Text(
+              l.t('sec.subtitle'),
+              style: TextStyle(fontSize: 11, color: AppColors.overlay),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -74,9 +69,13 @@ class _SecurityBody extends ConsumerWidget {
             borderRadius: BorderRadius.circular(6),
           ),
           child: Text(
-              '${l.t('sec.principle1')}${l.t('sec.principle2')}',
-              style: TextStyle(
-                  fontSize: 10.5, height: 1.5, color: AppColors.subtext)),
+            '${l.t('sec.principle1')}${l.t('sec.principle2')}',
+            style: TextStyle(
+              fontSize: 10.5,
+              height: 1.5,
+              color: AppColors.subtext,
+            ),
+          ),
         ),
         const SizedBox(height: 12),
         // 规则列表
@@ -85,22 +84,24 @@ class _SecurityBody extends ConsumerWidget {
             shrinkWrap: true,
             children: [
               _sectionTitle(
-                  l.t('sec.denySection', {'n': '${denyRules.length}'}),
-                  AppColors.red),
+                l.t('sec.denySection', {'n': '${denyRules.length}'}),
+                AppColors.red,
+              ),
               for (final r in denyRules) _ruleRow(r),
               const SizedBox(height: 10),
               _sectionTitle(
-                  l.t('sec.askSection', {'n': '${askRules.length}'}),
-                  AppColors.yellow),
+                l.t('sec.askSection', {'n': '${askRules.length}'}),
+                AppColors.yellow,
+              ),
               for (final r in askRules) _ruleRow(r),
               const SizedBox(height: 10),
               _sectionTitle(l.t('sec.allowSection'), AppColors.green),
               Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                child: Text(l.t('sec.allowDesc'),
-                    style: TextStyle(
-                        fontSize: 11, color: AppColors.overlay)),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
+                child: Text(
+                  l.t('sec.allowDesc'),
+                  style: TextStyle(fontSize: 11, color: AppColors.overlay),
+                ),
               ),
             ],
           ),
@@ -111,42 +112,46 @@ class _SecurityBody extends ConsumerWidget {
 
   // 三态统计卡
   Widget _stat(String num, String label, Color color) => Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.surface0),
-            borderRadius: BorderRadius.circular(8),
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.surface0),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Text(
+            num,
+            style: TextStyle(
+              fontSize: 19,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
           ),
-          child: Column(
-            children: [
-              Text(num,
-                  style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: color)),
-              const SizedBox(height: 2),
-              Text(label,
-                  style:
-                      TextStyle(fontSize: 10, color: AppColors.overlay)),
-            ],
-          ),
-        ),
-      );
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, color: AppColors.overlay)),
+        ],
+      ),
+    ),
+  );
 
   Widget _sectionTitle(String text, Color color) => Padding(
-        padding: const EdgeInsets.only(bottom: 6, top: 2),
-        child: Row(
-          children: [
-            Container(width: 3, height: 12, color: color),
-            const SizedBox(width: 7),
-            Text(text,
-                style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.text)),
-          ],
+    padding: const EdgeInsets.only(bottom: 6, top: 2),
+    child: Row(
+      children: [
+        Container(width: 3, height: 12, color: color),
+        const SizedBox(width: 7),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: AppColors.text,
+          ),
         ),
-      );
+      ],
+    ),
+  );
 
   // 单条规则：tag + 正则 + 中文说明
   Widget _ruleRow(GuardRule r) {
@@ -171,27 +176,34 @@ class _SecurityBody extends ConsumerWidget {
               color: c.withValues(alpha: .18),
               borderRadius: BorderRadius.circular(6),
             ),
-            child: Text(text,
-                style: TextStyle(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: .5,
-                    color: c)),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: .5,
+                color: c,
+              ),
+            ),
           ),
           const SizedBox(width: 9),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(r.pattern,
-                    style: TextStyle(
-                        fontFamily: kMonoFont,
-                        fontSize: 11,
-                        color: AppColors.peach)),
+                Text(
+                  r.pattern,
+                  style: TextStyle(
+                    fontFamily: kMonoFont,
+                    fontSize: 11,
+                    color: AppColors.peach,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(r.desc,
-                    style: TextStyle(
-                        fontSize: 10.5, color: AppColors.subtext)),
+                Text(
+                  r.desc,
+                  style: TextStyle(fontSize: 10.5, color: AppColors.subtext),
+                ),
               ],
             ),
           ),

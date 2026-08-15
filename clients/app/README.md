@@ -28,9 +28,11 @@ flutter run -d windows    # Windows
 ## 打包
 
 ```bash
-flutter build macos       # 产物在 build/macos/Build/Products/Release/
+./scripts/build_macos_release.sh  # macOS：测试、Release 构建、本机签名与校验
 flutter build windows     # 产物在 build/windows/x64/runner/Release/
 ```
+
+macOS 产物为 `build/macos/Build/Products/Release/LowenSSH.app`，可直接双击运行。
 
 ## 大模型配置
 
